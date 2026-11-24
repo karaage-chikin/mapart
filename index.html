@@ -923,7 +923,7 @@
         if (els.textureStatus) {
           els.textureStatus.textContent = loaded
             ? "統合版バニラテクスチャ読み込み完了：" + loaded + " / " + BLOCK_DATA.length + " 種（取得不可 " + failed + " 種は代替表示）" +
-              (failedBlocks.length ? "\\n取得不可一覧：\\n" + failedBlocks.map((b, i) => (i + 1) + ". " + b.name + "（" + b.id + "）— " + b.reason).join("\\n") : "")
+              (failedBlocks.length ? "\n取得不可一覧：\n" + failedBlocks.map((b, i) => (i + 1) + ". " + b.name + "（" + b.id + "）— " + b.reason).join("\n") : "")
             : "公式テクスチャを取得できませんでした。従来の代替プレビューで動作します。";
         }
         runConversion();

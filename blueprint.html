@@ -46,12 +46,14 @@ small{color:#b8b8cc}
   };
   async function loadBlueprint() {
     try {
-      if (!hash || (hash[0] !== "d" && hash[0] !== "p")) {
+      if (!hash) {
         throw new Error("設計図データがURLにありません。元のサイトで「オンラインで表示」を押してください。");
       }
-      const payload = base64ToBytes(hash.slice(1));
+      // d=DEFLATE圧縮、p=未圧縮PNG、接頭辞なし=旧バージョンのURL。
+      const mode = hash[0] === "d" || hash[0] === "p" ? hash[0] : "p";
+      const payload = base64ToBytes(mode === "p" && hash[0] !== "p" && hash[0] !== "d" ? hash : hash.slice(1));
       let pngBytes = payload;
-      if (hash[0] === "d") {
+      if (mode === "d") {
         if (typeof DecompressionStream !== "function") {
           throw new Error("このブラウザは圧縮URLの展開に対応していません。ブラウザを更新してください。");
         }

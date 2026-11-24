@@ -21,10 +21,11 @@
       background: var(--bg);
       color: var(--text);
       margin: 0;
-      padding: 20px;
+      padding: 14px;
+      font-size: 14px;
     }
     .container {
-      max-width: 1500px;
+      max-width: 1320px;
       margin: 0 auto;
     }
     header {
@@ -53,7 +54,7 @@
     .grid-main {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 18px;
+      gap: 12px;
       align-items: start;
     }
     .grid-main > div { display: contents; }
@@ -81,12 +82,12 @@
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 15px;
-      margin-bottom: 16px;
+      padding: 11px;
+      margin-bottom: 12px;
     }
     .box h2 {
-      margin: 0 0 12px;
-      font-size: 1.05rem;
+      margin: 0 0 9px;
+      font-size: 0.98rem;
       border-left: 4px solid var(--accent);
       padding-left: 8px;
     }
@@ -202,12 +203,12 @@
       margin-bottom: 10px;
     }
     .block-list {
-      min-height: 520px;
-      max-height: 820px;
+      min-height: 380px;
+      max-height: 600px;
       overflow-y: auto;
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 10px;
+      padding: 8px;
       background: var(--bg);
       display: flex;
       flex-direction: column;
@@ -252,8 +253,8 @@
     .map-block-tile {
       position: relative;
       display: block;
-      width: 34px;
-      height: 34px;
+      width: 29px;
+      height: 29px;
       padding: 0;
       border: 1px solid rgba(255,255,255,.12);
       border-radius: 1px;
@@ -302,8 +303,8 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 12px;
-      min-height: 54px;
+      padding: 7px 9px;
+      min-height: 42px;
       border: 1px solid var(--border);
       border-radius: 6px;
       font-size: 0.95rem;
@@ -311,8 +312,8 @@
     }
     .block-item:hover { background: var(--card); }
     .swatch {
-      width: 36px;
-      height: 36px;
+      width: 30px;
+      height: 30px;
       object-fit: cover;
       image-rendering: pixelated;
       border-radius: 3px;
@@ -322,17 +323,17 @@
     .canvas-row {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 16px;
+      gap: 12px;
     }
     .canvas-card {
       background: var(--card);
       border-radius: 8px;
-      padding: 12px;
+      padding: 9px;
       text-align: center;
     }
     .canvas-card h3 {
       margin: 0 0 8px;
-      font-size: 0.95rem;
+      font-size: 0.88rem;
       color: var(--subtext);
     }
     canvas {
@@ -508,7 +509,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.3.5</div>
+  <div class="app-version" id="appVersion">v1.3.6</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -622,35 +623,15 @@
           <div class="canvas-row">
             <div class="canvas-card">
               <h3 id="resultTitle">2D マップアート結果（ブロック模様）</h3>
-              <p class="muted" id="blueprintOnlineHint">画像を読み込んで変換すると、「オンラインで表示」から設計図を別タブで開けます。</p>
               <canvas id="resultCanvas" width="128" height="128" aria-label="2Dマップアートプレビュー"></canvas>
               <canvas id="blueprintPreviewCanvas" width="128" height="128" aria-label="オンライン表示用の座標付き設計図" hidden></canvas>
             </div>
           </div>
           <div class="action-row">
             <button type="button" id="downloadPngBtn" disabled>設計図PNGを保存（プレビュー16倍）</button>
-            <button type="button" id="onlineBlueprintBtn" class="secondary" disabled>オンラインで表示</button>
             <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
           </div>
-          <div class="box" style="margin-top:14px;">
-            <h3>ワールド座標の範囲</h3>
-            <p class="muted">設計図の左上（1列目・1行目）に置くブロックのワールド座標を入力してください。右方向はX+、下方向はZ+として128×128の範囲を計算します。</p>
-            <div class="coordinate-input-grid">
-              <label>左上のX座標<input type="number" step="1" id="originXInput" placeholder="例：1000"></label>
-              <label>左上のZ座標<input type="number" step="1" id="originZInput" placeholder="例：2000"></label>
-            </div>
-            <div id="coordinateRangeResult" class="coordinate-result" aria-live="polite">左上のX・Z座標を入力すると、作成する範囲を表示します。</div>
-          </div>
-          <div class="box" style="margin-top:14px;">
-            <h3>座標からブロックを調べる</h3>
-            <p class="muted">ワールド座標を入力すると、設計図の何列目・何行目にあり、どのブロックを置くか表示します。</p>
-            <div class="coordinate-input-grid">
-              <label>調べるX座標<input type="number" step="1" id="lookupXInput" placeholder="X座標"></label>
-              <label>調べるZ座標<input type="number" step="1" id="lookupZInput" placeholder="Z座標"></label>
-            </div>
-            <div id="coordinateBlockResult" class="coordinate-result" aria-live="polite">左上の座標と調べたい座標を入力してください。</div>
-          </div>
-          <div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
+<div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
         </div>
 
         <div class="box">
@@ -675,6 +656,25 @@
         </div>
       </div>
     </div>
+          <div class="box" style="margin-top:14px;">
+            <h3>ワールド座標の範囲</h3>
+            <p class="muted">設計図の左上（1列目・1行目）に置くブロックのワールド座標を入力してください。右方向はX+、下方向はZ+として128×128の範囲を計算します。</p>
+            <div class="coordinate-input-grid">
+              <label>左上のX座標<input type="number" step="1" id="originXInput" placeholder="例：1000"></label>
+              <label>左上のZ座標<input type="number" step="1" id="originZInput" placeholder="例：2000"></label>
+            </div>
+            <div id="coordinateRangeResult" class="coordinate-result" aria-live="polite">左上のX・Z座標を入力すると、作成する範囲を表示します。</div>
+          </div>
+          <div class="box" style="margin-top:14px;">
+            <h3>座標からブロックを調べる</h3>
+            <p class="muted">ワールド座標を入力すると、設計図の何列目・何行目にあり、どのブロックを置くか表示します。</p>
+            <div class="coordinate-input-grid">
+              <label>調べるX座標<input type="number" step="1" id="lookupXInput" placeholder="X座標"></label>
+              <label>調べるZ座標<input type="number" step="1" id="lookupZInput" placeholder="Z座標"></label>
+            </div>
+            <div id="coordinateBlockResult" class="coordinate-result" aria-live="polite">左上の座標と調べたい座標を入力してください。</div>
+          </div>
+              </div>
   </div>
 
   <script>
@@ -912,7 +912,6 @@
       blueprintPreviewCanvas: document.getElementById("blueprintPreviewCanvas"),
       resultTitle: document.getElementById("resultTitle"),
       downloadPngBtn: document.getElementById("downloadPngBtn"),
-      onlineBlueprintBtn: document.getElementById("onlineBlueprintBtn"),
       pngSaveStatus: document.getElementById("pngSaveStatus"),
       statsBody: document.querySelector("#statsTable tbody")
     };
@@ -1597,7 +1596,6 @@
       if (activeBlocks.length === 0) {
         lastGrid = null;
         els.downloadPngBtn.disabled = true;
-        els.onlineBlueprintBtn.disabled = true;
         resCtx.clearRect(0, 0, els.resultCanvas.width, els.resultCanvas.height);
         els.statsBody.innerHTML = '<tr><td colspan="4" class="muted">ブロックを1種類以上選択してください。</td></tr>';
         return;
@@ -1646,7 +1644,6 @@
 
       lastGrid = grid;
       els.downloadPngBtn.disabled = false;
-      els.onlineBlueprintBtn.disabled = false;
       renderResultPreview();
       renderStats(counts);
     }
@@ -1721,7 +1718,6 @@
             runConversion();
             errorBox.hidden = true;
             errorBox.textContent = "";
-            document.getElementById("blueprintOnlineHint").textContent = "変換完了。オンラインで表示ボタンから設計図を別タブで開けます。";
           } catch (error) {
             console.error("画像変換エラー:", error);
             errorBox.hidden = false;
@@ -2210,27 +2206,7 @@
       });
     });
 
-    els.onlineBlueprintBtn.addEventListener("click", () => {
-      if (!lastGrid) return;
-      // window.openはクリック直後に実行し、iPad Safariのポップアップ制限を回避する。
-      const popup = window.open("about:blank", "_blank");
-      if (!popup) {
-        document.getElementById("blueprintOnlineHint").textContent = "新しいタブを開けませんでした。Safariのポップアップ設定を確認してください。";
-        return;
-      }
-      popup.document.title = "Minecraft MapArt 設計図";
-      popup.document.body.style.cssText = "margin:0;background:#171717;display:flex;align-items:flex-start;justify-content:center;min-height:100vh;";
-      popup.document.body.textContent = "設計図を準備しています…";
-      els.blueprintPreviewCanvas.toBlob(blob => {
-        if (!blob) {
-          popup.close();
-          document.getElementById("blueprintOnlineHint").textContent = "設計図画像を作成できませんでした。もう一度変換してください。";
-          return;
-        }
-        const imageUrl = URL.createObjectURL(blob);
-        popup.location.replace(imageUrl);
-      }, "image/png");
-    });
+
 
     try {
       updateTextureLoading(1, "サイトを初期化しています…");

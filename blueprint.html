@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minecraft MapArt 設計図</title>
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:#171717;color:#f2f2f2;font-family:Arial,"Noto Sans JP",sans-serif}
+header{position:sticky;top:0;z-index:2;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:10px 14px;background:#242434;border-bottom:1px solid #454558}
+h1{font-size:16px;margin:0}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+button{border:1px solid #55566a;border-radius:7px;background:#343448;color:#fff;padding:8px 12px;font-size:13px;cursor:pointer}
+main{padding:10px;display:flex;justify-content:center;align-items:flex-start}
+img{display:block;width:auto;height:auto;max-width:100%;image-rendering:pixelated}
+#message{padding:24px;text-align:center;color:#ff8c8c}
+small{color:#b8b8cc}
+</style>
+</head>
+<body>
+<header><h1>Minecraft MapArt 設計図</h1><div class="actions"><button id="download" disabled>PNGを保存</button><button id="copy">このURLをコピー</button></div></header>
+<main><div id="message">設計図を読み込んでいます…</div><img id="blueprint" alt="Minecraft MapArt 座標付き設計図" hidden></main>
+<script>
+(() => {
+  const image = document.getElementById("blueprint");
+  const message = document.getElementById("message");
+  const download = document.getElementById("download");
+  const hash = location.hash.slice(1);
+  let dataUrl = "";
+  try { dataUrl = decodeURIComponent(hash); } catch (_) {}
+  if (!dataUrl.startsWith("data:image/png;base64,")) {
+    message.textContent = "設計図データがURLにありません。元のサイトで「オンラインで表示」を押してください。";
+    return;
+  }
+  image.onload = () => { image.hidden = false; message.hidden = true; download.disabled = false; };
+  image.onerror = () => { message.textContent = "設計図を読み込めませんでした。URLが途中で切れていないか確認してください。"; };
+  image.src = dataUrl;
+  download.addEventListener("click", () => {
+    const a = document.createElement("a"); a.href = dataUrl; a.download = "minecraft-mapart-blueprint.png"; a.click();
+  });
+  document.getElementById("copy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(location.href); message.hidden=false; message.textContent="URLをコピーしました。"; }
+    catch (_) { message.hidden=false; message.textContent="URL欄からアドレスをコピーしてください。"; }
+  });
+})();
+</script>
+</body>
+</html>

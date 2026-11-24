@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MapArt 2D Generator (1×1 Simple)</title>
+  <title>MapArt 2D Generator (Texture Preview)</title>
   <style>
     :root {
       --bg: #181825;
@@ -80,13 +80,18 @@
       font-size: 0.9rem;
       margin-bottom: 4px;
     }
-    input[type="file"], input[type="color"] {
+    input[type="file"], input[type="color"], select {
       background: var(--card);
       color: var(--text);
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 6px 8px;
       font-size: 0.9rem;
+    }
+    select { width: 100%; }
+    input[type="range"] {
+      width: 100%;
+      cursor: pointer;
     }
     button {
       background: var(--accent);
@@ -112,7 +117,7 @@
       margin-bottom: 10px;
     }
     .block-list {
-      max-height: 380px;
+      max-height: 360px;
       overflow-y: auto;
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -133,8 +138,8 @@
     }
     .block-item:hover { background: var(--card); }
     .swatch {
-      width: 15px;
-      height: 15px;
+      width: 16px;
+      height: 16px;
       border-radius: 3px;
       border: 1px solid rgba(255,255,255,0.4);
       flex-shrink: 0;
@@ -189,37 +194,61 @@
       color: var(--subtext);
       font-size: 0.82rem;
     }
-    #debugBox {
-      margin-top: 12px;
-      padding: 10px;
-      border-radius: 8px;
-      background: #11111b;
-      border: 1px solid var(--border);
-      color: #a6e3a1;
-      font-size: 0.8rem;
-      white-space: pre-wrap;
-    }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
       <h1>Minecraft MapArt 2D Generator</h1>
-      <span class="badge">2D / 1×1 (128×128) / Floyd-Steinberg</span>
+      <span class="badge">2D / 1×1 (128×128) / ブロック模様プレビュー対応</span>
     </header>
 
     <div class="grid-main">
       <div>
         <div class="box">
-          <h2>1. 画像選択</h2>
+          <h2>1. 画像＆表示設定</h2>
           <div class="field">
             <label for="imageInput">元画像を選択（128×128に変換）</label>
             <input type="file" id="imageInput" accept="image/*" style="width:100%;">
           </div>
 
+          <div class="field">
+            <label for="previewStyle">結果プレビューの見た目</label>
+            <select id="previewStyle">
+              <option value="texture">ブロック模様プレビュー（テクスチャ風）</option>
+              <option value="solid">単色プレビュー（1ブロック＝1色）</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="textureScale">模様の細かさ（1ブロックあたりの描画サイズ）</label>
+            <select id="textureScale">
+              <option value="4">粗め（4×4px / 全体が見やすい）</option>
+              <option value="8" selected>標準（8×8px / 模様がはっきり見える）</option>
+              <option value="16">細かい（16×16px / ドット感強め）</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="fitMode">画像の収め方（縦横比補正）</label>
+            <select id="fitMode">
+              <option value="cover">中央を正方形に切り抜き（ゆがみなし）</option>
+              <option value="contain">全体を余白付きで収める</option>
+              <option value="stretch">128×128に引き伸ばし</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>
+              <span>ディザリング強さ</span>
+              <span id="ditherStrengthVal">75%</span>
+            </label>
+            <input type="range" id="ditherStrength" min="0" max="100" value="75">
+          </div>
+
           <div class="field" style="margin-bottom:0;">
             <label>
-              <span>透過部分の背景を塗る</span>
+              <span>余白・透過部分の背景色</span>
               <input type="checkbox" id="bgFillToggle" checked>
             </label>
             <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
@@ -227,17 +256,16 @@
               <input type="color" id="bgColorInput" value="#ffffff">
             </div>
           </div>
-          <div id="debugBox">状態: 待機中（画像を選択してください）</div>
         </div>
 
         <div class="box">
-          <h2>2. 使用ブロック選択（2Dパレット）</h2>
+          <h2>2. 使用ブロック選択（拡張2Dパレット）</h2>
           <div class="preset-bar">
             <button type="button" class="secondary" data-preset="all">全選択</button>
             <button type="button" class="secondary" data-preset="none">全解除</button>
             <button type="button" class="secondary" data-preset="wool">羊毛系</button>
             <button type="button" class="secondary" data-preset="terracotta">テラコッタ系</button>
-            <button type="button" class="secondary" data-preset="basic">基本・鉱物/石系</button>
+            <button type="button" class="secondary" data-preset="basic">基本・鉱物/自然系</button>
           </div>
           <div class="muted" id="activeCountText" style="margin-bottom:6px;">有効ブロック: 0 / 0</div>
           <div class="block-list" id="blockList"></div>
@@ -246,20 +274,20 @@
 
       <div>
         <div class="box">
-          <h2>2D プレビュー（128×128）</h2>
+          <h2>2D プレビュー</h2>
           <div class="canvas-row">
             <div class="canvas-card">
-              <h3>リサイズ後</h3>
+              <h3>リサイズ後（128×128）</h3>
               <canvas id="sourceCanvas" width="128" height="128"></canvas>
             </div>
             <div class="canvas-card">
-              <h3>2D マップアート結果</h3>
+              <h3 id="resultTitle">2D マップアート結果（ブロック模様）</h3>
               <canvas id="resultCanvas" width="128" height="128"></canvas>
             </div>
           </div>
           <div class="action-row">
             <button type="button" id="downloadPngBtn">変換結果をPNG保存</button>
-            <span class="muted" id="totalPixelsInfo">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
+            <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
           </div>
         </div>
 
@@ -290,100 +318,198 @@
   <script>
     const MAP_SIZE = 128;
 
+    // pattern: "speckle"（砂目/石）, "wool"（羊毛の繊維）, "planks"（板材/横ライン）, "bricks"（レンガ/タイル）, "smooth"（滑らか/鉱物）
     const BLOCK_DATA = [
-      { id: "grass_block", name: "草ブロック", cat: "basic", rgb: [127, 178, 56], checked: true },
-      { id: "sandstone", name: "砂岩", cat: "basic", rgb: [221, 214, 165], checked: true },
-      { id: "cobweb", name: "クモの巣 / キノコの柄", cat: "basic", rgb: [199, 199, 199], checked: true },
-      { id: "redstone_block", name: "レッドストーンブロック", cat: "basic", rgb: [255, 0, 0], checked: true },
-      { id: "packed_ice", name: "氷塊", cat: "basic", rgb: [160, 160, 255], checked: true },
-      { id: "iron_block", name: "鉄ブロック", cat: "basic", rgb: [167, 167, 167], checked: true },
-      { id: "oak_leaves", name: "オークの葉", cat: "basic", rgb: [0, 124, 0], checked: true },
-      { id: "snow_block", name: "雪ブロック", cat: "basic", rgb: [255, 255, 255], checked: true },
-      { id: "clay", name: "粘土ブロック", cat: "basic", rgb: [164, 168, 184], checked: true },
-      { id: "dirt", name: "土 / 花崗岩", cat: "basic", rgb: [151, 109, 77], checked: true },
-      { id: "stone", name: "石 / 丸石", cat: "basic", rgb: [112, 112, 112], checked: true },
-      { id: "oak_planks", name: "オークの板材", cat: "basic", rgb: [143, 119, 72], checked: true },
-      { id: "quartz_block", name: "クォーツブロック / 閃緑岩", cat: "basic", rgb: [255, 252, 245], checked: true },
-      { id: "gold_block", name: "金ブロック", cat: "basic", rgb: [250, 238, 77], checked: true },
-      { id: "diamond_block", name: "ダイヤモンドブロック", cat: "basic", rgb: [92, 219, 213], checked: true },
-      { id: "lapis_block", name: "ラピスラズリブロック", cat: "basic", rgb: [74, 128, 255], checked: true },
-      { id: "emerald_block", name: "エメラルドブロック", cat: "basic", rgb: [0, 217, 58], checked: true },
-      { id: "podzol", name: "ポドゾル / スプルース材", cat: "basic", rgb: [129, 86, 49], checked: true },
-      { id: "netherrack", name: "ネザーラック", cat: "basic", rgb: [112, 2, 0], checked: true },
-      { id: "deepslate", name: "深層岩", cat: "basic", rgb: [100, 100, 100], checked: true },
-      { id: "glow_lichen", name: "ヒカリゴケ", cat: "basic", rgb: [127, 167, 150], checked: true },
+      { id: "grass_block", name: "草ブロック / スライム", cat: "basic", pattern: "speckle", rgb: [109, 153, 48], checked: true },
+      { id: "sandstone", name: "砂 / 砂岩 / シラカバ材", cat: "basic", pattern: "speckle", rgb: [213, 201, 140], checked: true },
+      { id: "cobweb", name: "キノコの柄 / クモの巣", cat: "basic", pattern: "wool", rgb: [171, 171, 171], checked: true },
+      { id: "redstone_block", name: "レッドストーンブロック / TNT", cat: "basic", pattern: "bricks", rgb: [220, 0, 0], checked: true },
+      { id: "packed_ice", name: "氷塊 / 青氷", cat: "basic", pattern: "smooth", rgb: [138, 138, 220], checked: true },
+      { id: "iron_block", name: "鉄ブロック", cat: "basic", pattern: "bricks", rgb: [144, 144, 144], checked: true },
+      { id: "oak_leaves", name: "オークの葉", cat: "basic", pattern: "speckle", rgb: [0, 106, 0], checked: true },
+      { id: "snow_block", name: "雪ブロック / 白色の羊毛", cat: "wool", pattern: "wool", rgb: [220, 220, 220], checked: true },
+      { id: "clay", name: "粘土ブロック", cat: "basic", pattern: "smooth", rgb: [141, 144, 158], checked: true },
+      { id: "dirt", name: "土 / 花崗岩 / ジャングル材", cat: "basic", pattern: "speckle", rgb: [130, 94, 66], checked: true },
+      { id: "stone", name: "石 / 丸石 / 安山岩", cat: "basic", pattern: "speckle", rgb: [96, 96, 96], checked: true },
+      { id: "oak_planks", name: "オークの板材", cat: "basic", pattern: "planks", rgb: [123, 102, 62], checked: true },
+      { id: "quartz_block", name: "クォーツブロック / 閃緑岩", cat: "basic", pattern: "bricks", rgb: [220, 217, 211], checked: true },
+      { id: "gold_block", name: "金ブロック", cat: "basic", pattern: "bricks", rgb: [215, 205, 66], checked: true },
+      { id: "diamond_block", name: "ダイヤモンドブロック / プリズマリンレンガ", cat: "basic", pattern: "bricks", rgb: [79, 188, 183], checked: true },
+      { id: "lapis_block", name: "ラピスラズリブロック", cat: "basic", pattern: "speckle", rgb: [63, 110, 220], checked: true },
+      { id: "emerald_block", name: "エメラルドブロック", cat: "basic", pattern: "bricks", rgb: [0, 187, 50], checked: true },
+      { id: "podzol", name: "ポドゾル / トウヒ材", cat: "basic", pattern: "planks", rgb: [111, 74, 42], checked: true },
+      { id: "netherrack", name: "ネザーラック / ネザーレンガ", cat: "basic", pattern: "bricks", rgb: [96, 1, 0], checked: true },
+      { id: "deepslate", name: "深層岩", cat: "basic", pattern: "speckle", rgb: [86, 86, 86], checked: true },
+      { id: "raw_iron_block", name: "鉄の原石ブロック", cat: "basic", pattern: "speckle", rgb: [186, 150, 126], checked: true },
+      { id: "glow_lichen", name: "ヒカリゴケ / 新緑のフロッグライト", cat: "basic", pattern: "speckle", rgb: [108, 144, 129], checked: true },
 
-      { id: "white_wool", name: "白色の羊毛", cat: "wool", rgb: [249, 255, 254], checked: true },
-      { id: "orange_wool", name: "橙色の羊毛", cat: "wool", rgb: [216, 127, 51], checked: true },
-      { id: "magenta_wool", name: "赤紫色の羊毛", cat: "wool", rgb: [178, 76, 216], checked: true },
-      { id: "light_blue_wool", name: "空色の羊毛", cat: "wool", rgb: [102, 153, 216], checked: true },
-      { id: "yellow_wool", name: "黄色の羊毛", cat: "wool", rgb: [229, 229, 51], checked: true },
-      { id: "lime_wool", name: "黄緑色の羊毛", cat: "wool", rgb: [127, 204, 25], checked: true },
-      { id: "pink_wool", name: "桃色の羊毛", cat: "wool", rgb: [242, 127, 165], checked: true },
-      { id: "gray_wool", name: "灰色の羊毛", cat: "wool", rgb: [76, 76, 76], checked: true },
-      { id: "light_gray_wool", name: "薄灰色の羊毛", cat: "wool", rgb: [153, 153, 153], checked: true },
-      { id: "cyan_wool", name: "青緑色の羊毛", cat: "wool", rgb: [76, 127, 153], checked: true },
-      { id: "purple_wool", name: "紫色の羊毛", cat: "wool", rgb: [127, 63, 178], checked: true },
-      { id: "blue_wool", name: "青色の羊毛", cat: "wool", rgb: [51, 76, 178], checked: true },
-      { id: "brown_wool", name: "茶色の羊毛", cat: "wool", rgb: [102, 76, 51], checked: true },
-      { id: "green_wool", name: "緑色の羊毛", cat: "wool", rgb: [102, 127, 51], checked: true },
-      { id: "red_wool", name: "赤色の羊毛", cat: "wool", rgb: [153, 51, 51], checked: true },
-      { id: "black_wool", name: "黒色の羊毛", cat: "wool", rgb: [25, 25, 25], checked: true },
+      { id: "orange_wool", name: "橙色の羊毛 / コンクリート / 銅", cat: "wool", pattern: "wool", rgb: [186, 109, 44], checked: true },
+      { id: "magenta_wool", name: "赤紫色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [153, 65, 186], checked: true },
+      { id: "light_blue_wool", name: "空色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [88, 132, 186], checked: true },
+      { id: "yellow_wool", name: "黄色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [197, 197, 44], checked: true },
+      { id: "lime_wool", name: "黄緑色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [109, 176, 21], checked: true },
+      { id: "pink_wool", name: "桃色の羊毛 / コンクリート / 桜の葉", cat: "wool", pattern: "wool", rgb: [208, 109, 142], checked: true },
+      { id: "gray_wool", name: "灰色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [65, 65, 65], checked: true },
+      { id: "light_gray_wool", name: "薄灰色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [132, 132, 132], checked: true },
+      { id: "cyan_wool", name: "青緑色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [65, 109, 132], checked: true },
+      { id: "purple_wool", name: "紫色の羊毛 / アメジスト", cat: "wool", pattern: "wool", rgb: [109, 54, 153], checked: true },
+      { id: "blue_wool", name: "青色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [44, 65, 153], checked: true },
+      { id: "brown_wool", name: "茶色の羊毛 / ダークオーク材", cat: "wool", pattern: "wool", rgb: [88, 65, 44], checked: true },
+      { id: "green_wool", name: "緑色の羊毛 / 乾燥した昆布ブロック", cat: "wool", pattern: "wool", rgb: [88, 109, 44], checked: true },
+      { id: "red_wool", name: "赤色の羊毛 / レンガ / ネザーウォート", cat: "wool", pattern: "wool", rgb: [132, 44, 44], checked: true },
+      { id: "black_wool", name: "黒色の羊毛 / 黒曜石 / 石炭", cat: "wool", pattern: "wool", rgb: [21, 21, 21], checked: true },
 
-      { id: "white_terracotta", name: "白色のテラコッタ", cat: "terracotta", rgb: [209, 177, 161], checked: true },
-      { id: "orange_terracotta", name: "橙色のテラコッタ", cat: "terracotta", rgb: [159, 82, 36], checked: true },
-      { id: "magenta_terracotta", name: "赤紫色のテラコッタ", cat: "terracotta", rgb: [149, 87, 108], checked: true },
-      { id: "light_blue_terracotta", name: "空色のテラコッタ", cat: "terracotta", rgb: [112, 108, 138], checked: true },
-      { id: "yellow_terracotta", name: "黄色のテラコッタ", cat: "terracotta", rgb: [186, 133, 36], checked: true },
-      { id: "lime_terracotta", name: "黄緑色のテラコッタ", cat: "terracotta", rgb: [103, 117, 53], checked: true },
-      { id: "pink_terracotta", name: "桃色のテラコッタ", cat: "terracotta", rgb: [160, 77, 78], checked: true },
-      { id: "gray_terracotta", name: "灰色のテラコッタ", cat: "terracotta", rgb: [57, 41, 35], checked: true },
-      { id: "light_gray_terracotta", name: "薄灰色のテラコッタ", cat: "terracotta", rgb: [135, 107, 98], checked: true },
-      { id: "cyan_terracotta", name: "青緑色のテラコッタ", cat: "terracotta", rgb: [87, 92, 92], checked: true },
-      { id: "purple_terracotta", name: "紫色のテラコッタ", cat: "terracotta", rgb: [122, 73, 88], checked: true },
-      { id: "blue_terracotta", name: "青色のテラコッタ", cat: "terracotta", rgb: [76, 62, 92], checked: true },
-      { id: "brown_terracotta", name: "茶色のテラコッタ", cat: "terracotta", rgb: [76, 50, 35], checked: true },
-      { id: "green_terracotta", name: "緑色のテラコッタ", cat: "terracotta", rgb: [76, 82, 42], checked: true },
-      { id: "red_terracotta", name: "赤色のテラコッタ", cat: "terracotta", rgb: [142, 60, 46], checked: true },
-      { id: "black_terracotta", name: "黒色のテラコッタ", cat: "terracotta", rgb: [37, 22, 16], checked: true }
+      { id: "white_terracotta", name: "白色のテラコッタ / 桜の板材", cat: "terracotta", pattern: "smooth", rgb: [180, 152, 138], checked: true },
+      { id: "orange_terracotta", name: "橙色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [137, 70, 31], checked: true },
+      { id: "magenta_terracotta", name: "赤紫色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [128, 75, 93], checked: true },
+      { id: "light_blue_terracotta", name: "空色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [96, 93, 119], checked: true },
+      { id: "yellow_terracotta", name: "黄色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [159, 114, 31], checked: true },
+      { id: "lime_terracotta", name: "黄緑色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [88, 100, 45], checked: true },
+      { id: "pink_terracotta", name: "桃色のテラコッタ / 樹皮を剥いだ桜", cat: "terracotta", pattern: "smooth", rgb: [138, 66, 67], checked: true },
+      { id: "gray_terracotta", name: "灰色のテラコッタ / 凝灰岩", cat: "terracotta", pattern: "smooth", rgb: [49, 35, 30], checked: true },
+      { id: "light_gray_terracotta", name: "薄灰色のテラコッタ / 泥レンガ", cat: "terracotta", pattern: "smooth", rgb: [116, 92, 84], checked: true },
+      { id: "cyan_terracotta", name: "青緑色のテラコッタ / 泥", cat: "terracotta", pattern: "smooth", rgb: [75, 79, 79], checked: true },
+      { id: "purple_terracotta", name: "紫色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [105, 62, 75], checked: true },
+      { id: "blue_terracotta", name: "青色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [65, 53, 79], checked: true },
+      { id: "brown_terracotta", name: "茶色のテラコッタ / 鍾乳石", cat: "terracotta", pattern: "smooth", rgb: [65, 43, 30], checked: true },
+      { id: "green_terracotta", name: "緑色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [65, 70, 36], checked: true },
+      { id: "red_terracotta", name: "赤色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [122, 51, 40], checked: true },
+      { id: "black_terracotta", name: "黒色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [32, 19, 13], checked: true },
+      { id: "crimson_nylium", name: "真紅のナイリウム", cat: "terracotta", pattern: "speckle", rgb: [163, 41, 42], checked: true },
+      { id: "crimson_planks", name: "真紅の板材", cat: "terracotta", pattern: "planks", rgb: [127, 54, 83], checked: true },
+      { id: "warped_nylium", name: "歪んだナイリウム / 酸化した銅", cat: "terracotta", pattern: "speckle", rgb: [19, 108, 114], checked: true },
+      { id: "warped_planks", name: "歪んだ板材 / 風化した銅", cat: "terracotta", pattern: "planks", rgb: [50, 122, 120], checked: true },
+      { id: "warped_wart", name: "歪んだウォートブロック", cat: "terracotta", pattern: "speckle", rgb: [17, 155, 114], checked: true }
     ];
+
+    function clamp(v, min = 0, max = 255) {
+      return v < min ? min : v > max ? max : v;
+    }
+
+    function rgbToLab(r, g, b) {
+      let sr = r / 255;
+      let sg = g / 255;
+      let sb = b / 255;
+
+      sr = sr > 0.04045 ? Math.pow((sr + 0.055) / 1.055, 2.4) : sr / 12.92;
+      sg = sg > 0.04045 ? Math.pow((sg + 0.055) / 1.055, 2.4) : sg / 12.92;
+      sb = sb > 0.04045 ? Math.pow((sb + 0.055) / 1.055, 2.4) : sb / 12.92;
+
+      let x = (sr * 0.4124 + sg * 0.3576 + sb * 0.1805) / 0.95047;
+      let y = (sr * 0.2126 + sg * 0.7152 + sb * 0.0722) / 1.00000;
+      let z = (sr * 0.0193 + sg * 0.1192 + sb * 0.9505) / 1.08883;
+
+      x = x > 0.008856 ? Math.cbrt(x) : (7.787 * x) + 16 / 116;
+      y = y > 0.008856 ? Math.cbrt(y) : (7.787 * y) + 16 / 116;
+      z = z > 0.008856 ? Math.cbrt(z) : (7.787 * z) + 16 / 116;
+
+      return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
+    }
+
+    // ブロックごとの模様タイル（8x8）を事前生成
+    function createBlockPatternCanvas(block, tilePx = 8) {
+      const c = document.createElement("canvas");
+      c.width = tilePx;
+      c.height = tilePx;
+      const ctx = c.getContext("2d");
+      const [r, g, b] = block.rgb;
+
+      const light = `rgba(${clamp(r + 28)}, ${clamp(g + 28)}, ${clamp(b + 28)}, 0.45)`;
+      const dark = `rgba(${clamp(r - 32)}, ${clamp(g - 32)}, ${clamp(b - 32)}, 0.45)`;
+
+      ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      ctx.fillRect(0, 0, tilePx, tilePx);
+
+      const s = tilePx / 8;
+
+      if (block.pattern === "wool") {
+        // 羊毛風のクロス繊維
+        ctx.strokeStyle = light;
+        ctx.lineWidth = Math.max(1, s);
+        for (let i = 0; i < 8; i += 2) {
+          ctx.beginPath();
+          ctx.moveTo(0, i * s + s * 0.5);
+          ctx.lineTo(tilePx, i * s + s * 0.5);
+          ctx.stroke();
+        }
+        ctx.strokeStyle = dark;
+        for (let j = 1; j < 8; j += 2) {
+          ctx.beginPath();
+          ctx.moveTo(j * s + s * 0.5, 0);
+          ctx.lineTo(j * s + s * 0.5, tilePx);
+          ctx.stroke();
+        }
+      } else if (block.pattern === "planks") {
+        // 板材風の横目と継ぎ目
+        ctx.fillStyle = dark;
+        ctx.fillRect(0, Math.floor(tilePx * 0.5), tilePx, Math.max(1, Math.round(s * 0.8)));
+        ctx.fillRect(Math.floor(tilePx * 0.25), 0, Math.max(1, Math.round(s * 0.8)), Math.floor(tilePx * 0.5));
+        ctx.fillRect(Math.floor(tilePx * 0.75), Math.floor(tilePx * 0.5), Math.max(1, Math.round(s * 0.8)), Math.ceil(tilePx * 0.5));
+      } else if (block.pattern === "bricks") {
+        // レンガ・タイル風の枠線
+        ctx.strokeStyle = dark;
+        ctx.lineWidth = Math.max(1, Math.round(s * 0.8));
+        ctx.strokeRect(0.5, 0.5, tilePx - 1, tilePx - 1);
+        ctx.fillStyle = light;
+        ctx.fillRect(s, s, Math.max(1, tilePx - s * 2), Math.max(1, s));
+      } else if (block.pattern === "speckle") {
+        // 石・土・草風の砂目ノイズ
+        for (let y = 0; y < 8; y++) {
+          for (let x = 0; x < 8; x++) {
+            const hash = ((x * 374761393 + y * 668265263 + block.rgb[0] * 1442695041) >>> 0) % 10;
+            if (hash < 2) {
+              ctx.fillStyle = dark;
+              ctx.fillRect(x * s, y * s, Math.ceil(s), Math.ceil(s));
+            } else if (hash > 7) {
+              ctx.fillStyle = light;
+              ctx.fillRect(x * s, y * s, Math.ceil(s), Math.ceil(s));
+            }
+          }
+        }
+      } else {
+        // smooth（テラコッタ・粘土・氷などの微細な質感）
+        ctx.fillStyle = light;
+        ctx.fillRect(0, 0, tilePx, Math.max(1, Math.round(s * 0.7)));
+        ctx.fillStyle = dark;
+        ctx.fillRect(0, tilePx - Math.max(1, Math.round(s * 0.7)), tilePx, Math.max(1, Math.round(s * 0.7)));
+      }
+
+      return c;
+    }
+
+    BLOCK_DATA.forEach(b => {
+      b.lab = rgbToLab(b.rgb[0], b.rgb[1], b.rgb[2]);
+    });
 
     const els = {
       imageInput: document.getElementById("imageInput"),
+      previewStyle: document.getElementById("previewStyle"),
+      textureScale: document.getElementById("textureScale"),
+      fitMode: document.getElementById("fitMode"),
+      ditherStrength: document.getElementById("ditherStrength"),
+      ditherStrengthVal: document.getElementById("ditherStrengthVal"),
       bgFillToggle: document.getElementById("bgFillToggle"),
       bgColorInput: document.getElementById("bgColorInput"),
       blockList: document.getElementById("blockList"),
       activeCountText: document.getElementById("activeCountText"),
       sourceCanvas: document.getElementById("sourceCanvas"),
       resultCanvas: document.getElementById("resultCanvas"),
+      resultTitle: document.getElementById("resultTitle"),
       downloadPngBtn: document.getElementById("downloadPngBtn"),
-      statsBody: document.querySelector("#statsTable tbody"),
-      debugBox: document.getElementById("debugBox")
+      statsBody: document.querySelector("#statsTable tbody")
     };
 
     const srcCtx = els.sourceCanvas.getContext("2d");
     const resCtx = els.resultCanvas.getContext("2d");
     let loadedImage = null;
+    let lastGrid = null;
+    let patternCache = new Map();
 
-    function setDebug(msg) {
-      els.debugBox.textContent = msg;
-    }
-
-    window.addEventListener("error", (e) => {
-      setDebug("JSエラー発生: " + e.message);
-    });
-
-    function clamp(v, min = 0, max = 255) {
-      return v < min ? min : v > max ? max : v;
-    }
-
-    function hexToRgb(hex) {
-      const clean = hex.replace("#", "");
-      return [
-        parseInt(clean.slice(0, 2), 16),
-        parseInt(clean.slice(2, 4), 16),
-        parseInt(clean.slice(4, 6), 16)
-      ];
+    function rebuildPatternCache(tilePx) {
+      patternCache.clear();
+      BLOCK_DATA.forEach(b => {
+        patternCache.set(b.id, createBlockPatternCanvas(b, tilePx));
+      });
     }
 
     function renderBlockList() {
@@ -426,38 +552,45 @@
       });
     });
 
-    function applyBackgroundFill(data) {
-      const fillBg = els.bgFillToggle.checked;
-      const [bgR, bgG, bgB] = hexToRgb(els.bgColorInput.value);
+    function drawFittedImage(img) {
+      srcCtx.clearRect(0, 0, MAP_SIZE, MAP_SIZE);
+      if (els.bgFillToggle.checked) {
+        srcCtx.fillStyle = els.bgColorInput.value;
+        srcCtx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
+      }
 
-      for (let i = 0; i < data.length; i += 4) {
-        let r = data[i];
-        let g = data[i + 1];
-        let b = data[i + 2];
-        const a = data[i + 3] / 255;
+      const mode = els.fitMode.value;
+      const iw = img.width;
+      const ih = img.height;
 
-        if (fillBg && a < 1) {
-          r = r * a + bgR * (1 - a);
-          g = g * a + bgG * (1 - a);
-          b = b * a + bgB * (1 - a);
-        }
-
-        data[i] = clamp(r);
-        data[i + 1] = clamp(g);
-        data[i + 2] = clamp(b);
-        data[i + 3] = 255;
+      if (mode === "stretch") {
+        srcCtx.drawImage(img, 0, 0, MAP_SIZE, MAP_SIZE);
+      } else if (mode === "cover") {
+        const side = Math.min(iw, ih);
+        const sx = (iw - side) / 2;
+        const sy = (ih - side) / 2;
+        srcCtx.drawImage(img, sx, sy, side, side, 0, 0, MAP_SIZE, MAP_SIZE);
+      } else if (mode === "contain") {
+        const scale = Math.min(MAP_SIZE / iw, MAP_SIZE / ih);
+        const dw = iw * scale;
+        const dh = ih * scale;
+        const dx = (MAP_SIZE - dw) / 2;
+        const dy = (MAP_SIZE - dh) / 2;
+        srcCtx.drawImage(img, dx, dy, dw, dh);
       }
     }
 
-    function findClosestBlock(r, g, b, activeBlocks) {
+    function findClosestBlockLab(r, g, b, activeBlocks) {
+      const [L1, a1, b1] = rgbToLab(clamp(r), clamp(g), clamp(b));
       let best = activeBlocks[0];
       let bestDist = Infinity;
+
       for (let i = 0; i < activeBlocks.length; i++) {
         const blk = activeBlocks[i];
-        const dr = r - blk.rgb[0];
-        const dg = g - blk.rgb[1];
-        const db = b - blk.rgb[2];
-        const dist = dr * dr * 0.3 + dg * dg * 0.59 + db * db * 0.11;
+        const dL = L1 - blk.lab[0];
+        const da = a1 - blk.lab[1];
+        const db = b1 - blk.lab[2];
+        const dist = dL * dL + da * da + db * db;
         if (dist < bestDist) {
           bestDist = dist;
           best = blk;
@@ -474,33 +607,60 @@
       buf[idx + 2] += eb * weight;
     }
 
-    function runConversion() {
-      if (!loadedImage) {
-        setDebug("状態: 画像未読み込み");
-        return;
+    function renderResultPreview() {
+      if (!lastGrid) return;
+
+      const style = els.previewStyle.value;
+      const tilePx = Number(els.textureScale.value);
+
+      if (style === "texture") {
+        const outPx = MAP_SIZE * tilePx;
+        els.resultCanvas.width = outPx;
+        els.resultCanvas.height = outPx;
+        els.resultTitle.textContent = `2D マップアート結果（ブロック模様 / ${tilePx}×${tilePx}px）`;
+
+        if (patternCache.size === 0 || patternCache.values().next().value.width !== tilePx) {
+          rebuildPatternCache(tilePx);
+        }
+
+        for (let y = 0; y < MAP_SIZE; y++) {
+          for (let x = 0; x < MAP_SIZE; x++) {
+            const blk = lastGrid[y * MAP_SIZE + x];
+            const tile = patternCache.get(blk.id);
+            resCtx.drawImage(tile, x * tilePx, y * tilePx);
+          }
+        }
+      } else {
+        els.resultCanvas.width = MAP_SIZE;
+        els.resultCanvas.height = MAP_SIZE;
+        els.resultTitle.textContent = "2D マップアート結果（単色 128×128）";
+
+        const outImg = resCtx.createImageData(MAP_SIZE, MAP_SIZE);
+        for (let i = 0; i < lastGrid.length; i++) {
+          const blk = lastGrid[i];
+          const idx = i * 4;
+          outImg.data[idx] = blk.rgb[0];
+          outImg.data[idx + 1] = blk.rgb[1];
+          outImg.data[idx + 2] = blk.rgb[2];
+          outImg.data[idx + 3] = 255;
+        }
+        resCtx.putImageData(outImg, 0, 0);
       }
+    }
+
+    function runConversion() {
+      if (!loadedImage) return;
 
       const activeBlocks = BLOCK_DATA.filter(b => b.checked);
-      if (activeBlocks.length === 0) {
-        setDebug("状態: 有効ブロックが0個です");
-        return;
-      }
+      if (activeBlocks.length === 0) return;
 
-      els.sourceCanvas.width = MAP_SIZE;
-      els.sourceCanvas.height = MAP_SIZE;
-      els.resultCanvas.width = MAP_SIZE;
-      els.resultCanvas.height = MAP_SIZE;
-
-      srcCtx.clearRect(0, 0, MAP_SIZE, MAP_SIZE);
-      srcCtx.drawImage(loadedImage, 0, 0, MAP_SIZE, MAP_SIZE);
+      drawFittedImage(loadedImage);
 
       const srcImg = srcCtx.getImageData(0, 0, MAP_SIZE, MAP_SIZE);
-      applyBackgroundFill(srcImg.data);
-      srcCtx.putImageData(srcImg, 0, 0);
-
       const work = new Float32Array(srcImg.data);
-      const outImg = resCtx.createImageData(MAP_SIZE, MAP_SIZE);
       const counts = new Map();
+      const strength = Number(els.ditherStrength.value) / 100;
+      const grid = new Array(MAP_SIZE * MAP_SIZE);
 
       for (let y = 0; y < MAP_SIZE; y++) {
         for (let x = 0; x < MAP_SIZE; x++) {
@@ -509,29 +669,27 @@
           const g = work[idx + 1];
           const b = work[idx + 2];
 
-          const matched = findClosestBlock(r, g, b, activeBlocks);
-
-          outImg.data[idx] = matched.rgb[0];
-          outImg.data[idx + 1] = matched.rgb[1];
-          outImg.data[idx + 2] = matched.rgb[2];
-          outImg.data[idx + 3] = 255;
+          const matched = findClosestBlockLab(r, g, b, activeBlocks);
+          grid[y * MAP_SIZE + x] = matched;
 
           counts.set(matched.id, (counts.get(matched.id) || 0) + 1);
 
-          const er = r - matched.rgb[0];
-          const eg = g - matched.rgb[1];
-          const eb = b - matched.rgb[2];
+          if (strength > 0) {
+            const er = (r - matched.rgb[0]) * strength;
+            const eg = (g - matched.rgb[1]) * strength;
+            const eb = (b - matched.rgb[2]) * strength;
 
-          addError(work, MAP_SIZE, x + 1, y, er, eg, eb, 7 / 16);
-          addError(work, MAP_SIZE, x - 1, y + 1, er, eg, eb, 3 / 16);
-          addError(work, MAP_SIZE, x, y + 1, er, eg, eb, 5 / 16);
-          addError(work, MAP_SIZE, x + 1, y + 1, er, eg, eb, 1 / 16);
+            addError(work, MAP_SIZE, x + 1, y, er, eg, eb, 7 / 16);
+            addError(work, MAP_SIZE, x - 1, y + 1, er, eg, eb, 3 / 16);
+            addError(work, MAP_SIZE, x, y + 1, er, eg, eb, 5 / 16);
+            addError(work, MAP_SIZE, x + 1, y + 1, er, eg, eb, 1 / 16);
+          }
         }
       }
 
-      resCtx.putImageData(outImg, 0, 0);
+      lastGrid = grid;
+      renderResultPreview();
       renderStats(counts);
-      setDebug("状態: 変換完了（" + loadedImage.width + "×" + loadedImage.height + " → 128×128）");
     }
 
     function renderStats(counts) {
@@ -561,16 +719,10 @@
 
     els.imageInput.addEventListener("change", (e) => {
       const file = e.target.files && e.target.files[0];
-      if (!file) {
-        setDebug("状態: ファイルが取得できませんでした");
-        return;
-      }
-      setDebug("状態: 読み込み中... (" + file.name + ")");
+      if (!file) return;
       const reader = new FileReader();
-      reader.onerror = () => setDebug("状態: FileReader エラー");
       reader.onload = (ev) => {
         const img = new Image();
-        img.onerror = () => setDebug("状態: 画像デコードエラー");
         img.onload = () => {
           loadedImage = img;
           runConversion();
@@ -580,20 +732,32 @@
       reader.readAsDataURL(file);
     });
 
-    [els.bgFillToggle, els.bgColorInput].forEach(el => {
+    [els.fitMode, els.bgFillToggle, els.bgColorInput].forEach(el => {
       el.addEventListener("change", runConversion);
     });
 
+    [els.previewStyle, els.textureScale].forEach(el => {
+      el.addEventListener("change", () => {
+        rebuildPatternCache(Number(els.textureScale.value));
+        renderResultPreview();
+      });
+    });
+
+    els.ditherStrength.addEventListener("input", () => {
+      els.ditherStrengthVal.textContent = `${els.ditherStrength.value}%`;
+      runConversion();
+    });
+
     els.downloadPngBtn.addEventListener("click", () => {
-      if (!loadedImage) return;
+      if (!lastGrid) return;
       const a = document.createElement("a");
-      a.download = "mapart_2d_1x1.png";
+      a.download = `mapart_2d_${els.previewStyle.value}.png`;
       a.href = els.resultCanvas.toDataURL("image/png");
       a.click();
     });
 
+    rebuildPatternCache(Number(els.textureScale.value));
     renderBlockList();
-    setDebug("状態: 初期化完了（有効ブロック: " + BLOCK_DATA.filter(b => b.checked).length + "）");
   </script>
 </body>
 </html>

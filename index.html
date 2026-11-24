@@ -259,7 +259,7 @@
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
       <div class="texture-loading-detail" id="textureLoadingDetail">統合版のブロック情報を取得しています</div>
       <div class="texture-loading-track"><div class="texture-loading-fill" id="textureLoadingFill"></div></div>
-      <div class="texture-loading-percent" id="textureLoadingPercent">0%</div>
+      <div class="texture-loading-percent" id="textureLoadingPercent">1%</div>
     </div>
   </div>
   <div class="container">
@@ -1312,9 +1312,15 @@
       a.click();
     });
 
-    rebuildPatternCache(Number(els.textureScale.value));
-    renderBlockList();
-    loadBedrockTextures();
+    try {
+      updateTextureLoading(1, "サイトを初期化しています…");
+      rebuildPatternCache(Number(els.textureScale.value));
+      renderBlockList();
+      loadBedrockTextures();
+    } catch (error) {
+      console.error("サイトの初期化に失敗しました:", error);
+      finishTextureLoading("初期化に失敗しました。ページを再読み込みしてください。");
+    }
   </script>
 </body>
 </html>

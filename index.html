@@ -1489,7 +1489,6 @@
       if (!lastGrid) return;
       const source = els.resultCanvas;
       const preview = els.blueprintPreviewCanvas;
-      preview.closest(".blueprint-preview-scroll").classList.add("has-result");
       const scale = 2;
       const tilePx = source.width / MAP_SIZE;
       const left = Math.ceil(tilePx * 2.4);

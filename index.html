@@ -79,7 +79,7 @@
       .block-list { grid-template-columns: 1fr; max-height: 560px; }
     }
     .workspace-shell {
-      display: grid; grid-template-columns: 142px minmax(0, 1fr); gap: 10px;
+      display: grid; grid-template-columns: 126px minmax(280px, 1fr) minmax(300px, .95fr); gap: 10px;
       height: calc(100dvh - 132px); min-height: 430px; max-height: 980px; overflow: hidden;
     }
     .vertical-tabs {
@@ -93,6 +93,12 @@
     }
     .vertical-tab.active { background: var(--card); color: var(--accent); border-color: var(--border); }
     .tab-content { min-width: 0; min-height: 0; overflow: hidden; position: relative; }
+    .preview-dock { min-width: 0; min-height: 0; overflow-y: auto; }
+    .preview-dock > .box { margin-bottom: 0; }
+    .preview-dock #resultCanvas { width: 100%; max-width: 100%; height: auto; }
+    .preview-dock .action-row { gap: 7px; margin-top: 9px; }
+    .preview-dock .action-row button { font-size: .78rem; padding: 7px 8px; }
+    .preview-dock .muted { font-size: .75rem; }
     .tab-panel {
       display: none; height: 100%; min-height: 0; overflow-y: auto;
       overscroll-behavior: contain; padding-right: 3px;
@@ -107,17 +113,20 @@
     .tab-panel[data-panel="stats"] > .box > div { max-height: calc(100dvh - 250px); overflow: auto; }
     .coordinate-panel .box { margin-bottom: 10px; }
     @media (max-width: 620px) {
-      .workspace-shell { grid-template-columns: 112px minmax(0, 1fr); gap: 7px; height: calc(100dvh - 118px); }
+      .workspace-shell { grid-template-columns: 92px minmax(0, 1fr) minmax(220px, .9fr); gap: 6px; height: calc(100dvh - 118px); }
       .vertical-tabs { padding: 5px; }
-      .vertical-tab { font-size: .78rem; min-height: 40px; padding: 7px 5px; }
+      .vertical-tab { font-size: .72rem; min-height: 40px; padding: 7px 5px; }
       body { padding: 8px; }
       header { margin-bottom: 10px; padding-bottom: 8px; }
       header h1 { font-size: 1.05rem; }
       .badge { font-size: .7rem; }
       .tab-panel .block-list { max-height: calc(100dvh - 260px); }
+      .preview-dock .action-row { flex-direction: column; align-items: stretch; }
+      .preview-dock .action-row button { width: 100%; }
     }
     @media (max-height: 650px) {
       .workspace-shell { height: calc(100dvh - 105px); min-height: 360px; }
+      .preview-dock .png-save-status { font-size: .68rem; padding: 6px; }
       .box { padding: 8px; } .field { margin-bottom: 8px; }
     }
     .box {
@@ -551,7 +560,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.3.9</div>
+  <div class="app-version" id="appVersion">v1.4.0</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -572,7 +581,6 @@
       <nav class="vertical-tabs" role="tablist" aria-label="機能メニュー" aria-orientation="vertical">
         <button type="button" class="vertical-tab active" role="tab" aria-selected="true" data-tab="image">画像設定</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="blocks">ブロック選択</button>
-        <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="preview">2Dプレビュー</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="stats">必要数一覧</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="coordinates">ワールド座標</button>
       </nav>
@@ -663,22 +671,7 @@
           <div class="muted" id="activeCountText" style="margin-bottom:6px;">有効ブロック: 0 / 0</div>
           <div class="block-list" id="blockList"></div>
         </div></section>
-        <section class="tab-panel" role="tabpanel" data-panel="preview"><div class="box">
-          <h2>2D プレビュー</h2>
-          <div class="canvas-row">
-            <div class="canvas-card">
-              <h3 id="resultTitle">2D マップアート結果（ブロック模様）</h3>
-              <canvas id="resultCanvas" width="128" height="128" aria-label="2Dマップアートプレビュー"></canvas>
-              <canvas id="blueprintPreviewCanvas" width="128" height="128" aria-label="オンライン表示用の座標付き設計図" hidden></canvas>
-            </div>
-          </div>
-          <div class="action-row">
-            <button type="button" id="downloadPngBtn" disabled>設計図PNGを保存（プレビュー16倍）</button>
-            <button type="button" id="onlineBlueprintBtn" class="secondary" disabled>オンラインで表示</button>
-            <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
-          </div>
-<div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
-        </div></section>
+ction>
         <section class="tab-panel" role="tabpanel" data-panel="stats"><div class="box">
           <h2>必要ブロック一覧（2D平面配置）</h2>
           <div style="overflow-x:auto;">
@@ -700,13 +693,13 @@
           </div>
         </div></section>
         <section class="tab-panel coordinate-panel" role="tabpanel" data-panel="coordinates"><div class="box" style="margin-top:14px;">
-            <h3>ワールド座標の範囲</h3>
-            <p class="muted">設計図の左上（1列目・1行目）に置くブロックのワールド座標を入力してください。右方向はX+、下方向はZ+として128×128の範囲を計算します。</p>
+            <h3>地図を初めて開く座標から範囲を調べる</h3>
+            <p class="muted">新しい地図を初めて開く場所のブロック座標を入力してください。地図グリッドに合わせて左端・上端の座標を自動計算します（1×1・128×128）。</p>
             <div class="coordinate-input-grid">
-              <label>左上のX座標<input type="number" step="1" id="originXInput" placeholder="例：1000"></label>
-              <label>左上のZ座標<input type="number" step="1" id="originZInput" placeholder="例：2000"></label>
+              <label>地図を初めて開く場所のX<input type="number" step="1" id="originXInput" placeholder="例：1000"></label>
+              <label>地図を初めて開く場所のZ<input type="number" step="1" id="originZInput" placeholder="例：2000"></label>
             </div>
-            <div id="coordinateRangeResult" class="coordinate-result" aria-live="polite">左上のX・Z座標を入力すると、作成する範囲を表示します。</div>
+            <div id="coordinateRangeResult" class="coordinate-result" aria-live="polite">地図を初めて開くX・Z座標を入力すると、地図の左端・上端を計算します。</div>
           </div>
           <div class="box" style="margin-top:14px;">
             <h3>座標からブロックを調べる</h3>
@@ -718,6 +711,22 @@
             <div id="coordinateBlockResult" class="coordinate-result" aria-live="polite">左上の座標と調べたい座標を入力してください。</div>
           </div></section>
       </main>
+      <aside class="preview-dock" aria-label="常時表示2Dプレビュー"><div class="box">
+          <h2>2D プレビュー</h2>
+          <div class="canvas-row">
+            <div class="canvas-card">
+              <h3 id="resultTitle">2D マップアート結果（ブロック模様）</h3>
+              <canvas id="resultCanvas" width="128" height="128" aria-label="2Dマップアートプレビュー"></canvas>
+              <canvas id="blueprintPreviewCanvas" width="128" height="128" aria-label="オンライン表示用の座標付き設計図" hidden></canvas>
+            </div>
+          </div>
+          <div class="action-row">
+            <button type="button" id="downloadPngBtn" disabled>設計図PNGを保存（プレビュー16倍）</button>
+            <button type="button" id="onlineBlueprintBtn" class="secondary" disabled>オンラインで表示</button>
+            <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
+          </div>
+<div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
+        </div></</aside>
     </div>  </div>
 
   <script>
@@ -1621,10 +1630,12 @@
         ctx.fillText(String(y + 1), px, py, tilePx * scale * 0.96);
       }
 
-      // 入力された左上ワールド座標と、128×128範囲の四隅をオンライン設計図に記載。
-      const ox = readInteger(originXInput);
-      const oz = readInteger(originZInput);
-      if (ox !== null && oz !== null && Number.isSafeInteger(ox) && Number.isSafeInteger(oz)) {
+      // 地図を初めて開く座標から、地図グリッドに沿った四隅をオンライン設計図に記載。
+      const inputX = readInteger(originXInput);
+      const inputZ = readInteger(originZInput);
+      if (inputX !== null && inputZ !== null && Number.isSafeInteger(inputX) && Number.isSafeInteger(inputZ)) {
+        const ox = Math.floor((inputX + MAP_SIZE / 2) / MAP_SIZE) * MAP_SIZE - MAP_SIZE / 2;
+        const oz = Math.floor((inputZ + MAP_SIZE / 2) / MAP_SIZE) * MAP_SIZE - MAP_SIZE / 2;
         const rx = ox + MAP_SIZE - 1;
         const bz = oz + MAP_SIZE - 1;
         ctx.fillStyle = "#ffffff";
@@ -2208,31 +2219,33 @@
     }
 
     function updateCoordinateTools() {
-      const ox = readInteger(originXInput);
-      const oz = readInteger(originZInput);
+      const inputX = readInteger(originXInput);
+      const inputZ = readInteger(originZInput);
       const lx = readInteger(lookupXInput);
       const lz = readInteger(lookupZInput);
-
-      if (ox === null || oz === null) {
-        coordinateRangeResult.textContent = "左上のX・Z座標を入力すると、作成する範囲を表示します。";
-        coordinateBlockResult.textContent = "左上の座標と調べたい座標を入力してください。";
+      if (inputX === null || inputZ === null) {
+        coordinateRangeResult.textContent = "地図を初めて開くX・Z座標を入力すると、地図の左端・上端を計算します。";
+        coordinateBlockResult.textContent = "地図を初めて開く座標と調べたい座標を入力してください。";
         return;
       }
-      if (!Number.isSafeInteger(ox) || !Number.isSafeInteger(oz)) {
+      if (!Number.isSafeInteger(inputX) || !Number.isSafeInteger(inputZ)) {
         coordinateRangeResult.textContent = "X・Zには整数を入力してください。";
-        coordinateBlockResult.textContent = "左上の座標が正しくありません。";
+        coordinateBlockResult.textContent = "入力座標が正しくありません。";
         return;
       }
-
+      const ox = Math.floor((inputX + MAP_SIZE / 2) / MAP_SIZE) * MAP_SIZE - MAP_SIZE / 2;
+      const oz = Math.floor((inputZ + MAP_SIZE / 2) / MAP_SIZE) * MAP_SIZE - MAP_SIZE / 2;
       const rightX = ox + MAP_SIZE - 1;
       const bottomZ = oz + MAP_SIZE - 1;
       coordinateRangeResult.innerHTML =
-        "<strong>作成する範囲（128×128）</strong><br>" +
-        "左上：X " + ox + " / Z " + oz + "<br>" +
+        "<strong>地図グリッドから計算した範囲（128×128）</strong><br>" +
+        "入力した座標：X " + inputX + " / Z " + inputZ + "<br>" +
+        "左端・上端（左上）：X " + ox + " / Z " + oz + "<br>" +
         "右上：X " + rightX + " / Z " + oz + "<br>" +
         "左下：X " + ox + " / Z " + bottomZ + "<br>" +
         "右下：X " + rightX + " / Z " + bottomZ + "<br>" +
-        "<span class='muted'>X方向：" + ox + " ～ " + rightX + " ／ Z方向：" + oz + " ～ " + bottomZ + "</span>";
+        "<span class='muted'>X方向：" + ox + " ～ " + rightX + " ／ Z方向：" + oz + " ～ " + bottomZ + "</span><br>" +
+        "<span class='muted'>入力座標は " + (inputX - ox + 1) + "列目・" + (inputZ - oz + 1) + "行目にあります。</span>";
 
       if (lx === null || lz === null) {
         coordinateBlockResult.textContent = "調べたいX・Z座標を入力してください。";

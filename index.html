@@ -1550,6 +1550,41 @@
       };
     }
 
+    async function verifyDeflateStream(compressedChunks, expectedWidth, expectedHeight) {
+      if (typeof DecompressionStream !== "function") {
+        throw new Error("このブラウザはPNG圧縮データの検証に対応していません。");
+      }
+      const compressedBlob = new Blob(compressedChunks, { type: "application/octet-stream" });
+      const decompressor = new DecompressionStream("deflate");
+      const reader = compressedBlob.stream().pipeThrough(decompressor).getReader();
+      const rowStride = 1 + expectedWidth * 4;
+      let totalBytes = 0;
+      let nextFilterOffset = 0;
+
+      // 展開結果をメモリに溜めず、PNG各行のフィルター値と総データ量を検査する。
+      while (true) {
+        const item = await reader.read();
+        if (item.done) break;
+        const chunk = item.value;
+        const endOffset = totalBytes + chunk.length;
+        while (nextFilterOffset < endOffset) {
+          const localOffset = nextFilterOffset - totalBytes;
+          if (chunk[localOffset] !== 0) {
+            throw new Error("PNG画像データの行フィルター検証に失敗しました。");
+          }
+          nextFilterOffset += rowStride;
+        }
+        totalBytes = endOffset;
+      }
+
+      const expectedBytes = rowStride * expectedHeight;
+      if (totalBytes !== expectedBytes) {
+        throw new Error("PNG画像データの展開サイズが一致しません。");
+      }
+      // DecompressionStreamはzlibチェックサムも検査する。破損時は例外になる。
+      return totalBytes;
+    }
+
     async function verifyPngHeader(blob, expectedWidth, expectedHeight) {
       if (!(blob instanceof Blob) || blob.type !== "image/png" || blob.size < 57) {
         throw new Error("PNGファイルを正常に生成できませんでした。");

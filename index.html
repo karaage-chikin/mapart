@@ -117,15 +117,16 @@
       margin-bottom: 10px;
     }
     .block-list {
-      max-height: 680px;
+      min-height: 520px;
+      max-height: 820px;
       overflow-y: auto;
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px;
+      border-radius: 10px;
+      padding: 14px;
       background: var(--bg);
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 4px;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 10px;
     }
     .category-title {
       grid-column: 1 / -1;
@@ -143,12 +144,12 @@
     .block-item {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 7px 8px;
-      min-height: 46px;
+      gap: 10px;
+      padding: 10px 12px;
+      min-height: 54px;
       border: 1px solid var(--border);
       border-radius: 6px;
-      font-size: 0.85rem;
+      font-size: 0.95rem;
       cursor: pointer;
     }
     .block-item:hover { background: var(--card); }
@@ -277,7 +278,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.0.3</div>
+  <div class="app-version" id="appVersion">v1.0.4</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>

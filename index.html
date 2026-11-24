@@ -890,7 +890,6 @@
 
     async function loadBedrockTextures() {
       updateTextureLoading(2, "統合版のブロック定義・テクスチャ一覧を取得中…");
-      if (els.textureStatus) els.textureStatus.textContent = "統合版のブロック定義・テクスチャ一覧を取得中…";
       try {
         const urls = [
           BEDROCK_SAMPLE_BASE + "blocks.json",

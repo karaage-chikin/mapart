@@ -523,7 +523,7 @@
     };
 
     function parseBedrockJson(text) {
-      return JSON.parse(text.replace(/^\\s*\\/\\/.*$/gm, ""));
+      return JSON.parse(text.replace(/^\s*\/\/.*$/gm, ""));
     }
 
     function texturePathFromBlock(blockDef, terrainData) {
@@ -729,7 +729,7 @@
           for (let x = 0; x < MAP_SIZE; x++) {
             const blk = lastGrid[y * MAP_SIZE + x];
             const tile = patternCache.get(blk.id);
-            resCtx.drawImage(tile, x * tilePx, y * tilePx);
+            resCtx.drawImage(tile, x * tilePx, y * tilePx, tilePx, tilePx);
           }
         }
       } else {

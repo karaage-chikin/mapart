@@ -327,6 +327,29 @@
       border: 2px solid var(--border);
       border-radius: 4px;
     }
+    /* hidden属性がcanvas共通CSSに上書きされないよう明示 */
+    #resultCanvas[hidden], #blueprintPreviewCanvas[hidden] {
+      display: none !important;
+    }
+    #blueprintPreviewCanvas {
+      display: none;
+    }
+    .blueprint-preview-scroll.has-result #blueprintPreviewCanvas {
+      display: block;
+    }
+    .blueprint-empty-message {
+      min-height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      padding: 18px;
+      text-align: center;
+    }
+    .blueprint-preview-scroll.has-result .blueprint-empty-message {
+      display: none;
+    }
     .blueprint-preview-scroll {
       width: 100%;
       max-height: 75vh;
@@ -466,7 +489,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.2.9</div>
+  <div class="app-version" id="appVersion">v1.3.0</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -490,8 +513,8 @@
           <div class="field">
             <label>元画像を選択（128×128に変換）</label>
             <div class="image-upload-area" id="imageUploadArea">
-              <input type="file" id="imageInput" accept="image/*" class="visually-hidden" aria-label="画像ファイルを選択">
-              <button type="button" id="selectImageBtn" class="upload-button">画像ファイルを選択</button>
+              <input type="file" id="imageInput" accept="image/*,.heic,.heif" class="visually-hidden" aria-label="画像ファイルを選択">
+              <label for="imageInput" class="upload-button">画像ファイルを選択</label>
               <span id="selectedImageName" class="selected-image-name" aria-live="polite">画像が選択されていません</span>
               <div class="upload-hint">ここに画像をドラッグ＆ドロップすることもできます</div>
             </div>
@@ -582,6 +605,7 @@
             <div class="canvas-card">
               <h3 id="resultTitle">2D マップアート結果（ブロック模様）</h3>
               <div class="blueprint-preview-scroll">
+                <div class="blueprint-empty-message" id="blueprintEmptyMessage">画像を選択すると、ここに座標付き設計図が表示されます。</div>
                 <canvas id="blueprintPreviewCanvas" width="128" height="128" aria-label="座標番号付きマップアートプレビュー"></canvas>
               </div>
               <canvas id="resultCanvas" width="128" height="128" hidden></canvas>
@@ -1456,6 +1480,7 @@
       if (!lastGrid) return;
       const source = els.resultCanvas;
       const preview = els.blueprintPreviewCanvas;
+      preview.closest(".blueprint-preview-scroll").classList.add("has-result");
       const scale = 2;
       const tilePx = source.width / MAP_SIZE;
       const left = Math.ceil(tilePx * 2.4);
@@ -1512,6 +1537,7 @@
       if (activeBlocks.length === 0) {
         lastGrid = null;
         els.downloadPngBtn.disabled = true;
+        els.blueprintPreviewCanvas.closest(".blueprint-preview-scroll").classList.remove("has-result");
         resCtx.clearRect(0, 0, els.resultCanvas.width, els.resultCanvas.height);
         els.statsBody.innerHTML = '<tr><td colspan="4" class="muted">ブロックを1種類以上選択してください。</td></tr>';
         return;
@@ -1619,41 +1645,32 @@
       errorBox.hidden = true;
       errorBox.textContent = "";
       if (!file) return;
-      if (!file.type || !file.type.startsWith("image/")) {
+      const looksLikeImage = (file.type && file.type.startsWith("image/")) || /\\.(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/i.test(file.name || "");
+      if (!looksLikeImage) {
         errorBox.hidden = false;
         errorBox.textContent = "画像ファイルを選択してください。";
         return;
       }
-      nameBox.textContent = file.name;
-      const reader = new FileReader();
-      reader.onerror = () => {
-        errorBox.hidden = false;
-        errorBox.textContent = "画像ファイルを読み込めませんでした。別の画像で試してください。";
-      };
-      reader.onload = (ev) => {
-        const img = new Image();
-        img.onload = () => {
-          loadedImage = img;
-          try {
-            runConversion();
-          } catch (error) {
-            errorBox.hidden = false;
-            errorBox.textContent = "画像は読み込めましたが、変換中にエラーが発生しました: " + (error && error.message ? error.message : String(error));
-          }
-        };
-        img.onerror = () => {
+      nameBox.textContent = file.name || "選択した画像";
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        loadedImage = img;
+        try {
+          runConversion();
+        } catch (error) {
           errorBox.hidden = false;
-          errorBox.textContent = "この画像を開けませんでした。PNG・JPG・WebPなどの画像を選択してください。";
-        };
-        img.src = ev.target.result;
+          errorBox.textContent = "画像は読み込めましたが、変換中にエラーが発生しました: " + (error && error.message ? error.message : String(error));
+        }
       };
-      reader.readAsDataURL(file);
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        errorBox.hidden = false;
+        errorBox.textContent = "画像を開けませんでした。このブラウザで表示できるPNG・JPG・WebP画像をお試しください。HEIC形式は端末やブラウザによって非対応の場合があります。";
+      };
+      img.src = objectUrl;
     }
-
-    document.getElementById("selectImageBtn").addEventListener("click", () => {
-      // Safariを含むブラウザで、ユーザー操作から直接ファイル選択画面を開く。
-      els.imageInput.click();
-    });
 
     els.imageInput.addEventListener("change", (e) => {
       const file = e.target.files && e.target.files[0];

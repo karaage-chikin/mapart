@@ -349,9 +349,6 @@
             <button type="button" class="secondary" data-preset="decorative">装飾・海洋</button>
             <button type="button" class="secondary" data-preset="sculk">スカルク</button>
           </div>
-          <div class="muted" id="textureStatus" role="status" style="margin:8px 0 10px;">
-            統合版バニラテクスチャを読み込みます…
-          </div>
           <div class="muted" id="activeCountText" style="margin-bottom:6px;">有効ブロック: 0 / 0</div>
           <div class="block-list" id="blockList"></div>
         </div>
@@ -740,8 +737,7 @@
       resultCanvas: document.getElementById("resultCanvas"),
       resultTitle: document.getElementById("resultTitle"),
       downloadPngBtn: document.getElementById("downloadPngBtn"),
-      statsBody: document.querySelector("#statsTable tbody"),
-      textureStatus: document.getElementById("textureStatus")
+      statsBody: document.querySelector("#statsTable tbody")
     };
 
     const srcCtx = els.sourceCanvas.getContext("2d");
@@ -905,16 +901,12 @@
         const blockDefs = parseBedrockJson(await responses[0].text());
         const terrainJson = parseBedrockJson(await responses[1].text());
         const terrainData = terrainJson.texture_data || {};
-        let loaded = 0, failed = 0;
-        const failedBlocks = [];
 
         let processed = 0;
         updateTextureLoading(5, "ブロックテクスチャを読み込んでいます…");
         const textureJobs = BLOCK_DATA.map(block => ({ block, path: texturePathFromBlock(blockDefs[BEDROCK_ID_ALIASES[block.id] || block.id], terrainData) }));
         for (const job of textureJobs) {
           if (!job.path) {
-            failed++;
-            failedBlocks.push({ name: job.block.name, id: job.block.id, reason: "ブロック定義またはテクスチャ名が見つからない" });
             processed++;
           }
         }
@@ -939,10 +931,7 @@
                 block.rgb = [Math.round(block.rgb[0] * tr), Math.round(block.rgb[1] * tg), Math.round(block.rgb[2] * tb)];
               }
               block.lab = rgbToLab(block.rgb[0], block.rgb[1], block.rgb[2]);
-              loaded++;
             } catch (error) {
-              failed++;
-              failedBlocks.push({ name: block.name, id: block.id, reason: path + " の画像取得失敗" });
               console.warn("テクスチャ読み込み失敗:", block.id, path, error);
             } finally {
               processed++;
@@ -955,43 +944,67 @@
 
         rebuildPatternCache(Number(els.textureScale.value));
         renderBlockList();
-        if (els.textureStatus) {
-          els.textureStatus.textContent = loaded
-            ? "統合版バニラテクスチャ読み込み完了：" + loaded + " / " + BLOCK_DATA.length + " 種（取得不可 " + failed + " 種は代替表示）" +
-              (failedBlocks.length ? "\n取得不可一覧：\n" + failedBlocks.map((b, i) => (i + 1) + ". " + b.name + "（" + b.id + "）— " + b.reason).join("\n") : "")
-            : "公式テクスチャを取得できませんでした。従来の代替プレビューで動作します。";
-        }
         runConversion();
         finishTextureLoading(loaded
           ? "テクスチャ読み込み完了！サイトを表示します。"
           : "公式テクスチャを取得できなかったため、代替表示で開きます。");
       } catch (error) {
         console.error(error);
-        if (els.textureStatus) els.textureStatus.textContent =
-          "公式テクスチャを取得できませんでした。ネット接続を確認してください（代替プレビューで動作中）。";
         finishTextureLoading("テクスチャを取得できませんでした。代替表示でサイトを開きます。");
       }
     }
 
-    const CATEGORY_LABELS = {
-      natural:"自然・地形", stone:"石材・建材", wood:"木材", ice:"氷", wool:"羊毛（16色）",
-      concrete:"コンクリート（16色）", terracotta:"テラコッタ（16色）", ore:"鉱石・金属", nether:"ネザー",
-      end:"ジ・エンド", decorative:"装飾・海洋", sculk:"スカルク"
-    };
+    const COLOR_GROUPS = [
+      { key:"red", label:"赤・ピンク" },
+      { key:"orange", label:"オレンジ・茶色" },
+      { key:"yellow", label:"黄色" },
+      { key:"green", label:"黄緑・緑" },
+      { key:"cyan", label:"水色・シアン" },
+      { key:"blue", label:"青" },
+      { key:"purple", label:"紫・マゼンタ" },
+      { key:"white", label:"白・薄い色" },
+      { key:"gray", label:"灰色" },
+      { key:"black", label:"黒・暗い色" }
+    ];
+
+    function getBlockColorGroup(rgb) {
+      const max = Math.max(...rgb), min = Math.min(...rgb);
+      const saturation = max === 0 ? 0 : (max - min) / max;
+      const value = max / 255;
+      if (value < 0.20) return "black";
+      if (saturation < 0.13) return value > 0.78 ? "white" : "gray";
+      const [r, g, b] = rgb.map(v => v / 255);
+      let hue;
+      if (max === min) hue = 0;
+      else if (max === r) hue = ((g - b) / (max - min) + (g < b ? 6 : 0)) * 60;
+      else if (max === g) hue = ((b - r) / (max - min) + 2) * 60;
+      else hue = ((r - g) / (max - min) + 4) * 60;
+      if (hue < 15 || hue >= 345) return "red";
+      if (hue < 42) return "orange";
+      if (hue < 68) return "yellow";
+      if (hue < 165) return "green";
+      if (hue < 195) return "cyan";
+      if (hue < 255) return "blue";
+      if (hue < 285) return "purple";
+      return "red";
+    }
 
     function renderBlockList() {
       els.blockList.innerHTML = "";
-      let currentCategory = "";
-      const orderedBlocks = BLOCK_DATA.map((block, index) => ({ block, index })).sort((a, b) => {
-        const order = ["natural","stone","wood","ice","wool","concrete","terracotta","ore","nether","end","decorative","sculk"];
-        return order.indexOf(a.block.cat) - order.indexOf(b.block.cat);
-      });
-      orderedBlocks.forEach(({ block: b, index: idx }) => {
-        if (b.cat !== currentCategory) {
-          currentCategory = b.cat;
+      const groupOrder = COLOR_GROUPS.map(group => group.key);
+      const orderedBlocks = BLOCK_DATA.map((block, index) => ({
+        block, index, colorGroup: getBlockColorGroup(block.rgb)
+      })).sort((a, b) =>
+        groupOrder.indexOf(a.colorGroup) - groupOrder.indexOf(b.colorGroup) ||
+        a.block.name.localeCompare(b.block.name, "ja")
+      );
+      let currentGroup = "";
+      orderedBlocks.forEach(({ block: b, index: idx, colorGroup }) => {
+        if (colorGroup !== currentGroup) {
+          currentGroup = colorGroup;
           const heading = document.createElement("div");
           heading.className = "category-title";
-          heading.textContent = CATEGORY_LABELS[currentCategory] || currentCategory;
+          heading.textContent = COLOR_GROUPS.find(group => group.key === currentGroup).label;
           els.blockList.appendChild(heading);
         }
         const label = document.createElement("label");

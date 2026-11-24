@@ -275,6 +275,8 @@
     .texture-loading-error-title { color: #f38ba8; font-weight: 700; margin-bottom: 5px; }
     .texture-loading-error-item { overflow-wrap: anywhere; }
   
+    .copper-block-label { display:flex; flex-direction:column; align-items:flex-start; gap:2px; }
+    .honeycomb-mini { display:inline-flex; align-items:center; justify-content:center; color:#f2c94c; font-size:12px; line-height:1; }
     .honeycomb-mini {
       display: inline-flex;
       align-items: center;
@@ -308,7 +310,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.1.0</div>
+  <div class="app-version" id="appVersion">v1.1.1</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -494,6 +496,7 @@
       { id:"cherry_planks", name:"桜の板材", cat:"wood", rgb:[225,175,173], checked:true },
       { id:"bamboo_planks", name:"竹の板材", cat:"wood", rgb:[195,176,82], checked:true },
       { id:"pale_oak_planks", name:"ペールオークの板材", cat:"wood", rgb:[190,184,169], checked:true },
+      { id:"poplar_planks", name:"ポプラの板材", cat:"wood", rgb:[170,145,105], checked:true },
       { id:"crimson_planks", name:"真紅の板材", cat:"wood", rgb:[101,37,40], checked:true },
       { id:"warped_planks", name:"歪んだ板材", cat:"wood", rgb:[43,102,92], checked:true },
 
@@ -565,7 +568,7 @@
       // 追加ブロック（公式Bedrock blocks.jsonに存在するIDのみ）
       { id:"calcite", name:"方解石", cat:"stone", rgb:[214,210,202], checked:true },
       { id:"basalt", name:"玄武岩", cat:"stone", rgb:[73,73,78], checked:true },
-      { id:"blackstone", name:"ブラックストーン", cat:"stone", rgb:[42,감=>42,42], checked:true },
+      { id:"blackstone", name:"ブラックストーン", cat:"stone", rgb:[42,42,42], checked:true },
       { id:"mud", name:"泥", cat:"natural", rgb:[60,58,54], checked:true },
       { id:"hay_block", name:"干草の俵", cat:"natural", rgb:[167,139,34], checked:true },
       { id:"glowstone", name:"グロウストーン", cat:"nether", rgb:[171,132,75], checked:true },
@@ -939,6 +942,7 @@
       for (const job of textureJobs) {
         if (!job.path) {
           processed++;
+          job.block.textureLoadFailed = true;
           reportTextureLoadingError(job.block.name, "テクスチャ定義が見つからないため代替表示にします");
         }
       }
@@ -968,6 +972,7 @@
             block.lab = rgbToLab(block.rgb[0], block.rgb[1], block.rgb[2]);
           } catch (error) {
             console.warn("テクスチャ読み込み失敗:", block.id, path, error);
+            block.textureLoadFailed = true;
             reportTextureLoadingError(block.name + " (" + path + ")", error);
           } finally {
             processed++;
@@ -982,6 +987,24 @@
       } catch (error) {
         console.error("テクスチャ処理全体のエラー:", error);
         reportTextureLoadingError("テクスチャ読み込み処理", error);
+      }
+
+      updateTextureLoading(96, "失敗したテクスチャにバリアブロック画像を設定しています…");
+      try {
+        const barrierPath = texturePathFromBlock(blockDefs.barrier, terrainData);
+        if (barrierPath) {
+          const barrierImage = await loadTextureImage(barrierPath);
+          BLOCK_DATA.forEach(block => {
+            if (block.textureLoadFailed || !block.textureImage) {
+              block.textureImage = barrierImage;
+              block.texturePath = barrierPath;
+              block.textureIsFallback = true;
+            }
+          });
+        }
+      } catch (error) {
+        console.warn("バリアブロック画像の取得失敗:", error);
+        reportTextureLoadingError("バリアブロック画像", error);
       }
 
       updateTextureLoading(97, "プレビュー用テクスチャを準備しています…");
@@ -1042,13 +1065,18 @@
           fallback.style.background = "rgb(" + b.rgb[0] + "," + b.rgb[1] + "," + b.rgb[2] + ")";
           const name = document.createElement("span");
           name.textContent = b.name;
-          label.append(checkbox, fallback, name);
           if (b.id === "copper_block") {
+            const copperInfo = document.createElement("span");
+            copperInfo.className = "copper-block-label";
+            copperInfo.appendChild(name);
             const honeycombMark = document.createElement("span");
             honeycombMark.className = "honeycomb-mini";
-            honeycombMark.textContent = "⬡";
+            honeycombMark.textContent = "⬡ ハニカム";
             honeycombMark.title = "必要材料：ハニカム";
-            label.appendChild(honeycombMark);
+            copperInfo.appendChild(honeycombMark);
+            label.append(checkbox, fallback, copperInfo);
+          } else {
+            label.append(checkbox, fallback, name);
           }
           if (b.textureImage) {
             const thumbnail = document.createElement("img");

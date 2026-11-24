@@ -650,7 +650,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.0</div>
+  <div class="app-version" id="appVersion">v1.5.1</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -2443,21 +2443,43 @@
       });
     });
     
-    els.onlineBlueprintBtn.addEventListener("click", () => {
+    els.onlineBlueprintBtn.addEventListener("click", async () => {
       if (!lastGrid) return;
+      const opened = window.open("about:blank", "_blank");
+      if (!opened) {
+        alert("新しいタブを開けませんでした。ブラウザのポップアップ設定を確認してください。");
+        return;
+      }
       try {
-        // PNGをURLのハッシュに格納。別タブ・再読み込み・ブックマーク後も同じ設計図を表示できる。
+        // PNG自体は変更せず、PNGバイト列を可逆のDEFLATEで外側から圧縮する。
         const dataUrl = els.blueprintPreviewCanvas.toDataURL("image/png");
-        const base64 = dataUrl.slice("data:image/png;base64,".length);
-        // Base64URL化して%エンコードを避ける。PNG本体は一切再圧縮・劣化させない。
-        const shortPayload = base64.replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
-        const target = new URL("blueprint.html", window.location.href);
-        const targetUrl = target.href + "#" + shortPayload;
-        const opened = window.open(targetUrl, "_blank");
-        if (!opened) {
-          alert("新しいタブを開けませんでした。ブラウザのポップアップ設定を確認してください。");
+        const binary = atob(dataUrl.slice("data:image/png;base64,".length));
+        const pngBytes = Uint8Array.from(binary, ch => ch.charCodeAt(0));
+        let payloadBytes = pngBytes;
+        let mode = "p";
+        if (typeof CompressionStream === "function") {
+          try {
+            const compressedStream = new Blob([pngBytes]).stream().pipeThrough(new CompressionStream("deflate"));
+            const compressedBuffer = await new Response(compressedStream).arrayBuffer();
+            const compressedBytes = new Uint8Array(compressedBuffer);
+            if (compressedBytes.length < pngBytes.length) {
+              payloadBytes = compressedBytes;
+              mode = "d";
+            }
+          } catch (compressionError) {
+            console.warn("URL用の追加圧縮を利用できないため、元のPNGを使用します。", compressionError);
+          }
         }
+        let binaryPayload = "";
+        const chunkSize = 0x8000;
+        for (let i = 0; i < payloadBytes.length; i += chunkSize) {
+          binaryPayload += String.fromCharCode(...payloadBytes.subarray(i, i + chunkSize));
+        }
+        const encoded = btoa(binaryPayload).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
+        const target = new URL("blueprint.html", window.location.href);
+        opened.location.replace(target.href + "#" + mode + encoded);
       } catch (error) {
+        opened.close();
         console.error("オンライン設計図URLの作成に失敗:", error);
         alert("設計図URLを作成できませんでした。画像サイズを確認してください。");
       }

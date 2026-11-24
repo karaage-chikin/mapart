@@ -1459,6 +1459,7 @@
       const rowBytes = littleEndian ? new Uint8Array(rowPixels32.buffer) : new Uint8Array(outputWidth * 4);
       const filterByte = new Uint8Array([0]);
       let completedRows = 0;
+      let pixelVerificationMs = 0;
 
       try {
         for (let sourceY = 0; sourceY < height; sourceY++) {
@@ -1468,6 +1469,14 @@
               const pixel = sourcePixels32[sourceRowStart + x];
               rowPixels32.fill(pixel, x * scale, (x + 1) * scale);
             }
+            const verifyStart = performance.now();
+            for (let x = 0; x < width; x++) {
+              const expected = sourcePixels32[sourceRowStart + x];
+              if (rowPixels32[x * scale] !== expected || rowPixels32[(x + 1) * scale - 1] !== expected) {
+                throw new Error("拡大後のピクセル値が元画像と一致しません。");
+              }
+            }
+            pixelVerificationMs += performance.now() - verifyStart;
           } else {
             const sourceRowStart = sourceY * width * 4;
             for (let x = 0; x < width; x++) {
@@ -1481,6 +1490,19 @@
                 rowBytes[offset + 3] = sourceBytes[sourceOffset + 3];
               }
             }
+            const verifyStart = performance.now();
+            for (let x = 0; x < width; x++) {
+              const sourceOffset = sourceRowStart + x * 4;
+              const first = x * scale * 4;
+              const last = ((x + 1) * scale - 1) * 4;
+              for (let channel = 0; channel < 4; channel++) {
+                if (rowBytes[first + channel] !== sourceBytes[sourceOffset + channel] ||
+                    rowBytes[last + channel] !== sourceBytes[sourceOffset + channel]) {
+                  throw new Error("拡大後のピクセル値が元画像と一致しません。");
+                }
+              }
+            }
+            pixelVerificationMs += performance.now() - verifyStart;
           }
 
           for (let repeatY = 0; repeatY < scale; repeatY++) {
@@ -1513,10 +1535,18 @@
       ihdr[12] = 0;
 
       const parts = [PNG_SIGNATURE, ...pngChunkParts("IHDR", ihdr)];
+      // Canvasの画素値はsRGBとして扱うため、出力PNGにも色空間を明記する。
+      parts.push(...pngChunkParts("sRGB", new Uint8Array([0])));
       for (const chunk of compressedChunks) parts.push(...pngChunkParts("IDAT", chunk));
       parts.push(...pngChunkParts("IEND", new Uint8Array(0)));
 
-      return { blob: new Blob(parts, { type: "image/png" }), width: outputWidth, height: outputHeight };
+      return {
+        blob: new Blob(parts, { type: "image/png" }),
+        width: outputWidth,
+        height: outputHeight,
+        pixelVerificationMs,
+        sourcePixelCount: width * height
+      };
     }
 
     async function verifyPngHeader(blob, expectedWidth, expectedHeight) {
@@ -1535,6 +1565,17 @@
       const storedCrc = view.getUint32(29, false);
       if (pngCrc32(header.subarray(12, 16), header.subarray(16, 29)) !== storedCrc) {
         throw new Error("PNGヘッダーのチェックサム検証に失敗しました。");
+      }
+      const colorChunk = new Uint8Array(await blob.slice(33, 46).arrayBuffer());
+      if (colorChunk.length !== 13 || colorChunk[3] !== 1 ||
+          colorChunk[4] !== 115 || colorChunk[5] !== 82 ||
+          colorChunk[6] !== 71 || colorChunk[7] !== 66 ||
+          colorChunk[8] !== 0) {
+        throw new Error("PNGのsRGB色空間情報を確認できません。");
+      }
+      const colorCrc = new DataView(colorChunk.buffer).getUint32(9, false);
+      if (pngCrc32(colorChunk.subarray(4, 8), colorChunk.subarray(8, 9)) !== colorCrc) {
+        throw new Error("PNGのsRGB色空間チェックサム検証に失敗しました。");
       }
       return true;
     }
@@ -1569,7 +1610,7 @@
 
         const verificationStart = performance.now();
         await verifyPngHeader(result.blob, outputWidth, outputHeight);
-        verificationMs = performance.now() - verificationStart;
+        verificationMs = result.pixelVerificationMs + (performance.now() - verificationStart);
 
         const url = URL.createObjectURL(result.blob);
         const link = document.createElement("a");
@@ -1582,7 +1623,7 @@
 
         const totalMs = performance.now() - totalStart;
         setPngStatus(
-          "PNGダウンロードを開始しました。\n画像サイズ: " + result.width.toLocaleString() + "×" + result.height.toLocaleString() + " px\nファイル容量: " + formatFileSize(result.blob.size) + "\nPNG生成時間: " + (generationMs / 1000).toFixed(2) + " 秒\n検証時間: " + verificationMs.toFixed(1) + " ms\n合計処理時間: " + (totalMs / 1000).toFixed(2) + " 秒\n品質: 元プレビューのRGBA値をそのまま複製／PNG署名・寸法・IHDR CRC確認済み",
+          "PNGダウンロードを開始しました。\n画像サイズ: " + result.width.toLocaleString() + "×" + result.height.toLocaleString() + " px\nファイル容量: " + formatFileSize(result.blob.size) + "\nPNG生成時間: " + (generationMs / 1000).toFixed(2) + " 秒\n検証時間: " + verificationMs.toFixed(1) + " ms\n合計処理時間: " + (totalMs / 1000).toFixed(2) + " 秒\n画素検証: 元画像の全ピクセル（" + result.sourcePixelCount.toLocaleString() + "個）を確認\n色空間: sRGB／PNG署名・寸法・IHDR CRC確認済み",
           "success"
         );
       } catch (error) {

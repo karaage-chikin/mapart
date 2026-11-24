@@ -214,9 +214,54 @@
       color: var(--subtext);
       font-size: 0.82rem;
     }
+    body.is-loading { overflow: hidden; }
+    body.is-loading .container { visibility: hidden; }
+    .texture-loading-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: var(--bg);
+      text-align: center;
+    }
+    .texture-loading-card {
+      width: min(440px, 100%);
+      padding: 28px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    .texture-loading-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 10px; }
+    .texture-loading-detail { color: var(--subtext); font-size: .9rem; min-height: 1.5em; }
+    .texture-loading-track {
+      height: 10px;
+      overflow: hidden;
+      margin: 20px 0 10px;
+      background: var(--card);
+      border-radius: 999px;
+    }
+    .texture-loading-fill {
+      width: 0%;
+      height: 100%;
+      background: var(--accent);
+      border-radius: inherit;
+      transition: width .15s ease;
+    }
+    .texture-loading-percent { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 700; }
   </style>
 </head>
-<body>
+<body class="is-loading">
+  <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
+    <div class="texture-loading-card">
+      <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
+      <div class="texture-loading-detail" id="textureLoadingDetail">統合版のブロック情報を取得しています</div>
+      <div class="texture-loading-track"><div class="texture-loading-fill" id="textureLoadingFill"></div></div>
+      <div class="texture-loading-percent" id="textureLoadingPercent">0%</div>
+    </div>
+  </div>
   <div class="container">
     <header>
       <h1>Minecraft MapArt 2D Generator</h1>
@@ -788,7 +833,24 @@
       return [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
     }
 
+    function updateTextureLoading(percent, detail) {
+      const fill = document.getElementById("textureLoadingFill");
+      const label = document.getElementById("textureLoadingPercent");
+      const message = document.getElementById("textureLoadingDetail");
+      if (fill) fill.style.width = Math.max(0, Math.min(100, percent)) + "%";
+      if (label) label.textContent = Math.round(percent) + "%";
+      if (message && detail) message.textContent = detail;
+    }
+
+    function finishTextureLoading(detail) {
+      updateTextureLoading(100, detail || "読み込み完了！");
+      document.body.classList.remove("is-loading");
+      const screen = document.getElementById("textureLoadingScreen");
+      if (screen) screen.remove();
+    }
+
     async function loadBedrockTextures() {
+      updateTextureLoading(2, "統合版のブロック定義・テクスチャ一覧を取得中…");
       if (els.textureStatus) els.textureStatus.textContent = "統合版のブロック定義・テクスチャ一覧を取得中…";
       try {
         const urls = [
@@ -802,10 +864,17 @@
         const terrainData = terrainJson.texture_data || {};
         let loaded = 0, failed = 0;
 
+        let processed = 0;
+        updateTextureLoading(5, "ブロックテクスチャを読み込んでいます…");
         for (const block of BLOCK_DATA) {
           const realId = BEDROCK_ID_ALIASES[block.id] || block.id;
           const path = texturePathFromBlock(blockDefs[realId], terrainData);
-          if (!path) { failed++; continue; }
+          if (!path) {
+            failed++;
+            processed++;
+            updateTextureLoading(5 + processed / BLOCK_DATA.length * 90, "テクスチャ読み込み中… " + processed + " / " + BLOCK_DATA.length);
+            continue;
+          }
           try {
             const img = await loadTextureImage(path);
             block.textureImage = img;
@@ -823,6 +892,8 @@
             failed++;
             console.warn("テクスチャ読み込み失敗:", block.id, path, error);
           }
+          processed++;
+          updateTextureLoading(5 + processed / BLOCK_DATA.length * 90, "テクスチャ読み込み中… " + processed + " / " + BLOCK_DATA.length);
         }
 
         rebuildPatternCache(Number(els.textureScale.value));
@@ -833,10 +904,14 @@
             : "公式テクスチャを取得できませんでした。従来の代替プレビューで動作します。";
         }
         runConversion();
+        finishTextureLoading(loaded
+          ? "テクスチャ読み込み完了！サイトを表示します。"
+          : "公式テクスチャを取得できなかったため、代替表示で開きます。");
       } catch (error) {
         console.error(error);
         if (els.textureStatus) els.textureStatus.textContent =
           "公式テクスチャを取得できませんでした。ネット接続を確認してください（代替プレビューで動作中）。";
+        finishTextureLoading("テクスチャを取得できませんでした。代替表示でサイトを開きます。");
       }
     }
 

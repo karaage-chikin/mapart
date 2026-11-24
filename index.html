@@ -344,40 +344,17 @@
       border: 2px solid var(--border);
       border-radius: 4px;
     }
-    #resultCanvas[hidden] { display: none !important; }
-    .blueprint-preview-scroll #blueprintPreviewCanvas { display: none !important; }
-    .blueprint-preview-scroll.has-result #blueprintPreviewCanvas { display: block !important; }
-    .blueprint-empty-message {
-      min-height: 180px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--muted);
-      font-size: 0.9rem;
-      padding: 18px;
-      text-align: center;
-    }
-    .blueprint-preview-scroll.has-result .blueprint-empty-message {
-      display: none;
-    }
-    .blueprint-preview-scroll {
-      width: 100%;
-      max-height: 75vh;
-      overflow: auto;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      background: #171717;
-      text-align: left;
-    }
-    #blueprintPreviewCanvas {
+    #resultCanvas {
       display: block;
-      width: auto;
-      max-width: none;
+      width: 100%;
+      max-width: 720px;
       height: auto;
-      aspect-ratio: auto;
-      border: 0;
-      border-radius: 0;
+      aspect-ratio: 1 / 1;
       image-rendering: pixelated;
+    }
+    #blueprintPreviewCanvas,
+    #blueprintPreviewCanvas[hidden] {
+      display: none !important;
     }
     .action-row {
       display: flex;
@@ -499,7 +476,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.3.2</div>
+  <div class="app-version" id="appVersion">v1.3.3</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -614,8 +591,8 @@
             <div class="canvas-card">
               <h3 id="resultTitle">2D マップアート結果（ブロック模様）</h3>
               <p class="muted" id="blueprintOnlineHint">画像を読み込んで変換すると、「オンラインで表示」から設計図を別タブで開けます。</p>
-              <canvas id="blueprintPreviewCanvas" width="128" height="128" aria-label="座標番号付きマップアートプレビュー" hidden></canvas>
-              <canvas id="resultCanvas" width="128" height="128" hidden></canvas>
+              <canvas id="resultCanvas" width="128" height="128" aria-label="2Dマップアートプレビュー"></canvas>
+              <canvas id="blueprintPreviewCanvas" width="128" height="128" aria-label="オンライン表示用の座標付き設計図" hidden></canvas>
             </div>
           </div>
           <div class="action-row">

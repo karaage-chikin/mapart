@@ -512,7 +512,7 @@
           </div>
           <div class="action-row">
             <button type="button" id="downloadPngBtn" disabled>高画質PNGを保存（プレビュー16倍）</button>
-            <button type="button" id="downloadGridBtn" class="secondary" disabled>座標付き設計図を保存（SVG）</button>
+            <button type="button" id="downloadGridBtn" class="secondary" disabled>座標付き設計図を保存（PNG）</button>
             <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
           </div>
           <div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
@@ -1755,63 +1755,83 @@
       return true;
     }
 
-    els.downloadGridBtn.addEventListener("click", () => {
+    els.downloadGridBtn.addEventListener("click", async () => {
       if (!lastGrid || els.downloadGridBtn.disabled) return;
+      els.downloadGridBtn.disabled = true;
       try {
         const source = els.resultCanvas;
-        const sourceWidth = source.width;
-        const sourceHeight = source.height;
-        const scale = PNG_SCALE;
-        const imageWidth = sourceWidth * scale;
-        const imageHeight = sourceHeight * scale;
-        const cellWidth = imageWidth / MAP_SIZE;
-        const cellHeight = imageHeight / MAP_SIZE;
-        const marginLeft = Math.max(48, Math.ceil(cellWidth));
-        const marginTop = Math.max(48, Math.ceil(cellHeight));
+        const cellSize = 16;
+        const mapWidth = MAP_SIZE * cellSize;
+        const mapHeight = MAP_SIZE * cellSize;
+        const marginLeft = 52;
+        const marginTop = 34;
         const marginRight = 12;
         const marginBottom = 12;
-        const totalWidth = marginLeft + imageWidth + marginRight;
-        const totalHeight = marginTop + imageHeight + marginBottom;
-        const imageUrl = source.toDataURL("image/png");
-        const fontSizeX = Math.max(7, Math.min(14, cellWidth * 0.72));
-        const fontSizeY = Math.max(7, Math.min(14, cellHeight * 0.72));
-        const parts = [
-          '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + totalWidth + '" height="' + totalHeight + '" viewBox="0 0 ' + totalWidth + ' ' + totalHeight + '">',
-          '<rect width="100%" height="100%" fill="#202020"/>',
-          '<image x="' + marginLeft + '" y="' + marginTop + '" width="' + imageWidth + '" height="' + imageHeight + '" preserveAspectRatio="none" href="' + imageUrl + '" xlink:href="' + imageUrl + '"/>',
-          '<g fill="#ffffff" font-family="Arial,sans-serif" text-anchor="middle" dominant-baseline="middle">'
-        ];
+        const output = document.createElement("canvas");
+        output.width = marginLeft + mapWidth + marginRight;
+        output.height = marginTop + mapHeight + marginBottom;
+        const ctx = output.getContext("2d", { alpha: false });
+        if (!ctx) throw new Error("PNG描画用Canvasを作成できません。");
+
+        ctx.fillStyle = "#242424";
+        ctx.fillRect(0, 0, output.width, output.height);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(source, marginLeft, marginTop, mapWidth, mapHeight);
+
+        // 128×128マスの境界線を赤色で描画する。
+        ctx.strokeStyle = "rgba(225, 55, 55, 0.9)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i <= MAP_SIZE; i++) {
+          const x = marginLeft + i * cellSize + 0.5;
+          const y = marginTop + i * cellSize + 0.5;
+          ctx.moveTo(x, marginTop);
+          ctx.lineTo(x, marginTop + mapHeight);
+          ctx.moveTo(marginLeft, y);
+          ctx.lineTo(marginLeft + mapWidth, y);
+        }
+        ctx.stroke();
+
+        // 上端は列番号、左端は行番号。左上のマスが(1, 1)。
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "9px Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
         for (let x = 0; x < MAP_SIZE; x++) {
-          const px = marginLeft + (x + 0.5) * cellWidth;
-          parts.push('<text x="' + px.toFixed(2) + '" y="' + (marginTop / 2).toFixed(2) + '" font-size="' + fontSizeX.toFixed(2) + '">' + (x + 1) + '</text>');
+          ctx.fillText(String(x + 1), marginLeft + (x + 0.5) * cellSize, marginTop / 2);
         }
         for (let y = 0; y < MAP_SIZE; y++) {
-          const py = marginTop + (y + 0.5) * cellHeight;
-          parts.push('<text x="' + (marginLeft / 2).toFixed(2) + '" y="' + py.toFixed(2) + '" font-size="' + fontSizeY.toFixed(2) + '">' + (y + 1) + '</text>');
+          ctx.fillText(String(y + 1), marginLeft / 2, marginTop + (y + 0.5) * cellSize);
         }
-        parts.push('</g>');
-        parts.push('<g fill="none" stroke="#d34b4b" stroke-width="' + Math.max(0.6, Math.min(1.2, cellWidth * 0.025)).toFixed(2) + '" opacity="0.8">');
-        for (let x = 0; x <= MAP_SIZE; x++) {
-          const px = marginLeft + x * cellWidth;
-          parts.push('<path d="M' + px.toFixed(2) + ' ' + marginTop + 'V' + (marginTop + imageHeight) + '"/>');
+
+        setPngStatus("座標付きPNGを生成しています…\n画像サイズ: " + output.width + "×" + output.height + " px", "progress");
+        const blob = await new Promise((resolve, reject) => {
+          output.toBlob(value => value ? resolve(value) : reject(new Error("PNG画像の生成に失敗しました。")), "image/png");
+        });
+        if (blob.type !== "image/png" || blob.size < 100) {
+          throw new Error("生成したファイルが正常なPNGではありません。");
         }
-        for (let y = 0; y <= MAP_SIZE; y++) {
-          const py = marginTop + y * cellHeight;
-          parts.push('<path d="M' + marginLeft + ' ' + py.toFixed(2) + 'H' + (marginLeft + imageWidth) + '"/>');
+        const header = new DataView(await blob.slice(0, 24).arrayBuffer());
+        if (header.getUint32(0, false) !== 0x89504e47 ||
+            header.getUint32(16, false) !== output.width ||
+            header.getUint32(20, false) !== output.height) {
+          throw new Error("PNG形式または画像サイズの検証に失敗しました。");
         }
-        parts.push('</g></svg>');
-        const blob = new Blob([parts.join('')], { type: 'image/svg+xml;charset=utf-8' });
+
         const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
+        const link = document.createElement("a");
         link.href = url;
-        link.download = 'mapart_2d_grid_coordinates.svg';
+        link.download = "mapart_2d_grid_coordinates.png";
         document.body.appendChild(link);
         link.click();
         link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 60000);
-        setPngStatus('座標付き設計図を保存しました。上端は左から1〜128、左端は上から1〜128です。マスの中には数字を表示していません。SVG形式なので拡大しても座標と線が鮮明です。', 'success');
+        setPngStatus("座標付きPNGを保存しました。\n画像サイズ: " + output.width + "×" + output.height + " px\nファイルサイズ: " + formatBytes(blob.size) + "\n上端・左端の番号は1から始まります。", "success");
       } catch (error) {
-        setPngStatus('設計図の保存に失敗しました: ' + (error && error.message ? error.message : String(error)), 'error');
+        console.error("座標付きPNGの保存に失敗しました:", error);
+        setPngStatus("座標付きPNGの保存を中止しました。\nERROR: " + (error && error.message ? error.message : String(error)), "error");
+      } finally {
+        els.downloadGridBtn.disabled = !lastGrid;
       }
     });
 

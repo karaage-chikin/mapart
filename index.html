@@ -814,6 +814,30 @@
       return textureCachePromise;
     }
 
+    async function fetchCachedText(url) {
+      try {
+        const cache = await getTextureCache();
+        if (cache) {
+          const cached = await cache.match(url);
+          if (cached) return await cached.text();
+        }
+      } catch (error) {
+        console.warn("JSONキャッシュの読み込みに失敗:", url, error);
+      }
+
+      const response = await fetch(url, { mode: "cors" });
+      if (!response.ok) throw new Error("JSONを取得できません: " + url + " (" + response.status + ")");
+      const cacheCopy = response.clone();
+      const content = await response.text();
+      try {
+        const cache = await getTextureCache();
+        if (cache) await cache.put(url, cacheCopy);
+      } catch (error) {
+        console.warn("JSONキャッシュへの保存に失敗:", url, error);
+      }
+      return content;
+    }
+
     async function loadTextureImage(path) {
       const url = BEDROCK_SAMPLE_BASE + path;
       let blob = null;
@@ -895,13 +919,13 @@
           BEDROCK_SAMPLE_BASE + "blocks.json",
           BEDROCK_SAMPLE_BASE + "textures/terrain_texture.json"
         ];
-        const responses = await Promise.all(urls.map(url => fetch(url)));
-        if (responses.some(response => !response.ok)) throw new Error("公式サンプルのJSONを取得できませんでした。");
-        const blockDefs = parseBedrockJson(await responses[0].text());
-        const terrainJson = parseBedrockJson(await responses[1].text());
+        const jsonTexts = await Promise.all(urls.map(url => fetchCachedText(url)));
+        const blockDefs = parseBedrockJson(jsonTexts[0]);
+        const terrainJson = parseBedrockJson(jsonTexts[1]);
         const terrainData = terrainJson.texture_data || {};
 
         let processed = 0;
+        let loaded = 0;
         updateTextureLoading(5, "ブロックテクスチャを読み込んでいます…");
         const textureJobs = BLOCK_DATA.map(block => ({ block, path: texturePathFromBlock(blockDefs[BEDROCK_ID_ALIASES[block.id] || block.id], terrainData) }));
         for (const job of textureJobs) {
@@ -922,6 +946,7 @@
               const img = await loadTextureImage(path);
               block.textureImage = img;
               block.texturePath = path;
+              loaded++;
               block.rgb = getTextureAverage(img);
               if (block.tint) {
                 const tr = parseInt(block.tint.slice(1, 3), 16) / 255;

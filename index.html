@@ -265,9 +265,15 @@
           <div class="preset-bar">
             <button type="button" class="secondary" data-preset="all">全選択</button>
             <button type="button" class="secondary" data-preset="none">全解除</button>
-            <button type="button" class="secondary" data-preset="wool">羊毛系</button>
-            <button type="button" class="secondary" data-preset="terracotta">テラコッタ系</button>
-            <button type="button" class="secondary" data-preset="basic">基本・鉱物/自然系</button>
+            <button type="button" class="secondary" data-preset="natural">自然</button>
+            <button type="button" class="secondary" data-preset="stone">石材</button>
+            <button type="button" class="secondary" data-preset="wood">木材</button>
+            <button type="button" class="secondary" data-preset="ice">氷</button>
+            <button type="button" class="secondary" data-preset="wool">羊毛</button>
+            <button type="button" class="secondary" data-preset="concrete">コンクリート</button>
+            <button type="button" class="secondary" data-preset="terracotta">テラコッタ</button>
+            <button type="button" class="secondary" data-preset="ore">鉱石</button>
+            <button type="button" class="secondary" data-preset="nether">ネザー</button>
           </div>
           <div class="muted" id="textureStatus" role="status" style="margin:8px 0 10px;">
             統合版バニラテクスチャを読み込みます…
@@ -325,68 +331,131 @@
 
     // pattern: "speckle"（砂目/石）, "wool"（羊毛の繊維）, "planks"（板材/横ライン）, "bricks"（レンガ/タイル）, "smooth"（滑らか/鉱物）
     const BLOCK_DATA = [
-      { id: "grass_block", name: "草ブロック", cat: "basic", pattern: "speckle", rgb: [109, 153, 48], checked: true, tint: "#91bd59" },
-      { id: "slime", name: "スライムブロック", cat: "basic", pattern: "smooth", rgb: [111, 190, 93], checked: true },
-      { id: "sandstone", name: "砂 / 砂岩 / シラカバ材", cat: "basic", pattern: "speckle", rgb: [213, 201, 140], checked: true },
-      { id: "cobweb", name: "キノコの柄 / クモの巣", cat: "basic", pattern: "wool", rgb: [171, 171, 171], checked: true },
-      { id: "redstone_block", name: "レッドストーンブロック / TNT", cat: "basic", pattern: "bricks", rgb: [220, 0, 0], checked: true },
-      { id: "packed_ice", name: "氷塊 / 青氷", cat: "basic", pattern: "smooth", rgb: [138, 138, 220], checked: true },
-      { id: "iron_block", name: "鉄ブロック", cat: "basic", pattern: "bricks", rgb: [144, 144, 144], checked: true },
-      { id: "oak_leaves", name: "オークの葉", cat: "basic", pattern: "speckle", rgb: [0, 106, 0], checked: true },
-      { id: "snow_block", name: "雪ブロック / 白色の羊毛", cat: "wool", pattern: "wool", rgb: [220, 220, 220], checked: true },
-      { id: "clay", name: "粘土ブロック", cat: "basic", pattern: "smooth", rgb: [141, 144, 158], checked: true },
-      { id: "dirt", name: "土 / 花崗岩 / ジャングル材", cat: "basic", pattern: "speckle", rgb: [130, 94, 66], checked: true },
-      { id: "stone", name: "石 / 丸石 / 安山岩", cat: "basic", pattern: "speckle", rgb: [96, 96, 96], checked: true },
-      { id: "oak_planks", name: "オークの板材", cat: "basic", pattern: "planks", rgb: [123, 102, 62], checked: true },
-      { id: "quartz_block", name: "クォーツブロック / 閃緑岩", cat: "basic", pattern: "bricks", rgb: [220, 217, 211], checked: true },
-      { id: "gold_block", name: "金ブロック", cat: "basic", pattern: "bricks", rgb: [215, 205, 66], checked: true },
-      { id: "diamond_block", name: "ダイヤモンドブロック / プリズマリンレンガ", cat: "basic", pattern: "bricks", rgb: [79, 188, 183], checked: true },
-      { id: "lapis_block", name: "ラピスラズリブロック", cat: "basic", pattern: "speckle", rgb: [63, 110, 220], checked: true },
-      { id: "emerald_block", name: "エメラルドブロック", cat: "basic", pattern: "bricks", rgb: [0, 187, 50], checked: true },
-      { id: "podzol", name: "ポドゾル / トウヒ材", cat: "basic", pattern: "planks", rgb: [111, 74, 42], checked: true },
-      { id: "netherrack", name: "ネザーラック / ネザーレンガ", cat: "basic", pattern: "bricks", rgb: [96, 1, 0], checked: true },
-      { id: "deepslate", name: "深層岩", cat: "basic", pattern: "speckle", rgb: [86, 86, 86], checked: true },
-      { id: "raw_iron_block", name: "鉄の原石ブロック", cat: "basic", pattern: "speckle", rgb: [186, 150, 126], checked: true },
-      { id: "glow_lichen", name: "ヒカリゴケ / 新緑のフロッグライト", cat: "basic", pattern: "speckle", rgb: [108, 144, 129], checked: true },
+      // 自然・地形
+      { id:"grass_block", name:"草ブロック", cat:"natural", rgb:[109,153,48], checked:true, tint:"#91bd59" },
+      { id:"dirt", name:"土", cat:"natural", rgb:[130,94,66], checked:true },
+      { id:"coarse_dirt", name:"粗い土", cat:"natural", rgb:[119,85,59], checked:true },
+      { id:"podzol", name:"ポドゾル", cat:"natural", rgb:[111,74,42], checked:true },
+      { id:"sand", name:"砂", cat:"natural", rgb:[219,207,163], checked:true },
+      { id:"red_sand", name:"赤い砂", cat:"natural", rgb:[190,102,33], checked:true },
+      { id:"gravel", name:"砂利", cat:"natural", rgb:[128,124,128], checked:true },
+      { id:"clay", name:"粘土ブロック", cat:"natural", rgb:[141,144,158], checked:true },
+      { id:"snow", name:"雪ブロック", cat:"natural", rgb:[220,225,230], checked:true },
+      { id:"ice", name:"氷", cat:"ice", rgb:[145,180,220], checked:true },
+      { id:"packed_ice", name:"氷塊", cat:"ice", rgb:[140,175,220], checked:true },
+      { id:"blue_ice", name:"青氷", cat:"ice", rgb:[85,130,205], checked:true },
+      { id:"slime", name:"スライムブロック", cat:"natural", rgb:[111,190,93], checked:true },
+      { id:"honeycomb_block", name:"ハニカムブロック", cat:"natural", rgb:[224,151,45], checked:true },
+      { id:"moss_block", name:"苔ブロック", cat:"natural", rgb:[89,116,52], checked:true },
+      { id:"moss_carpet", name:"苔のカーペット", cat:"natural", rgb:[93,120,57], checked:true },
+      { id:"oak_leaves", name:"オークの葉", cat:"natural", rgb:[75,117,48], checked:true },
+      { id:"glow_lichen", name:"ヒカリゴケ", cat:"natural", rgb:[108,144,129], checked:true },
+      { id:"sponge", name:"スポンジ", cat:"natural", rgb:[195,190,70], checked:true },
+      { id:"wet_sponge", name:"濡れたスポンジ", cat:"natural", rgb:[150,151,58], checked:true },
 
-      { id: "orange_wool", name: "橙色の羊毛 / コンクリート / 銅", cat: "wool", pattern: "wool", rgb: [186, 109, 44], checked: true },
-      { id: "magenta_wool", name: "赤紫色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [153, 65, 186], checked: true },
-      { id: "light_blue_wool", name: "空色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [88, 132, 186], checked: true },
-      { id: "yellow_wool", name: "黄色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [197, 197, 44], checked: true },
-      { id: "lime_wool", name: "黄緑色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [109, 176, 21], checked: true },
-      { id: "pink_wool", name: "桃色の羊毛 / コンクリート / 桜の葉", cat: "wool", pattern: "wool", rgb: [208, 109, 142], checked: true },
-      { id: "gray_wool", name: "灰色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [65, 65, 65], checked: true },
-      { id: "light_gray_wool", name: "薄灰色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [132, 132, 132], checked: true },
-      { id: "cyan_wool", name: "青緑色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [65, 109, 132], checked: true },
-      { id: "purple_wool", name: "紫色の羊毛 / アメジスト", cat: "wool", pattern: "wool", rgb: [109, 54, 153], checked: true },
-      { id: "blue_wool", name: "青色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [44, 65, 153], checked: true },
-      { id: "brown_wool", name: "茶色の羊毛 / ダークオーク材", cat: "wool", pattern: "wool", rgb: [88, 65, 44], checked: true },
-      { id: "green_wool", name: "緑色の羊毛", cat: "wool", pattern: "wool", rgb: [88, 109, 44], checked: true },
-      { id: "green_concrete", name: "緑色のコンクリート", cat: "basic", pattern: "smooth", rgb: [73, 91, 36], checked: true },
-      { id: "red_wool", name: "赤色の羊毛 / レンガ / ネザーウォート", cat: "wool", pattern: "wool", rgb: [132, 44, 44], checked: true },
-      { id: "black_wool", name: "黒色の羊毛 / 黒曜石 / 石炭", cat: "wool", pattern: "wool", rgb: [21, 21, 21], checked: true },
+      // 石・鉱物
+      { id:"stone", name:"石", cat:"stone", rgb:[125,125,125], checked:true },
+      { id:"cobblestone", name:"丸石", cat:"stone", rgb:[100,100,100], checked:true },
+      { id:"mossy_cobblestone", name:"苔むした丸石", cat:"stone", rgb:[85,105,75], checked:true },
+      { id:"granite", name:"花崗岩", cat:"stone", rgb:[149,103,87], checked:true },
+      { id:"polished_granite", name:"磨かれた花崗岩", cat:"stone", rgb:[154,107,98], checked:true },
+      { id:"diorite", name:"閃緑岩", cat:"stone", rgb:[190,190,185], checked:true },
+      { id:"polished_diorite", name:"磨かれた閃緑岩", cat:"stone", rgb:[205,205,200], checked:true },
+      { id:"andesite", name:"安山岩", cat:"stone", rgb:[135,135,135], checked:true },
+      { id:"polished_andesite", name:"磨かれた安山岩", cat:"stone", rgb:[132,132,132], checked:true },
+      { id:"deepslate", name:"深層岩", cat:"stone", rgb:[75,75,80], checked:true },
+      { id:"cobbled_deepslate", name:"深層岩の丸石", cat:"stone", rgb:[80,80,85], checked:true },
+      { id:"tuff", name:"凝灰岩", cat:"stone", rgb:[108,109,าล], checked:true },
+      { id:"bricks", name:"レンガブロック", cat:"stone", rgb:[150,92,78], checked:true },
+      { id:"sandstone", name:"砂岩", cat:"stone", rgb:[216,202,149], checked:true },
+      { id:"red_sandstone", name:"赤い砂岩", cat:"stone", rgb:[186,99,35], checked:true },
+      { id:"quartz_block", name:"クォーツブロック", cat:"stone", rgb:[220,217,211], checked:true },
+      { id:"obsidian", name:"黒曜石", cat:"stone", rgb:[30,22,54], checked:true },
+      { id:"crying_obsidian", name:"泣く黒曜石", cat:"stone", rgb:[75,35,90], checked:true },
 
-      { id: "white_terracotta", name: "白色のテラコッタ / 桜の板材", cat: "terracotta", pattern: "smooth", rgb: [180, 152, 138], checked: true },
-      { id: "orange_terracotta", name: "橙色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [137, 70, 31], checked: true },
-      { id: "magenta_terracotta", name: "赤紫色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [128, 75, 93], checked: true },
-      { id: "light_blue_terracotta", name: "空色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [96, 93, 119], checked: true },
-      { id: "yellow_terracotta", name: "黄色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [159, 114, 31], checked: true },
-      { id: "lime_terracotta", name: "黄緑色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [88, 100, 45], checked: true },
-      { id: "pink_terracotta", name: "桃色のテラコッタ / 樹皮を剥いだ桜", cat: "terracotta", pattern: "smooth", rgb: [138, 66, 67], checked: true },
-      { id: "gray_terracotta", name: "灰色のテラコッタ / 凝灰岩", cat: "terracotta", pattern: "smooth", rgb: [49, 35, 30], checked: true },
-      { id: "light_gray_terracotta", name: "薄灰色のテラコッタ / 泥レンガ", cat: "terracotta", pattern: "smooth", rgb: [116, 92, 84], checked: true },
-      { id: "cyan_terracotta", name: "青緑色のテラコッタ / 泥", cat: "terracotta", pattern: "smooth", rgb: [75, 79, 79], checked: true },
-      { id: "purple_terracotta", name: "紫色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [105, 62, 75], checked: true },
-      { id: "blue_terracotta", name: "青色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [65, 53, 79], checked: true },
-      { id: "brown_terracotta", name: "茶色のテラコッタ / 鍾乳石", cat: "terracotta", pattern: "smooth", rgb: [65, 43, 30], checked: true },
-      { id: "green_terracotta", name: "緑色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [65, 70, 36], checked: true },
-      { id: "red_terracotta", name: "赤色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [122, 51, 40], checked: true },
-      { id: "black_terracotta", name: "黒色のテラコッタ", cat: "terracotta", pattern: "smooth", rgb: [32, 19, 13], checked: true },
-      { id: "crimson_nylium", name: "真紅のナイリウム", cat: "terracotta", pattern: "speckle", rgb: [163, 41, 42], checked: true },
-      { id: "crimson_planks", name: "真紅の板材", cat: "terracotta", pattern: "planks", rgb: [127, 54, 83], checked: true },
-      { id: "warped_nylium", name: "歪んだナイリウム / 酸化した銅", cat: "terracotta", pattern: "speckle", rgb: [19, 108, 114], checked: true },
-      { id: "warped_planks", name: "歪んだ板材 / 風化した銅", cat: "terracotta", pattern: "planks", rgb: [50, 122, 120], checked: true },
-      { id: "warped_wart", name: "歪んだウォートブロック", cat: "terracotta", pattern: "speckle", rgb: [17, 155, 114], checked: true }
+      // 木材（板材）
+      { id:"oak_planks", name:"オークの板材", cat:"wood", rgb:[162,130,78], checked:true },
+      { id:"spruce_planks", name:"トウヒの板材", cat:"wood", rgb:[115,83,48], checked:true },
+      { id:"birch_planks", name:"シラカバの板材", cat:"wood", rgb:[195,178,123], checked:true },
+      { id:"jungle_planks", name:"ジャングルの板材", cat:"wood", rgb:[160,115,80], checked:true },
+      { id:"acacia_planks", name:"アカシアの板材", cat:"wood", rgb:[168,91,50], checked:true },
+      { id:"dark_oak_planks", name:"ダークオークの板材", cat:"wood", rgb:[65,45,28], checked:true },
+      { id:"mangrove_planks", name:"マングローブの板材", cat:"wood", rgb:[120,55,45], checked:true },
+      { id:"cherry_planks", name:"桜の板材", cat:"wood", rgb:[225,175,173], checked:true },
+      { id:"bamboo_planks", name:"竹の板材", cat:"wood", rgb:[195,176,82], checked:true },
+      { id:"crimson_planks", name:"真紅の板材", cat:"wood", rgb:[102,45,68], checked:true },
+      { id:"warped_planks", name:"歪んだ板材", cat:"wood", rgb:[45,110,105], checked:true },
+
+      // 羊毛 16色
+      { id:"white_wool", name:"白色の羊毛", cat:"wool", rgb:[233,236,236], checked:true },
+      { id:"orange_wool", name:"橙色の羊毛", cat:"wool", rgb:[240,118,19], checked:true },
+      { id:"magenta_wool", name:"赤紫色の羊毛", cat:"wool", rgb:[189,68,179], checked:true },
+      { id:"light_blue_wool", name:"空色の羊毛", cat:"wool", rgb:[58,175,217], checked:true },
+      { id:"yellow_wool", name:"黄色の羊毛", cat:"wool", rgb:[248,198,39], checked:true },
+      { id:"lime_wool", name:"黄緑色の羊毛", cat:"wool", rgb:[112,185,25], checked:true },
+      { id:"pink_wool", name:"桃色の羊毛", cat:"wool", rgb:[237,141,172], checked:true },
+      { id:"gray_wool", name:"灰色の羊毛", cat:"wool", rgb:[62,68,71], checked:true },
+      { id:"light_gray_wool", name:"薄灰色の羊毛", cat:"wool", rgb:[142,142,134], checked:true },
+      { id:"cyan_wool", name:"青緑色の羊毛", cat:"wool", rgb:[21,137,145], checked:true },
+      { id:"purple_wool", name:"紫色の羊毛", cat:"wool", rgb:[121,42,172], checked:true },
+      { id:"blue_wool", name:"青色の羊毛", cat:"wool", rgb:[53,57,157], checked:true },
+      { id:"brown_wool", name:"茶色の羊毛", cat:"wool", rgb:[114,71,40], checked:true },
+      { id:"green_wool", name:"緑色の羊毛", cat:"wool", rgb:[84,109,27], checked:true },
+      { id:"red_wool", name:"赤色の羊毛", cat:"wool", rgb:[161,39,34], checked:true },
+      { id:"black_wool", name:"黒色の羊毛", cat:"wool", rgb:[20,21,25], checked:true },
+
+      // コンクリート 16色
+      { id:"white_concrete", name:"白色のコンクリート", cat:"concrete", rgb:[207,213,214], checked:true },
+      { id:"orange_concrete", name:"橙色のコンクリート", cat:"concrete", rgb:[224,97,0], checked:true },
+      { id:"magenta_concrete", name:"赤紫色のコンクリート", cat:"concrete", rgb:[169,48,159], checked:true },
+      { id:"light_blue_concrete", name:"空色のコンクリート", cat:"concrete", rgb:[36,137,199], checked:true },
+      { id:"yellow_concrete", name:"黄色のコンクリート", cat:"concrete", rgb:[241,175,21], checked:true },
+      { id:"lime_concrete", name:"黄緑色のコンクリート", cat:"concrete", rgb:[94,169,24], checked:true },
+      { id:"pink_concrete", name:"桃色のコンクリート", cat:"concrete", rgb:[214,101,143], checked:true },
+      { id:"gray_concrete", name:"灰色のコンクリート", cat:"concrete", rgb:[54,57,61], checked:true },
+      { id:"light_gray_concrete", name:"薄灰色のコンクリート", cat:"concrete", rgb:[125,125,115], checked:true },
+      { id:"cyan_concrete", name:"青緑色のコンクリート", cat:"concrete", rgb:[21,119,136], checked:true },
+      { id:"purple_concrete", name:"紫色のコンクリート", cat:"concrete", rgb:[100,32,156], checked:true },
+      { id:"blue_concrete", name:"青色のコンクリート", cat:"concrete", rgb:[44,46,143], checked:true },
+      { id:"brown_concrete", name:"茶色のコンクリート", cat:"concrete", rgb:[96,60,32], checked:true },
+      { id:"green_concrete", name:"緑色のコンクリート", cat:"concrete", rgb:[73,91,36], checked:true },
+      { id:"red_concrete", name:"赤色のコンクリート", cat:"concrete", rgb:[142,32,32], checked:true },
+      { id:"black_concrete", name:"黒色のコンクリート", cat:"concrete", rgb:[8,10,15], checked:true },
+
+      // テラコッタ 16色
+      { id:"terracotta", name:"テラコッタ", cat:"terracotta", rgb:[152,94,67], checked:true },
+      { id:"white_terracotta", name:"白色のテラコッタ", cat:"terracotta", rgb:[209,178,161], checked:true },
+      { id:"orange_terracotta", name:"橙色のテラコッタ", cat:"terracotta", rgb:[161,83,37], checked:true },
+      { id:"magenta_terracotta", name:"赤紫色のテラコッタ", cat:"terracotta", rgb:[149,88,108], checked:true },
+      { id:"light_blue_terracotta", name:"空色のテラコッタ", cat:"terracotta", rgb:[113,108,137], checked:true },
+      { id:"yellow_terracotta", name:"黄色のテラコッタ", cat:"terracotta", rgb:[186,133,36], checked:true },
+      { id:"lime_terracotta", name:"黄緑色のテラコッタ", cat:"terracotta", rgb:[103,117,53], checked:true },
+      { id:"pink_terracotta", name:"桃色のテラコッタ", cat:"terracotta", rgb:[160,77,78], checked:true },
+      { id:"gray_terracotta", name:"灰色のテラコッタ", cat:"terracotta", rgb:[57,42,35], checked:true },
+      { id:"light_gray_terracotta", name:"薄灰色のテラコッタ", cat:"terracotta", rgb:[135,107,98], checked:true },
+      { id:"cyan_terracotta", name:"青緑色のテラコッタ", cat:"terracotta", rgb:[86,91,91], checked:true },
+      { id:"purple_terracotta", name:"紫色のテラコッタ", cat:"terracotta", rgb:[118,70,86], checked:true },
+      { id:"blue_terracotta", name:"青色のテラコッタ", cat:"terracotta", rgb:[74,59,91], checked:true },
+      { id:"brown_terracotta", name:"茶色のテラコッタ", cat:"terracotta", rgb:[77,51,36], checked:true },
+      { id:"green_terracotta", name:"緑色のテラコッタ", cat:"terracotta", rgb:[76,83,42], checked:true },
+      { id:"red_terracotta", name:"赤色のテラコッタ", cat:"terracotta", rgb:[143,61,47], checked:true },
+      { id:"black_terracotta", name:"黒色のテラコッタ", cat:"terracotta", rgb:[37,22,16], checked:true },
+
+      // 金属・鉱石・その他
+      { id:"iron_block", name:"鉄ブロック", cat:"ore", rgb:[190,190,190], checked:true },
+      { id:"gold_block", name:"金ブロック", cat:"ore", rgb:[246,208,61], checked:true },
+      { id:"diamond_block", name:"ダイヤモンドブロック", cat:"ore", rgb:[98,219,213], checked:true },
+      { id:"emerald_block", name:"エメラルドブロック", cat:"ore", rgb:[42,203,87], checked:true },
+      { id:"lapis_block", name:"ラピスラズリブロック", cat:"ore", rgb:[30,67,140], checked:true },
+      { id:"redstone_block", name:"レッドストーンブロック", cat:"ore", rgb:[170,25,25], checked:true },
+      { id:"raw_iron_block", name:"鉄の原石ブロック", cat:"ore", rgb:[166,135,107], checked:true },
+      { id:"copper_block", name:"銅ブロック", cat:"ore", rgb:[192,107,79], checked:true },
+      { id:"netherite_block", name:"ネザライトブロック", cat:"ore", rgb:[66,54,52], checked:true },
+      { id:"netherrack", name:"ネザーラック", cat:"nether", rgb:[100,38,38], checked:true },
+      { id:"nether_bricks", name:"ネザーレンガ", cat:"nether", rgb:[45,22,27], checked:true },
+      { id:"crimson_nylium", name:"真紅のナイリウム", cat:"nether", rgb:[130,45,48], checked:true },
+      { id:"warped_nylium", name:"歪んだナイリウム", cat:"nether", rgb:[35,105,105], checked:true },
+      { id:"warped_wart_block", name:"歪んだウォートブロック", cat:"nether", rgb:[22,145,115], checked:true }
     ];
 
     function clamp(v, min = 0, max = 255) {
@@ -649,26 +718,43 @@
       }
     }
 
+    const CATEGORY_LABELS = {
+      natural:"自然・地形", stone:"石材・建材", wood:"木材", ice:"氷", wool:"羊毛（16色）",
+      concrete:"コンクリート（16色）", terracotta:"テラコッタ（16色）", ore:"鉱石・金属", nether:"ネザー"
+    };
+
     function renderBlockList() {
       els.blockList.innerHTML = "";
+      let currentCategory = "";
       BLOCK_DATA.forEach((b, idx) => {
+        if (b.cat !== currentCategory) {
+          currentCategory = b.cat;
+          const heading = document.createElement("div");
+          heading.className = "category-title";
+          heading.textContent = CATEGORY_LABELS[currentCategory] || currentCategory;
+          els.blockList.appendChild(heading);
+        }
         const label = document.createElement("label");
         label.className = "block-item";
-        label.innerHTML = `
-          <input type="checkbox" data-idx="${idx}" ${b.checked ? "checked" : ""}>
-          <span class="swatch" style="background: rgb(${b.rgb[0]},${b.rgb[1]},${b.rgb[2]});"></span>
-          <span>${b.name}</span>
-        `;
-        const swatch = label.querySelector(".swatch");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.dataset.idx = idx;
+        checkbox.checked = b.checked;
+        const fallback = document.createElement("span");
+        fallback.className = "swatch";
+        fallback.style.background = `rgb(${b.rgb[0]},${b.rgb[1]},${b.rgb[2]})`;
+        const name = document.createElement("span");
+        name.textContent = b.name;
+        label.append(checkbox, fallback, name);
         if (b.textureImage) {
           const thumbnail = document.createElement("img");
           thumbnail.className = "swatch";
           thumbnail.src = b.textureImage.src;
           thumbnail.alt = b.name + "のテクスチャ";
           thumbnail.title = b.name + "のテクスチャ";
-          swatch.replaceWith(thumbnail);
+          fallback.replaceWith(thumbnail);
         }
-        label.querySelector("input").addEventListener("change", (e) => {
+        checkbox.addEventListener("change", (e) => {
           BLOCK_DATA[idx].checked = e.target.checked;
           updateActiveCount();
           runConversion();
@@ -691,7 +777,7 @@
           else if (type === "none") b.checked = false;
           else if (type === "wool") b.checked = b.cat === "wool";
           else if (type === "terracotta") b.checked = b.cat === "terracotta";
-          else if (type === "basic") b.checked = b.cat === "basic";
+          else b.checked = b.cat === type;
         });
         renderBlockList();
         runConversion();

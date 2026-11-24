@@ -465,7 +465,7 @@
       { id:"deepslate", name:"深層岩", cat:"stone", rgb:[75,75,80], checked:true },
       { id:"cobbled_deepslate", name:"深層岩の丸石", cat:"stone", rgb:[80,80,85], checked:true },
       { id:"tuff", name:"凝灰岩", cat:"stone", rgb:[108,109,109], checked:true },
-      { id:"bricks", name:"レンガブロック", cat:"stone", rgb:[150,92,78], checked:true },
+
       { id:"sandstone", name:"砂岩", cat:"stone", rgb:[216,202,149], checked:true },
       { id:"red_sandstone", name:"赤い砂岩", cat:"stone", rgb:[186,99,35], checked:true },
       { id:"quartz_block", name:"クォーツブロック", cat:"stone", rgb:[220,217,211], checked:true },
@@ -588,9 +588,9 @@
       { id:"brown_mushroom_block", name:"茶色のキノコブロック", cat:"natural", rgb:[151,111,77], checked:true },
       { id:"red_mushroom_block", name:"赤色のキノコブロック", cat:"natural", rgb:[184,67,55], checked:true },
       { id:"glowstone", name:"グロウストーン", cat:"nether", rgb:[171,132,75], checked:true },
-      { id:"shroomlight", name:"シュroomライト", cat:"nether", rgb:[217,126,58], checked:true },
+      { id:"shroomlight", name:"シュルームライト", cat:"nether", rgb:[217,126,58], checked:true },
       { id:"magma", name:"マグマブロック", cat:"nether", rgb:[111,48,37], checked:true },
-      { id:"soul_sand", name:"ソウルサンド", cat:"nether", rgb:[81,고=>62,51], checked:true },
+      { id:"soul_sand", name:"ソウルサンド", cat:"nether", rgb:[81,62,51], checked:true },
       { id:"soul_soil", name:"ソウルソイル", cat:"nether", rgb:[75,57,49], checked:true },
       { id:"end_stone", name:"エンドストーン", cat:"end", rgb:[219,220,158], checked:true },
       { id:"purpur_block", name:"プルプァブロック", cat:"end", rgb:[169,125,169], checked:true },
@@ -808,7 +808,10 @@
     // Mojang公式Bedrock Samplesのバニラ定義から、各ブロックの上面テクスチャを取得する。
     const BEDROCK_SAMPLE_BASE = "https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/";
     const BEDROCK_ID_ALIASES = {
-      grass_block: "grass", snow_block: "snow", cobweb: "web"
+      grass_block: "grass",
+      snow_block: "snow",
+      cobweb: "web",
+      terracotta: "hardened_clay"
     };
 
     function parseBedrockJson(text) {
@@ -1066,85 +1069,65 @@
         : "テクスチャを取得できなかったため、代替表示でサイトを開きます。");
     }
 
-    const COLOR_GROUPS = [
-      { key:"red", label:"赤・ピンク" },
-      { key:"orange", label:"オレンジ・茶色" },
-      { key:"yellow", label:"黄色" },
-      { key:"green", label:"黄緑・緑" },
-      { key:"cyan", label:"水色・シアン" },
-      { key:"blue", label:"青" },
-      { key:"purple", label:"紫・マゼンタ" },
-      { key:"white", label:"白・薄い色" },
-      { key:"gray", label:"灰色" },
-      { key:"black", label:"黒・暗い色" }
-    ];
-
-    function getBlockColorGroup(rgb) {
-      const max = Math.max(...rgb), min = Math.min(...rgb);
-      const saturation = max === 0 ? 0 : (max - min) / max;
-      const value = max / 255;
-      if (value < 0.20) return "black";
-      if (saturation < 0.13) return value > 0.78 ? "white" : "gray";
-      const [r, g, b] = rgb.map(v => v / 255);
-      let hue;
-      if (max === min) hue = 0;
-      else if (max === r) hue = ((g - b) / (max - min) + (g < b ? 6 : 0)) * 60;
-      else if (max === g) hue = ((b - r) / (max - min) + 2) * 60;
-      else hue = ((r - g) / (max - min) + 4) * 60;
-      if (hue < 15 || hue >= 345) return "red";
-      if (hue < 42) return "orange";
-      if (hue < 68) return "yellow";
-      if (hue < 165) return "green";
-      if (hue < 195) return "cyan";
-      if (hue < 255) return "blue";
-      if (hue < 285) return "purple";
-      return "red";
-    }
+    const CATEGORY_LABELS = {
+      natural: "自然・地形",
+      stone: "石・鉱物",
+      wood: "木材",
+      ice: "氷",
+      wool: "羊毛",
+      concrete: "コンクリート",
+      terracotta: "テラコッタ",
+      ore: "金属・鉱石",
+      nether: "ネザー",
+      end: "エンド",
+      decorative: "装飾・海洋",
+      sculk: "スカルク"
+    };
 
     function renderBlockList() {
       els.blockList.innerHTML = "";
-      const groupOrder = COLOR_GROUPS.map(group => group.key);
-      const orderedBlocks = BLOCK_DATA.map((block, index) => ({
-        block, index, colorGroup: getBlockColorGroup(block.rgb)
-      })).sort((a, b) =>
-        groupOrder.indexOf(a.colorGroup) - groupOrder.indexOf(b.colorGroup) ||
-        a.block.name.localeCompare(b.block.name, "ja")
-      );
-      let currentGroup = "";
-      orderedBlocks.forEach(({ block: b, index: idx, colorGroup }) => {
-        if (colorGroup !== currentGroup) {
-          currentGroup = colorGroup;
-          const heading = document.createElement("div");
-          heading.className = "category-title";
-          heading.textContent = COLOR_GROUPS.find(group => group.key === currentGroup).label;
-          els.blockList.appendChild(heading);
-        }
-        const label = document.createElement("label");
-        label.className = "block-item";
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.dataset.idx = idx;
-        checkbox.checked = b.checked;
-        const fallback = document.createElement("span");
-        fallback.className = "swatch";
-        fallback.style.background = `rgb(${b.rgb[0]},${b.rgb[1]},${b.rgb[2]})`;
-        const name = document.createElement("span");
-        name.textContent = b.name;
-        label.append(checkbox, fallback, name);
-        if (b.textureImage) {
-          const thumbnail = document.createElement("img");
-          thumbnail.className = "swatch";
-          thumbnail.src = b.textureImage.src;
-          thumbnail.alt = b.name + "のテクスチャ";
-          thumbnail.title = b.name + "のテクスチャ";
-          fallback.replaceWith(thumbnail);
-        }
-        checkbox.addEventListener("change", (e) => {
-          BLOCK_DATA[idx].checked = e.target.checked;
-          updateActiveCount();
-          runConversion();
+      const categoryOrder = Object.keys(CATEGORY_LABELS);
+      const groupedBlocks = new Map(categoryOrder.map(category => [category, []]));
+      BLOCK_DATA.forEach((block, index) => {
+        if (!groupedBlocks.has(block.cat)) groupedBlocks.set(block.cat, []);
+        groupedBlocks.get(block.cat).push({ block, index });
+      });
+
+      categoryOrder.forEach(category => {
+        const entries = groupedBlocks.get(category) || [];
+        if (!entries.length) return;
+        const heading = document.createElement("div");
+        heading.className = "category-title";
+        heading.textContent = CATEGORY_LABELS[category];
+        els.blockList.appendChild(heading);
+        entries.forEach(({ block: b, index: idx }) => {
+          const label = document.createElement("label");
+          label.className = "block-item";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.dataset.idx = idx;
+          checkbox.checked = b.checked;
+          const fallback = document.createElement("span");
+          fallback.className = "swatch";
+          fallback.style.background = "rgb(" + b.rgb[0] + "," + b.rgb[1] + "," + b.rgb[2] + ")";
+          const name = document.createElement("span");
+          name.textContent = b.name;
+          label.append(checkbox, fallback, name);
+          if (b.textureImage) {
+            const thumbnail = document.createElement("img");
+            thumbnail.className = "swatch";
+            thumbnail.src = b.textureImage.src;
+            thumbnail.alt = b.name + "のテクスチャ";
+            thumbnail.title = b.name + "のテクスチャ";
+            fallback.replaceWith(thumbnail);
+          }
+          checkbox.addEventListener("change", (e) => {
+            BLOCK_DATA[idx].checked = e.target.checked;
+            updateActiveCount();
+            runConversion();
+          });
+          els.blockList.appendChild(label);
         });
-        els.blockList.appendChild(label);
       });
       updateActiveCount();
     }

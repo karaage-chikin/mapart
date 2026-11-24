@@ -141,11 +141,83 @@
       overflow-y: auto;
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 14px;
+      padding: 10px;
       background: var(--bg);
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
-      gap: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .map-color-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      min-height: 42px;
+      padding: 4px 3px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .map-color-chip {
+      width: 30px;
+      height: 30px;
+      flex: 0 0 30px;
+      border: 1px solid rgba(255,255,255,.45);
+      border-radius: 2px;
+      margin-top: 2px;
+    }
+    .map-color-toggle {
+      width: 25px;
+      height: 30px;
+      flex: 0 0 25px;
+      padding: 0;
+      border-radius: 3px;
+      background: transparent;
+      color: #ff4545;
+      border: 1px solid rgba(255,70,70,.55);
+      font-size: 17px;
+      line-height: 1;
+    }
+    .map-color-toggle:hover { background: rgba(255,70,70,.15); }
+    .map-color-items {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 3px;
+      min-width: 0;
+    }
+    .map-block-tile {
+      position: relative;
+      display: block;
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 1px;
+      cursor: pointer;
+      background: #171717;
+      overflow: hidden;
+    }
+    .map-block-tile img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      image-rendering: pixelated;
+    }
+    .map-block-tile input {
+      position: absolute;
+      top: 1px;
+      left: 1px;
+      width: 12px;
+      height: 12px;
+      margin: 0;
+      accent-color: #48d36b;
+      cursor: pointer;
+    }
+    .map-block-tile.is-off { opacity: .38; }
+    .map-block-tile.is-unknown { cursor: not-allowed; opacity: .35; }
+    .map-color-unknown-heading {
+      color: var(--subtext);
+      font-size: .8rem;
+      padding: 6px 3px 2px;
     }
     .category-title {
       grid-column: 1 / -1;
@@ -326,7 +398,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.2.0</div>
+  <div class="app-version" id="appVersion">v1.2.1</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -1057,73 +1129,117 @@
 
     function renderBlockList() {
       els.blockList.innerHTML = "";
-      const categoryOrder = Object.keys(CATEGORY_LABELS);
-      const groupedBlocks = new Map(categoryOrder.map(category => [category, []]));
+      const colorGroups = new Map();
+      const unknownBlocks = [];
+
       BLOCK_DATA.forEach((block, index) => {
-        if (!groupedBlocks.has(block.cat)) groupedBlocks.set(block.cat, []);
-        groupedBlocks.get(block.cat).push({ block, index });
+        if (!block.mapRgb) {
+          unknownBlocks.push({ block, index });
+          return;
+        }
+        const key = block.mapRgb.join(",");
+        if (!colorGroups.has(key)) colorGroups.set(key, []);
+        colorGroups.get(key).push({ block, index });
       });
 
-      categoryOrder.forEach(category => {
-        const entries = groupedBlocks.get(category) || [];
-        if (!entries.length) return;
-        const heading = document.createElement("div");
-        heading.className = "category-title";
-        heading.textContent = CATEGORY_LABELS[category];
-        els.blockList.appendChild(heading);
-        entries.forEach(({ block: b, index: idx }) => {
-          const label = document.createElement("label");
-          label.className = "block-item";
+      colorGroups.forEach((entries, key) => {
+        const [r, g, b] = key.split(",").map(Number);
+        const row = document.createElement("div");
+        row.className = "map-color-row";
+
+        const chip = document.createElement("span");
+        chip.className = "map-color-chip";
+        chip.style.background = "rgb(" + r + "," + g + "," + b + ")";
+        chip.title = "地図色 RGB(" + r + ", " + g + ", " + b + ")";
+
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "map-color-toggle";
+        const syncToggle = () => {
+          const selected = entries.filter(x => x.block.checked).length;
+          toggle.textContent = selected === entries.length ? "⊘" : "＋";
+          toggle.title = selected === entries.length
+            ? "この地図色のブロックをすべて解除"
+            : "この地図色のブロックをすべて選択";
+          toggle.setAttribute("aria-label", toggle.title);
+        };
+        toggle.addEventListener("click", () => {
+          const selectAll = entries.some(x => !x.block.checked);
+          entries.forEach(x => { x.block.checked = selectAll; });
+          renderBlockList();
+          runConversion();
+        });
+
+        const items = document.createElement("div");
+        items.className = "map-color-items";
+        entries.forEach(({ block, index }) => {
+          const tile = document.createElement("label");
+          tile.className = "map-block-tile" + (block.checked ? "" : " is-off");
+          tile.title = block.name + " / 地図色 RGB(" + key + ")";
+          const image = document.createElement("img");
+          image.alt = block.name;
+          if (block.textureImage) {
+            image.src = block.textureImage.src;
+          } else {
+            image.src = "data:image/svg+xml," + encodeURIComponent(
+              '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34"><rect width="34" height="34" fill="rgb(' + key + ')"/></svg>'
+            );
+          }
           const checkbox = document.createElement("input");
           checkbox.type = "checkbox";
-          checkbox.dataset.idx = idx;
-          checkbox.checked = b.checked;
-          const fallback = document.createElement("span");
-          fallback.className = "swatch";
-          fallback.style.background = "rgb(" + b.rgb[0] + "," + b.rgb[1] + "," + b.rgb[2] + ")";
-          const name = document.createElement("span");
-          name.textContent = b.name;
-          if (!b.mapRgb) {
-            checkbox.disabled = true;
-            checkbox.checked = false;
-            label.title = "PDFのカラーテーブルに該当する記載がないため、地図色未確認";
-            name.textContent += "（地図色未確認）";
-            label.classList.add("map-color-unknown");
-          }
-          if (b.id === "copper_block") {
-            const copperInfo = document.createElement("span");
-            copperInfo.className = "copper-block-label";
-            copperInfo.appendChild(name);
-            const honeycombMark = document.createElement("span");
-            honeycombMark.className = "honeycomb-mini";
-            honeycombMark.textContent = "⬡ ハニカム";
-            honeycombMark.title = "必要材料：ハニカム";
-            copperInfo.appendChild(honeycombMark);
-            label.append(checkbox, fallback, copperInfo);
-          } else {
-            label.append(checkbox, fallback, name);
-          }
-          if (b.textureImage) {
-            const thumbnail = document.createElement("img");
-            thumbnail.className = "swatch";
-            thumbnail.src = b.textureImage.src;
-            thumbnail.alt = b.name + "のテクスチャ";
-            thumbnail.title = b.name + "のテクスチャ";
-            fallback.replaceWith(thumbnail);
-          }
-          checkbox.addEventListener("change", (e) => {
-            BLOCK_DATA[idx].checked = e.target.checked;
+          checkbox.checked = block.checked;
+          checkbox.setAttribute("aria-label", block.name);
+          checkbox.addEventListener("change", event => {
+            BLOCK_DATA[index].checked = event.target.checked;
+            tile.classList.toggle("is-off", !event.target.checked);
             updateActiveCount();
             runConversion();
+            syncToggle();
           });
-          els.blockList.appendChild(label);
+          tile.append(image, checkbox);
+          items.appendChild(tile);
         });
+        syncToggle();
+        row.append(chip, toggle, items);
+        els.blockList.appendChild(row);
       });
+
+      if (unknownBlocks.length) {
+        const heading = document.createElement("div");
+        heading.className = "map-color-unknown-heading";
+        heading.textContent = "地図色未確認（PDFに対応する記載なし）";
+        els.blockList.appendChild(heading);
+        const row = document.createElement("div");
+        row.className = "map-color-row";
+        const chip = document.createElement("span");
+        chip.className = "map-color-chip";
+        chip.style.background = "repeating-linear-gradient(45deg,#555 0 5px,#999 5px 10px)";
+        const spacer = document.createElement("span");
+        spacer.style.width = "25px";
+        spacer.style.flex = "0 0 25px";
+        const items = document.createElement("div");
+        items.className = "map-color-items";
+        unknownBlocks.forEach(({ block }) => {
+          const tile = document.createElement("span");
+          tile.className = "map-block-tile is-unknown";
+          tile.title = block.name + "（地図色未確認）";
+          const image = document.createElement("img");
+          image.alt = block.name;
+          if (block.textureImage) image.src = block.textureImage.src;
+          else image.src = "data:image/svg+xml," + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34"><rect width="34" height="34" fill="#777"/></svg>'
+          );
+          tile.appendChild(image);
+          items.appendChild(tile);
+        });
+        row.append(chip, spacer, items);
+        els.blockList.appendChild(row);
+      }
       updateActiveCount();
     }
 
     function updateActiveCount() {
-      const active = BLOCK_DATA.filter(b => b.checked).length;
+      const active = BLOCK_DATA.filter(b => b.checked && b.mapRgb).length;
       els.activeCountText.textContent = `有効ブロック: ${active} / ${BLOCK_DATA.length}`;
     }
 
@@ -1131,11 +1247,11 @@
       btn.addEventListener("click", () => {
         const type = btn.dataset.preset;
         if (type === "all") {
-          BLOCK_DATA.forEach(b => { b.checked = true; });
+          BLOCK_DATA.forEach(b => { b.checked = !!b.mapRgb; });
         } else if (type === "none") {
           BLOCK_DATA.forEach(b => { b.checked = false; });
         } else {
-          const categoryBlocks = BLOCK_DATA.filter(b => b.cat === type);
+          const categoryBlocks = BLOCK_DATA.filter(b => b.cat === type && b.mapRgb);
           const categoryIsFullySelected = categoryBlocks.length > 0 && categoryBlocks.every(b => b.checked);
           categoryBlocks.forEach(b => { b.checked = !categoryIsFullySelected; });
         }

@@ -142,7 +142,7 @@ function draw(){
  }
  $("first").disabled=first===0;
  $("back").disabled=first===0;
- $("skipRow").disabled=first>=total||Math.ceil((first+1)/SIZE)*SIZE>=total+1;
+ $("skipRow").disabled=first>=total||Math.floor(first/SIZE+1)*SIZE>=total;
  $("next").disabled=first>=total;
  $("next").textContent=first+STEP>=total?"完了":"次へ（4ブロック）";
 }

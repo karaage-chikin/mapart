@@ -499,7 +499,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.3.1</div>
+  <div class="app-version" id="appVersion">v1.3.2</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -613,15 +613,14 @@
           <div class="canvas-row">
             <div class="canvas-card">
               <h3 id="resultTitle">2D マップアート結果（ブロック模様）</h3>
-              <div class="blueprint-preview-scroll">
-                <div class="blueprint-empty-message" id="blueprintEmptyMessage">画像を選択すると、ここに座標付き設計図が表示されます。</div>
-                <canvas id="blueprintPreviewCanvas" width="128" height="128" aria-label="座標番号付きマップアートプレビュー"></canvas>
-              </div>
+              <p class="muted" id="blueprintOnlineHint">画像を読み込んで変換すると、「オンラインで表示」から設計図を別タブで開けます。</p>
+              <canvas id="blueprintPreviewCanvas" width="128" height="128" aria-label="座標番号付きマップアートプレビュー" hidden></canvas>
               <canvas id="resultCanvas" width="128" height="128" hidden></canvas>
             </div>
           </div>
           <div class="action-row">
             <button type="button" id="downloadPngBtn" disabled>設計図PNGを保存（プレビュー16倍）</button>
+            <button type="button" id="onlineBlueprintBtn" class="secondary" disabled>オンラインで表示</button>
             <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
           </div>
           <div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
@@ -886,6 +885,7 @@
       blueprintPreviewCanvas: document.getElementById("blueprintPreviewCanvas"),
       resultTitle: document.getElementById("resultTitle"),
       downloadPngBtn: document.getElementById("downloadPngBtn"),
+      onlineBlueprintBtn: document.getElementById("onlineBlueprintBtn"),
       pngSaveStatus: document.getElementById("pngSaveStatus"),
       statsBody: document.querySelector("#statsTable tbody")
     };
@@ -1546,7 +1546,7 @@
       if (activeBlocks.length === 0) {
         lastGrid = null;
         els.downloadPngBtn.disabled = true;
-        els.blueprintPreviewCanvas.closest(".blueprint-preview-scroll").classList.remove("has-result");
+        els.onlineBlueprintBtn.disabled = true;
         resCtx.clearRect(0, 0, els.resultCanvas.width, els.resultCanvas.height);
         els.statsBody.innerHTML = '<tr><td colspan="4" class="muted">ブロックを1種類以上選択してください。</td></tr>';
         return;
@@ -1595,6 +1595,7 @@
 
       lastGrid = grid;
       els.downloadPngBtn.disabled = false;
+      els.onlineBlueprintBtn.disabled = false;
       renderResultPreview();
       renderStats(counts);
     }
@@ -1654,39 +1655,40 @@
       errorBox.hidden = true;
       errorBox.textContent = "";
       if (!file) return;
-      const looksLikeImage = (file.type && file.type.startsWith("image/")) || /\\.(png|jpe?g|webp|gif|bmp|avif|heic|heif)$/i.test(file.name || "");
-      if (!looksLikeImage) {
-        errorBox.hidden = false;
-        errorBox.textContent = "画像ファイルを選択してください。";
-        return;
-      }
       nameBox.textContent = file.name || "選択した画像";
-      const objectUrl = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        loadedImage = img;
-        try {
-          runConversion();
-        } catch (error) {
+      errorBox.hidden = false;
+      errorBox.textContent = "画像ファイルを読み込んでいます…";
+      const reader = new FileReader();
+      reader.onerror = () => {
+        errorBox.textContent = "ファイルの読み込みに失敗しました。別の画像ファイルを選択してください。";
+      };
+      reader.onload = event => {
+        const img = new Image();
+        img.onload = () => {
+          loadedImage = img;
+          try {
+            runConversion();
+            errorBox.hidden = true;
+            errorBox.textContent = "";
+            document.getElementById("blueprintOnlineHint").textContent = "変換完了。オンラインで表示ボタンから設計図を別タブで開けます。";
+          } catch (error) {
+            console.error("画像変換エラー:", error);
+            errorBox.hidden = false;
+            errorBox.textContent = "画像は読み込めましたが、変換に失敗しました: " + (error && error.message ? error.message : String(error));
+          }
+        };
+        img.onerror = () => {
           errorBox.hidden = false;
-          errorBox.textContent = "画像は読み込めましたが、変換中にエラーが発生しました: " + (error && error.message ? error.message : String(error));
-        }
+          errorBox.textContent = "画像形式をブラウザで読み込めませんでした。iPadの場合は写真アプリからJPEGまたはPNGとして書き出して選択してください。";
+        };
+        img.src = String(event.target.result);
       };
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        errorBox.hidden = false;
-        errorBox.textContent = "画像を開けませんでした。このブラウザで表示できるPNG・JPG・WebP画像をお試しください。HEIC形式は端末やブラウザによって非対応の場合があります。";
-      };
-      img.src = objectUrl;
+      reader.readAsDataURL(file);
     }
 
     els.imageInput.addEventListener("change", (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-      loadSelectedImage(file);
-      // 次回、同じファイルを選んでもchangeが発火するようにする。
-      e.target.value = "";
+      const file = e.target.files && e.target.files.length ? e.target.files[0] : null;
+      if (file) loadSelectedImage(file);
     });
 
     const uploadArea = document.getElementById("imageUploadArea");
@@ -2083,6 +2085,28 @@
       } finally {
         els.downloadPngBtn.disabled = !lastGrid;
       }
+    });
+
+    els.onlineBlueprintBtn.addEventListener("click", () => {
+      if (!lastGrid) return;
+      // window.openはクリック直後に実行し、iPad Safariのポップアップ制限を回避する。
+      const popup = window.open("about:blank", "_blank");
+      if (!popup) {
+        document.getElementById("blueprintOnlineHint").textContent = "新しいタブを開けませんでした。Safariのポップアップ設定を確認してください。";
+        return;
+      }
+      popup.document.title = "Minecraft MapArt 設計図";
+      popup.document.body.style.cssText = "margin:0;background:#171717;display:flex;align-items:flex-start;justify-content:center;min-height:100vh;";
+      popup.document.body.textContent = "設計図を準備しています…";
+      els.blueprintPreviewCanvas.toBlob(blob => {
+        if (!blob) {
+          popup.close();
+          document.getElementById("blueprintOnlineHint").textContent = "設計図画像を作成できませんでした。もう一度変換してください。";
+          return;
+        }
+        const imageUrl = URL.createObjectURL(blob);
+        popup.location.replace(imageUrl);
+      }, "image/png");
     });
 
     try {

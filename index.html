@@ -508,7 +508,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.3.4</div>
+  <div class="app-version" id="appVersion">v1.3.5</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -1518,10 +1518,10 @@
       const preview = els.blueprintPreviewCanvas;
       const scale = 2;
       const tilePx = source.width / MAP_SIZE;
-      const left = Math.ceil(tilePx * 2.4);
-      const top = Math.ceil(tilePx * 2.4);
+      const left = Math.max(Math.ceil(tilePx * 2.4), 110);
+      const top = Math.max(Math.ceil(tilePx * 2.4), 34);
       const right = Math.ceil(tilePx * 0.25);
-      const bottom = Math.ceil(tilePx * 0.25);
+      const bottom = 34;
       const width = (left + source.width + right) * scale;
       const height = (top + source.height + bottom) * scale;
       preview.width = width;
@@ -1562,6 +1562,31 @@
         const py = (top + (y + 0.5) * tilePx) * scale;
         ctx.strokeText(String(y + 1), px, py, tilePx * scale * 0.96);
         ctx.fillText(String(y + 1), px, py, tilePx * scale * 0.96);
+      }
+
+      // 入力された左上ワールド座標と、128×128範囲の四隅をオンライン設計図に記載。
+      const ox = readInteger(originXInput);
+      const oz = readInteger(originZInput);
+      if (ox !== null && oz !== null && Number.isSafeInteger(ox) && Number.isSafeInteger(oz)) {
+        const rx = ox + MAP_SIZE - 1;
+        const bz = oz + MAP_SIZE - 1;
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "#111111";
+        ctx.lineWidth = 2;
+        ctx.font = "bold 11px Arial, sans-serif";
+        ctx.textBaseline = "middle";
+        ctx.textAlign = "left";
+        ctx.strokeText("左上 X:" + ox + " Z:" + oz, 6, 12);
+        ctx.fillText("左上 X:" + ox + " Z:" + oz, 6, 12);
+        ctx.textAlign = "right";
+        ctx.strokeText("右上 X:" + rx + " Z:" + oz, width - 6, 12);
+        ctx.fillText("右上 X:" + rx + " Z:" + oz, width - 6, 12);
+        ctx.textAlign = "left";
+        ctx.strokeText("左下 X:" + ox + " Z:" + bz, 6, height - 12);
+        ctx.fillText("左下 X:" + ox + " Z:" + bz, 6, height - 12);
+        ctx.textAlign = "right";
+        ctx.strokeText("右下 X:" + rx + " Z:" + bz, width - 6, height - 12);
+        ctx.fillText("右下 X:" + rx + " Z:" + bz, width - 6, height - 12);
       }
     }
 
@@ -2179,7 +2204,10 @@
     }
 
     [originXInput, originZInput, lookupXInput, lookupZInput].forEach(input => {
-      input.addEventListener("input", updateCoordinateTools);
+      input.addEventListener("input", () => {
+        updateCoordinateTools();
+        if (lastGrid) renderBlueprintPreview();
+      });
     });
 
     els.onlineBlueprintBtn.addEventListener("click", () => {

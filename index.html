@@ -78,6 +78,48 @@
     @media (max-width: 560px) {
       .block-list { grid-template-columns: 1fr; max-height: 560px; }
     }
+    .workspace-shell {
+      display: grid; grid-template-columns: 142px minmax(0, 1fr); gap: 10px;
+      height: calc(100dvh - 132px); min-height: 430px; max-height: 980px; overflow: hidden;
+    }
+    .vertical-tabs {
+      display: flex; flex-direction: column; gap: 6px; padding: 7px;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px; min-height: 0;
+    }
+    .vertical-tab {
+      width: 100%; min-height: 42px; padding: 8px 7px; text-align: left;
+      white-space: normal; line-height: 1.25; background: transparent; color: var(--subtext);
+      border: 1px solid transparent;
+    }
+    .vertical-tab.active { background: var(--card); color: var(--accent); border-color: var(--border); }
+    .tab-content { min-width: 0; min-height: 0; overflow: hidden; position: relative; }
+    .tab-panel {
+      display: none; height: 100%; min-height: 0; overflow-y: auto;
+      overscroll-behavior: contain; padding-right: 3px;
+    }
+    .tab-panel.active { display: block; }
+    .tab-panel > .box { margin-bottom: 0; }
+    .tab-panel .block-list { min-height: 0; max-height: calc(100dvh - 300px); }
+    .tab-panel[data-panel="preview"] .canvas-card { padding: 8px; }
+    .tab-panel[data-panel="preview"] #resultCanvas {
+      width: auto; max-width: 100%; max-height: calc(100dvh - 290px); height: auto; object-fit: contain;
+    }
+    .tab-panel[data-panel="stats"] > .box > div { max-height: calc(100dvh - 250px); overflow: auto; }
+    .coordinate-panel .box { margin-bottom: 10px; }
+    @media (max-width: 620px) {
+      .workspace-shell { grid-template-columns: 112px minmax(0, 1fr); gap: 7px; height: calc(100dvh - 118px); }
+      .vertical-tabs { padding: 5px; }
+      .vertical-tab { font-size: .78rem; min-height: 40px; padding: 7px 5px; }
+      body { padding: 8px; }
+      header { margin-bottom: 10px; padding-bottom: 8px; }
+      header h1 { font-size: 1.05rem; }
+      .badge { font-size: .7rem; }
+      .tab-panel .block-list { max-height: calc(100dvh - 260px); }
+    }
+    @media (max-height: 650px) {
+      .workspace-shell { height: calc(100dvh - 105px); min-height: 360px; }
+      .box { padding: 8px; } .field { margin-bottom: 8px; }
+    }
     .box {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -509,7 +551,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.3.8</div>
+  <div class="app-version" id="appVersion">v1.3.9</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -526,9 +568,16 @@
       <span class="badge">2D / 1×1 (128×128) / 統合版バニラテクスチャ</span>
     </header>
 
-    <div class="grid-main">
-      <div>
-        <div class="box">
+    <div class="workspace-shell">
+      <nav class="vertical-tabs" role="tablist" aria-label="機能メニュー" aria-orientation="vertical">
+        <button type="button" class="vertical-tab active" role="tab" aria-selected="true" data-tab="image">画像設定</button>
+        <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="blocks">ブロック選択</button>
+        <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="preview">2Dプレビュー</button>
+        <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="stats">必要数一覧</button>
+        <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="coordinates">ワールド座標</button>
+      </nav>
+      <main class="tab-content">
+        <section class="tab-panel active" role="tabpanel" data-panel="image"><div class="box">
           <h2>1. 画像＆表示設定</h2>
           <div class="field">
             <label>元画像を選択（128×128に変換）</label>
@@ -592,9 +641,8 @@
               <input type="color" id="bgColorInput" value="#ffffff">
             </div>
           </div>
-        </div>
-
-        <div class="box">
+        </div></section>
+        <section class="tab-panel" role="tabpanel" data-panel="blocks"><div class="box">
           <h2>2. 使用ブロック選択（統合版バニラパレット）</h2>
           <div class="preset-bar">
             <button type="button" class="secondary" data-preset="all">全選択</button>
@@ -614,11 +662,8 @@
           </div>
           <div class="muted" id="activeCountText" style="margin-bottom:6px;">有効ブロック: 0 / 0</div>
           <div class="block-list" id="blockList"></div>
-        </div>
-      </div>
-
-      <div>
-        <div class="box">
+        </div></section>
+        <section class="tab-panel" role="tabpanel" data-panel="preview"><div class="box">
           <h2>2D プレビュー</h2>
           <div class="canvas-row">
             <div class="canvas-card">
@@ -633,9 +678,8 @@
             <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
           </div>
 <div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
-        </div>
-
-        <div class="box">
+        </div></section>
+        <section class="tab-panel" role="tabpanel" data-panel="stats"><div class="box">
           <h2>必要ブロック一覧（2D平面配置）</h2>
           <div style="overflow-x:auto;">
             <table id="statsTable">
@@ -654,10 +698,8 @@
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
-    </div>
-          <div class="box" style="margin-top:14px;">
+        </div></section>
+        <section class="tab-panel coordinate-panel" role="tabpanel" data-panel="coordinates"><div class="box" style="margin-top:14px;">
             <h3>ワールド座標の範囲</h3>
             <p class="muted">設計図の左上（1列目・1行目）に置くブロックのワールド座標を入力してください。右方向はX+、下方向はZ+として128×128の範囲を計算します。</p>
             <div class="coordinate-input-grid">
@@ -674,10 +716,25 @@
               <label>調べるZ座標<input type="number" step="1" id="lookupZInput" placeholder="Z座標"></label>
             </div>
             <div id="coordinateBlockResult" class="coordinate-result" aria-live="polite">左上の座標と調べたい座標を入力してください。</div>
-          </div>
-  </div>
+          </div></section>
+      </main>
+    </div>  </div>
 
   <script>
+    document.querySelectorAll(".vertical-tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        const target = tab.dataset.tab;
+        document.querySelectorAll(".vertical-tab").forEach(button => {
+          const active = button === tab;
+          button.classList.toggle("active", active);
+          button.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        document.querySelectorAll(".tab-panel").forEach(panel => {
+          panel.classList.toggle("active", panel.dataset.panel === target);
+        });
+      });
+    });
+
     const MAP_SIZE = 128;
 
     // pattern: "speckle"（砂目/石）, "wool"（羊毛の繊維）, "planks"（板材/横ライン）, "bricks"（レンガ/タイル）, "smooth"（滑らか/鉱物）

@@ -297,7 +297,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.0.8</div>
+  <div class="app-version" id="appVersion">v1.0.9</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -404,10 +404,6 @@
         <div class="box">
           <h2>2D プレビュー</h2>
           <div class="canvas-row">
-            <div class="canvas-card">
-              <h3>リサイズ後（128×128）</h3>
-              <canvas id="sourceCanvas" width="128" height="128"></canvas>
-            </div>
             <div class="canvas-card">
               <h3 id="resultTitle">2D マップアート結果（ブロック模様）</h3>
               <canvas id="resultCanvas" width="128" height="128"></canvas>
@@ -694,14 +690,16 @@
       bgColorInput: document.getElementById("bgColorInput"),
       blockList: document.getElementById("blockList"),
       activeCountText: document.getElementById("activeCountText"),
-      sourceCanvas: document.getElementById("sourceCanvas"),
       resultCanvas: document.getElementById("resultCanvas"),
       resultTitle: document.getElementById("resultTitle"),
       downloadPngBtn: document.getElementById("downloadPngBtn"),
       statsBody: document.querySelector("#statsTable tbody")
     };
 
-    const srcCtx = els.sourceCanvas.getContext("2d");
+    const sourceCanvas = document.createElement("canvas");
+    sourceCanvas.width = MAP_SIZE;
+    sourceCanvas.height = MAP_SIZE;
+    const srcCtx = sourceCanvas.getContext("2d");
     const resCtx = els.resultCanvas.getContext("2d");
     let loadedImage = null;
     let lastGrid = null;

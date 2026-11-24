@@ -295,6 +295,7 @@
             <button type="button" class="secondary" data-preset="end">エンド</button>
             <button type="button" class="secondary" data-preset="decorative">装飾・海洋</button>
             <button type="button" class="secondary" data-preset="sculk">スカルク</button>
+            <button type="button" class="secondary" data-preset="glass">ガラス</button>
           </div>
           <div class="muted" id="textureStatus" role="status" style="margin:8px 0 10px;">
             統合版バニラテクスチャを読み込みます…
@@ -555,7 +556,26 @@
       { id:"dark_oak_leaves", name:"ダークオークの葉", cat:"natural", rgb:[55,93,31], checked:true },
       { id:"mangrove_leaves", name:"マングローブの葉", cat:"natural", rgb:[62,105,43], checked:true },
       { id:"cherry_leaves", name:"桜の葉", cat:"natural", rgb:[185,122,135], checked:true },
-      { id:"azalea_leaves", name:"ツツジの葉", cat:"natural", rgb:[75,125,51], checked:true }
+      { id:"azalea_leaves", name:"ツツジの葉", cat:"natural", rgb:[75,125,51], checked:true },
+      // ガラス系（初期状態では未選択）
+      { id:"glass", name:"ガラス", cat:"glass", rgb:[190,205,210], checked:false },
+      { id:"tinted_glass", name:"遮光ガラス", cat:"glass", rgb:[65,65,68], checked:false },
+      { id:"white_stained_glass", name:"白色の色付きガラス", cat:"glass", rgb:[220,220,220], checked:false },
+      { id:"orange_stained_glass", name:"橙色の色付きガラス", cat:"glass", rgb:[216,127,51], checked:false },
+      { id:"magenta_stained_glass", name:"赤紫色の色付きガラス", cat:"glass", rgb:[178,76,216], checked:false },
+      { id:"light_blue_stained_glass", name:"空色の色付きガラス", cat:"glass", rgb:[102,153,216], checked:false },
+      { id:"yellow_stained_glass", name:"黄色の色付きガラス", cat:"glass", rgb:[229,229,51], checked:false },
+      { id:"lime_stained_glass", name:"黄緑色の色付きガラス", cat:"glass", rgb:[127,204,25], checked:false },
+      { id:"pink_stained_glass", name:"桃色の色付きガラス", cat:"glass", rgb:[242,127,165], checked:false },
+      { id:"gray_stained_glass", name:"灰色の色付きガラス", cat:"glass", rgb:[76,76,76], checked:false },
+      { id:"light_gray_stained_glass", name:"薄灰色の色付きガラス", cat:"glass", rgb:[153,153,153], checked:false },
+      { id:"cyan_stained_glass", name:"青緑色の色付きガラス", cat:"glass", rgb:[76,127,153], checked:false },
+      { id:"purple_stained_glass", name:"紫色の色付きガラス", cat:"glass", rgb:[127,63,178], checked:false },
+      { id:"blue_stained_glass", name:"青色の色付きガラス", cat:"glass", rgb:[51,76,178], checked:false },
+      { id:"brown_stained_glass", name:"茶色の色付きガラス", cat:"glass", rgb:[102,76,51], checked:false },
+      { id:"green_stained_glass", name:"緑色の色付きガラス", cat:"glass", rgb:[102,127,51], checked:false },
+      { id:"red_stained_glass", name:"赤色の色付きガラス", cat:"glass", rgb:[153,51,51], checked:false },
+      { id:"black_stained_glass", name:"黒色の色付きガラス", cat:"glass", rgb:[25,25,25], checked:false }
     ];
 
     function clamp(v, min = 0, max = 255) {
@@ -821,7 +841,7 @@
     const CATEGORY_LABELS = {
       natural:"自然・地形", stone:"石材・建材", wood:"木材", ice:"氷", wool:"羊毛（16色）",
       concrete:"コンクリート（16色）", terracotta:"テラコッタ（16色）", ore:"鉱石・金属", nether:"ネザー",
-      end:"ジ・エンド", decorative:"装飾・海洋", sculk:"スカルク"
+      end:"ジ・エンド", decorative:"装飾・海洋", sculk:"スカルク", glass:"ガラス・色付きガラス"
     };
 
     function renderBlockList() {
@@ -877,13 +897,15 @@
     document.querySelectorAll("[data-preset]").forEach(btn => {
       btn.addEventListener("click", () => {
         const type = btn.dataset.preset;
-        BLOCK_DATA.forEach(b => {
-          if (type === "all") b.checked = true;
-          else if (type === "none") b.checked = false;
-          else if (type === "wool") b.checked = b.cat === "wool";
-          else if (type === "terracotta") b.checked = b.cat === "terracotta";
-          else b.checked = b.cat === type;
-        });
+        if (type === "all") {
+          BLOCK_DATA.forEach(b => { b.checked = true; });
+        } else if (type === "none") {
+          BLOCK_DATA.forEach(b => { b.checked = false; });
+        } else {
+          const categoryBlocks = BLOCK_DATA.filter(b => b.cat === type);
+          const categoryIsFullySelected = categoryBlocks.length > 0 && categoryBlocks.every(b => b.checked);
+          categoryBlocks.forEach(b => { b.checked = !categoryIsFullySelected; });
+        }
         renderBlockList();
         runConversion();
       });
@@ -964,6 +986,9 @@
           for (let x = 0; x < MAP_SIZE; x++) {
             const blk = lastGrid[y * MAP_SIZE + x];
             const tile = patternCache.get(blk.id);
+            // 透過PNGのガラスで隣のブロックが透けないよう、各マスに下地を描く
+            resCtx.fillStyle = "#d8dce2";
+            resCtx.fillRect(x * tilePx, y * tilePx, tilePx, tilePx);
             resCtx.drawImage(tile, x * tilePx, y * tilePx, tilePx, tilePx);
           }
         }

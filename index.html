@@ -642,7 +642,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.4.8</div>
+  <div class="app-version" id="appVersion">v1.4.9</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -1663,12 +1663,13 @@
       if (!lastGrid) return;
       const source = els.resultCanvas;
       const preview = els.blueprintPreviewCanvas;
-      const scale = 2;
+      // 数字は3倍解像度で描画し、マス目との余白は小さくする。
+      const scale = 3;
       const tilePx = source.width / MAP_SIZE;
-      const left = Math.max(Math.ceil(tilePx * 0.4), 18);
-      const top = Math.max(Math.ceil(tilePx * 0.4), 14);
-      const right = 8;
-      const bottom = 14;
+      const left = Math.max(Math.ceil(tilePx * 0.22), 8);
+      const top = Math.max(Math.ceil(tilePx * 0.22), 8);
+      const right = 6;
+      const bottom = 8;
       const width = (left + source.width + right) * scale;
       const height = (top + source.height + bottom) * scale;
       preview.width = width;
@@ -1694,8 +1695,8 @@
       ctx.stroke();
       ctx.fillStyle = "#ffffff";
       ctx.strokeStyle = "#111111";
-      ctx.lineWidth = Math.max(1, tilePx * scale * 0.045);
-      ctx.font = "bold " + Math.max(10, tilePx * scale * 0.52) + "px Arial, sans-serif";
+      ctx.lineWidth = Math.max(1.5, tilePx * scale * 0.055);
+      ctx.font = "600 " + Math.max(15, tilePx * scale * 0.68) + "px Arial, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       for (let x = 0; x < MAP_SIZE; x++) {
@@ -1721,8 +1722,8 @@
         const bz = oz + MAP_SIZE - 1;
         ctx.fillStyle = "#ffffff";
         ctx.strokeStyle = "#111111";
-        ctx.lineWidth = 2;
-        ctx.font = "bold 11px Arial, sans-serif";
+        ctx.lineWidth = 3;
+        ctx.font = "600 15px Arial, sans-serif";
         ctx.textBaseline = "middle";
         ctx.textAlign = "left";
         ctx.strokeText("左上 X:" + ox + " Z:" + oz, 6, 12);

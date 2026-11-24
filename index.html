@@ -2475,7 +2475,7 @@
         for (let i = 0; i < payloadBytes.length; i += chunkSize) {
           binaryPayload += String.fromCharCode(...payloadBytes.subarray(i, i + chunkSize));
         }
-        const encoded = btoa(binaryPayload).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
+        const encoded = btoa(binaryPayload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
         const target = new URL("blueprint.html", window.location.href);
         opened.location.replace(target.href + "#" + mode + encoded);
       } catch (error) {

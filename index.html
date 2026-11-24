@@ -680,7 +680,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.6</div>
+  <div class="app-version" id="appVersion">v1.5.7</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -846,28 +846,10 @@
           <div class="action-row">
             <button type="button" id="downloadPngBtn" disabled>設計図PNGを保存（プレビュー16倍）</button>
             <button type="button" id="onlineBlueprintBtn" class="secondary" disabled>オンラインで表示</button>
+            <button type="button" id="openBuildStepBtn" class="secondary" disabled>設置手順を別タブで開く</button>
             <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
           </div>
 <div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
-          <section class="animation-panel" aria-label="ブロック設置手順">
-            <h2>ブロック設置手順</h2>
-            <p class="muted">表示された4ブロックを順番に置き、完了したら「次へ」を押してください。</p>
-            <label class="animation-row-direction">2行目以降の進行方向
-              <select id="animationSecondRowStart">
-                <option value="left" selected>毎行、左端から右へ</option>
-                <option value="right">左右交互（2行目は右端から）</option>
-              </select>
-            </label>
-            <div class="animation-progress"><strong id="animationCount">設計図を作成すると手順が表示されます</strong></div>
-            <div id="buildStepBlocks" class="build-step-blocks" aria-live="polite">
-              <p class="muted">先に画像を変換してください。</p>
-            </div>
-            <div class="animation-controls">
-              <button type="button" id="animationReset" class="secondary" disabled>最初へ</button>
-              <button type="button" id="animationStepBack" class="secondary" disabled>前へ</button>
-              <button type="button" id="animationStepForward" disabled>次へ（4ブロック）</button>
-            </div>
-          </section>
         </div></aside>
     </div>  </div>
 
@@ -1858,122 +1840,11 @@
       lastGrid = grid;
       els.downloadPngBtn.disabled = false;
       els.onlineBlueprintBtn.disabled = false;
+      document.getElementById("openBuildStepBtn").disabled = false;
       renderResultPreview();
       renderStats(counts);
       resetAnimationForGrid();
     }
-
-    // 4ブロック単位の手動設置手順。行ごとの進行方向を選択可能。
-    const animationSecondRowStart = document.getElementById("animationSecondRowStart");
-    const animationCount = document.getElementById("animationCount");
-    const animationReset = document.getElementById("animationReset");
-    const animationStepBack = document.getElementById("animationStepBack");
-    const animationStepForward = document.getElementById("animationStepForward");
-    const buildStepBlocks = document.getElementById("buildStepBlocks");
-    let animationPlaced = 0;
-    const BUILD_STEP_SIZE = 4;
-
-    function buildOrderPosition(orderIndex) {
-      const row = Math.floor(orderIndex / MAP_SIZE);
-      const offset = orderIndex % MAP_SIZE;
-      const reverse = animationSecondRowStart.value === "right" && row % 2 === 1;
-      return { x: reverse ? MAP_SIZE - 1 - offset : offset, y: row, block: lastGrid[row * MAP_SIZE + offset] };
-    }
-
-    function drawAnimationFrame() {
-      const total = MAP_SIZE * MAP_SIZE;
-      const first = Math.min(animationPlaced, total);
-      const last = Math.min(first + BUILD_STEP_SIZE, total);
-      const page = Math.floor(first / BUILD_STEP_SIZE) + 1;
-      const pages = Math.ceil(total / BUILD_STEP_SIZE);
-      animationCount.textContent = first >= total
-        ? "設置完了！ " + total.toLocaleString() + " / " + total.toLocaleString() + " 個"
-        : "手順 " + page.toLocaleString() + " / " + pages.toLocaleString() + "　設置済み " + first.toLocaleString() + " / " + total.toLocaleString() + " 個";
-      buildStepBlocks.innerHTML = "";
-      const zoom = document.createElement("div");
-      zoom.className = "build-step-zoom";
-      const zoomTitle = document.createElement("div");
-      zoomTitle.className = "build-step-zoom-title";
-      zoomTitle.textContent = "今回置く4マス";
-      buildStepBlocks.appendChild(zoomTitle);
-      buildStepBlocks.appendChild(zoom);
-      if (!lastGrid) {
-        buildStepBlocks.innerHTML = '<p class="muted">先に画像を変換してください。</p>';
-      } else if (first >= total) {
-        buildStepBlocks.innerHTML = '<p class="build-step-complete">すべてのブロックを置き終わりました！</p>';
-      } else {
-        for (let i = first; i < last; i++) {
-          const pos = buildOrderPosition(i);
-          const card = document.createElement("div");
-          card.className = "build-step-item";
-          const preview = document.createElement("div");
-          preview.className = "build-step-texture";
-          if (pos.block.textureImage) {
-            const img = document.createElement("img");
-            img.src = pos.block.textureImage.src;
-            img.alt = pos.block.name;
-            preview.appendChild(img);
-          } else {
-            preview.style.background = "rgb(" + (pos.block.mapRgb || pos.block.rgb || [128,128,128]).join(",") + ")";
-          }
-          const detail = document.createElement("div");
-          detail.className = "build-step-detail";
-          const number = document.createElement("strong");
-          number.textContent = (i + 1).toLocaleString() + "番";
-          const name = document.createElement("span");
-          name.textContent = pos.block.name;
-          const coordinate = document.createElement("span");
-          coordinate.textContent = "列 " + (pos.x + 1) + " ・ 行 " + (pos.y + 1);
-          detail.append(number, name, coordinate);
-          card.append(preview, detail);
-          buildStepBlocks.appendChild(card);
-
-          // 今回の4マスを大きく横並びで表示
-          const zoomCell = document.createElement("div");
-          zoomCell.className = "build-step-zoom-cell";
-          const zoomTexture = document.createElement("div");
-          zoomTexture.className = "zoom-texture";
-          if (pos.block.textureImage) {
-            const zoomImg = document.createElement("img");
-            zoomImg.src = pos.block.textureImage.src;
-            zoomImg.alt = pos.block.name;
-            zoomTexture.appendChild(zoomImg);
-          } else {
-            const color = document.createElement("div");
-            color.className = "zoom-color";
-            color.style.background = "rgb(" + (pos.block.mapRgb || pos.block.rgb || [128,128,128]).join(",") + ")";
-            zoomTexture.appendChild(color);
-          }
-          const zoomNumber = document.createElement("div");
-          zoomNumber.className = "zoom-number";
-          zoomNumber.textContent = (pos.x + 1).toLocaleString() + "列目";
-          const zoomCoord = document.createElement("div");
-          zoomCoord.className = "zoom-coord";
-          zoomCoord.textContent = "行" + (pos.y + 1);
-          zoomCell.append(zoomTexture, zoomNumber, zoomCoord);
-          zoom.appendChild(zoomCell);
-        }
-      }
-      animationReset.disabled = !lastGrid || first === 0;
-      animationStepBack.disabled = !lastGrid || first === 0;
-      animationStepForward.disabled = !lastGrid || first >= total;
-      animationStepForward.textContent = first + BUILD_STEP_SIZE >= total ? "完了" : "次へ（4ブロック）";
-    }
-
-    function setAnimationPosition(value) {
-      animationPlaced = Math.max(0, Math.min(MAP_SIZE * MAP_SIZE, Math.floor((Number(value) || 0) / BUILD_STEP_SIZE) * BUILD_STEP_SIZE));
-      drawAnimationFrame();
-    }
-
-    function resetAnimationForGrid() {
-      animationPlaced = 0;
-      drawAnimationFrame();
-    }
-
-    animationSecondRowStart.addEventListener("change", () => drawAnimationFrame());
-    animationReset.addEventListener("click", () => setAnimationPosition(0));
-    animationStepBack.addEventListener("click", () => setAnimationPosition(animationPlaced - BUILD_STEP_SIZE));
-    animationStepForward.addEventListener("click", () => setAnimationPosition(animationPlaced + BUILD_STEP_SIZE));
 
     function renderStats(counts) {
       const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
@@ -2648,6 +2519,51 @@
     });
 
 
+
+    // 設置手順を圧縮データにして、個別URLの別ページで開く。
+    document.getElementById("openBuildStepBtn").addEventListener("click", async () => {
+      if (!lastGrid) return;
+      const opened = window.open("about:blank", "_blank");
+      if (!opened) {
+        alert("新しいタブを開けませんでした。ブラウザのポップアップ設定を確認してください。");
+        return;
+      }
+      try {
+        const payload = new Uint8Array(MAP_SIZE * MAP_SIZE + 1);
+        payload[0] = 0; // 初期進行方向：左から右
+        for (let i = 0; i < lastGrid.length; i++) {
+          const paletteIndex = BLOCK_DATA.indexOf(lastGrid[i]);
+          if (paletteIndex < 0 || paletteIndex > 255) throw new Error("設計図に未対応のブロックが含まれています。");
+          payload[i + 1] = paletteIndex;
+        }
+        let payloadBytes = payload;
+        let mode = "p";
+        if (typeof CompressionStream === "function") {
+          try {
+            const stream = new Blob([payload]).stream().pipeThrough(new CompressionStream("deflate"));
+            const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
+            if (compressed.length < payload.length) {
+              payloadBytes = compressed;
+              mode = "d";
+            }
+          } catch (compressionError) {
+            console.warn("設置手順URLの圧縮を利用できないため、未圧縮データを使用します。", compressionError);
+          }
+        }
+        let binary = "";
+        const chunkSize = 0x8000;
+        for (let i = 0; i < payloadBytes.length; i += chunkSize) {
+          binary += String.fromCharCode(...payloadBytes.subarray(i, i + chunkSize));
+        }
+        const encoded = btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
+        const target = new URL("build-step.html", window.location.href);
+        opened.location.replace(target.href + "#" + mode + encoded);
+      } catch (error) {
+        opened.close();
+        console.error("設置手順URLの作成に失敗:", error);
+        alert(error && error.message ? error.message : "設置手順URLを作成できませんでした。");
+      }
+    });
 
 
     try {

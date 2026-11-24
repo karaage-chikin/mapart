@@ -28,24 +28,71 @@ small{color:#b8b8cc}
   const download = document.getElementById("download");
   const hash = location.hash.slice(1);
   let dataUrl = "";
-  try {
-    const base64 = hash.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = base64 + "=".repeat((4 - base64.length % 4) % 4);
-    dataUrl = "data:image/png;base64," + padded;
-  } catch (_) {}
-  if (!dataUrl.startsWith("data:image/png;base64,")) {
-    message.textContent = "設計図データがURLにありません。元のサイトで「オンラインで表示」を押してください。";
-    return;
+  const base64ToBytes = value => {
+    const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  };
+  const bytesToDataUrl = bytes => {
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return "data:image/png;base64," + btoa(binary);
+  };
+  async function loadBlueprint() {
+    try {
+      if (!hash || (hash[0] !== "d" && hash[0] !== "p")) {
+        throw new Error("設計図データがURLにありません。元のサイトで「オンラインで表示」を押してください。");
+      }
+      const payload = base64ToBytes(hash.slice(1));
+      let pngBytes = payload;
+      if (hash[0] === "d") {
+        if (typeof DecompressionStream !== "function") {
+          throw new Error("このブラウザは圧縮URLの展開に対応していません。ブラウザを更新してください。");
+        }
+        const stream = new Blob([payload]).stream().pipeThrough(new DecompressionStream("deflate"));
+        pngBytes = new Uint8Array(await new Response(stream).arrayBuffer());
+      }
+      if (pngBytes.length < 8 || pngBytes[0] !== 137 || pngBytes[1] !== 80 ||
+          pngBytes[2] !== 78 || pngBytes[3] !== 71) {
+        throw new Error("URL内の画像データがPNGとして認識できません。");
+      }
+      dataUrl = bytesToDataUrl(pngBytes);
+      image.onload = () => {
+        image.hidden = false;
+        message.hidden = true;
+        download.disabled = false;
+      };
+      image.onerror = () => {
+        message.textContent = "設計図を読み込めませんでした。URLが途中で切れていないか確認してください。";
+      };
+      image.src = dataUrl;
+    } catch (error) {
+      message.textContent = error && error.message ? error.message : "設計図を読み込めませんでした。";
+    }
   }
-  image.onload = () => { image.hidden = false; message.hidden = true; download.disabled = false; };
-  image.onerror = () => { message.textContent = "設計図を読み込めませんでした。URLが途中で切れていないか確認してください。"; };
-  image.src = dataUrl;
+  loadBlueprint();
   download.addEventListener("click", () => {
-    const a = document.createElement("a"); a.href = dataUrl; a.download = "minecraft-mapart-blueprint.png"; a.click();
+    if (!dataUrl) return;
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = "minecraft-mapart-blueprint.png";
+    a.click();
   });
   document.getElementById("copy").addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(location.href); message.hidden=false; message.textContent="URLをコピーしました。"; }
-    catch (_) { message.hidden=false; message.textContent="URL欄からアドレスをコピーしてください。"; }
+    try {
+      await navigator.clipboard.writeText(location.href);
+      message.hidden = false;
+      message.textContent = "URLをコピーしました。";
+    } catch (_) {
+      message.hidden = false;
+      message.textContent = "URL欄からアドレスをコピーしてください。";
+    }
   });
 })();
 </script>

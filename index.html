@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MapArt 2D Generator (1×1 Simple)</title>
+  <style>
+    :root {
+      --bg: #181825;
+      --panel: #1e1e2e;
+      --card: #313244;
+      --border: #45475a;
+      --text: #cdd6f4;
+      --subtext: #a6adc8;
+      --accent: #89b4fa;
+      --accent-hover: #b4befe;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.4rem;
+    }
+    .badge {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--accent);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: bold;
+    }
+    .grid-main {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 18px;
+    }
+    @media (max-width: 900px) {
+      .grid-main { grid-template-columns: 1fr; }
+    }
+    .box {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 16px;
+    }
+    .box h2 {
+      margin: 0 0 12px;
+      font-size: 1.05rem;
+      border-left: 4px solid var(--accent);
+      padding-left: 8px;
+    }
+    .field {
+      margin-bottom: 12px;
+    }
+    .field label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      margin-bottom: 4px;
+    }
+    input[type="file"], input[type="color"] {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 0.9rem;
+    }
+    button {
+      background: var(--accent);
+      color: #11111b;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    button:hover { background: var(--accent-hover); }
+    button.secondary {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    button.secondary:hover { background: var(--border); }
+    .preset-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .block-list {
+      max-height: 380px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      background: var(--bg);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 4px;
+    }
+    .block-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 6px;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .block-item:hover { background: var(--card); }
+    .swatch {
+      width: 15px;
+      height: 15px;
+      border-radius: 3px;
+      border: 1px solid rgba(255,255,255,0.4);
+      flex-shrink: 0;
+    }
+    .canvas-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+    .canvas-card {
+      background: var(--card);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    .canvas-card h3 {
+      margin: 0 0 8px;
+      font-size: 0.95rem;
+      color: var(--subtext);
+    }
+    canvas {
+      width: 100%;
+      max-width: 384px;
+      aspect-ratio: 1 / 1;
+      image-rendering: pixelated;
+      background: #11111b;
+      border: 2px solid var(--border);
+      border-radius: 4px;
+    }
+    .action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+      align-items: center;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      color: var(--subtext);
+      font-size: 0.82rem;
+    }
+    .muted {
+      color: var(--subtext);
+      font-size: 0.82rem;
+    }
+    #debugBox {
+      margin-top: 12px;
+      padding: 10px;
+      border-radius: 8px;
+      background: #11111b;
+      border: 1px solid var(--border);
+      color: #a6e3a1;
+      font-size: 0.8rem;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Minecraft MapArt 2D Generator</h1>
+      <span class="badge">2D / 1×1 (128×128) / Floyd-Steinberg</span>
+    </header>
+
+    <div class="grid-main">
+      <div>
+        <div class="box">
+          <h2>1. 画像選択</h2>
+          <div class="field">
+            <label for="imageInput">元画像を選択（128×128に変換）</label>
+            <input type="file" id="imageInput" accept="image/*" style="width:100%;">
+          </div>
+
+          <div class="field" style="margin-bottom:0;">
+            <label>
+              <span>透過部分の背景を塗る</span>
+              <input type="checkbox" id="bgFillToggle" checked>
+            </label>
+            <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+              <span class="muted">背景色:</span>
+              <input type="color" id="bgColorInput" value="#ffffff">
+            </div>
+          </div>
+          <div id="debugBox">状態: 待機中（画像を選択してください）</div>
+        </div>
+
+        <div class="box">
+          <h2>2. 使用ブロック選択（2Dパレット）</h2>
+          <div class="preset-bar">
+            <button type="button" class="secondary" data-preset="all">全選択</button>
+            <button type="button" class="secondary" data-preset="none">全解除</button>
+            <button type="button" class="secondary" data-preset="wool">羊毛系</button>
+            <button type="button" class="secondary" data-preset="terracotta">テラコッタ系</button>
+            <button type="button" class="secondary" data-preset="basic">基本・鉱物/石系</button>
+          </div>
+          <div class="muted" id="activeCountText" style="margin-bottom:6px;">有効ブロック: 0 / 0</div>
+          <div class="block-list" id="blockList"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="box">
+          <h2>2D プレビュー（128×128）</h2>
+          <div class="canvas-row">
+            <div class="canvas-card">
+              <h3>リサイズ後</h3>
+              <canvas id="sourceCanvas" width="128" height="128"></canvas>
+            </div>
+            <div class="canvas-card">
+              <h3>2D マップアート結果</h3>
+              <canvas id="resultCanvas" width="128" height="128"></canvas>
+            </div>
+          </div>
+          <div class="action-row">
+            <button type="button" id="downloadPngBtn">変換結果をPNG保存</button>
+            <span class="muted" id="totalPixelsInfo">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
+          </div>
+        </div>
+
+        <div class="box">
+          <h2>必要ブロック一覧（2D平面配置）</h2>
+          <div style="overflow-x:auto;">
+            <table id="statsTable">
+              <thead>
+                <tr>
+                  <th>ブロック</th>
+                  <th>必要個数</th>
+                  <th>スタック (64個)</th>
+                  <th>ラージチェスト (3,456個)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colspan="4" class="muted">画像を読み込むと集計が表示されます。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const MAP_SIZE = 128;
+
+    const BLOCK_DATA = [
+      { id: "grass_block", name: "草ブロック", cat: "basic", rgb: [127, 178, 56], checked: true },
+      { id: "sandstone", name: "砂岩", cat: "basic", rgb: [221, 214, 165], checked: true },
+      { id: "cobweb", name: "クモの巣 / キノコの柄", cat: "basic", rgb: [199, 199, 199], checked: true },
+      { id: "redstone_block", name: "レッドストーンブロック", cat: "basic", rgb: [255, 0, 0], checked: true },
+      { id: "packed_ice", name: "氷塊", cat: "basic", rgb: [160, 160, 255], checked: true },
+      { id: "iron_block", name: "鉄ブロック", cat: "basic", rgb: [167, 167, 167], checked: true },
+      { id: "oak_leaves", name: "オークの葉", cat: "basic", rgb: [0, 124, 0], checked: true },
+      { id: "snow_block", name: "雪ブロック", cat: "basic", rgb: [255, 255, 255], checked: true },
+      { id: "clay", name: "粘土ブロック", cat: "basic", rgb: [164, 168, 184], checked: true },
+      { id: "dirt", name: "土 / 花崗岩", cat: "basic", rgb: [151, 109, 77], checked: true },
+      { id: "stone", name: "石 / 丸石", cat: "basic", rgb: [112, 112, 112], checked: true },
+      { id: "oak_planks", name: "オークの板材", cat: "basic", rgb: [143, 119, 72], checked: true },
+      { id: "quartz_block", name: "クォーツブロック / 閃緑岩", cat: "basic", rgb: [255, 252, 245], checked: true },
+      { id: "gold_block", name: "金ブロック", cat: "basic", rgb: [250, 238, 77], checked: true },
+      { id: "diamond_block", name: "ダイヤモンドブロック", cat: "basic", rgb: [92, 219, 213], checked: true },
+      { id: "lapis_block", name: "ラピスラズリブロック", cat: "basic", rgb: [74, 128, 255], checked: true },
+      { id: "emerald_block", name: "エメラルドブロック", cat: "basic", rgb: [0, 217, 58], checked: true },
+      { id: "podzol", name: "ポドゾル / スプルース材", cat: "basic", rgb: [129, 86, 49], checked: true },
+      { id: "netherrack", name: "ネザーラック", cat: "basic", rgb: [112, 2, 0], checked: true },
+      { id: "deepslate", name: "深層岩", cat: "basic", rgb: [100, 100, 100], checked: true },
+      { id: "glow_lichen", name: "ヒカリゴケ", cat: "basic", rgb: [127, 167, 150], checked: true },
+
+      { id: "white_wool", name: "白色の羊毛", cat: "wool", rgb: [249, 255, 254], checked: true },
+      { id: "orange_wool", name: "橙色の羊毛", cat: "wool", rgb: [216, 127, 51], checked: true },
+      { id: "magenta_wool", name: "赤紫色の羊毛", cat: "wool", rgb: [178, 76, 216], checked: true },
+      { id: "light_blue_wool", name: "空色の羊毛", cat: "wool", rgb: [102, 153, 216], checked: true },
+      { id: "yellow_wool", name: "黄色の羊毛", cat: "wool", rgb: [229, 229, 51], checked: true },
+      { id: "lime_wool", name: "黄緑色の羊毛", cat: "wool", rgb: [127, 204, 25], checked: true },
+      { id: "pink_wool", name: "桃色の羊毛", cat: "wool", rgb: [242, 127, 165], checked: true },
+      { id: "gray_wool", name: "灰色の羊毛", cat: "wool", rgb: [76, 76, 76], checked: true },
+      { id: "light_gray_wool", name: "薄灰色の羊毛", cat: "wool", rgb: [153, 153, 153], checked: true },
+      { id: "cyan_wool", name: "青緑色の羊毛", cat: "wool", rgb: [76, 127, 153], checked: true },
+      { id: "purple_wool", name: "紫色の羊毛", cat: "wool", rgb: [127, 63, 178], checked: true },
+      { id: "blue_wool", name: "青色の羊毛", cat: "wool", rgb: [51, 76, 178], checked: true },
+      { id: "brown_wool", name: "茶色の羊毛", cat: "wool", rgb: [102, 76, 51], checked: true },
+      { id: "green_wool", name: "緑色の羊毛", cat: "wool", rgb: [102, 127, 51], checked: true },
+      { id: "red_wool", name: "赤色の羊毛", cat: "wool", rgb: [153, 51, 51], checked: true },
+      { id: "black_wool", name: "黒色の羊毛", cat: "wool", rgb: [25, 25, 25], checked: true },
+
+      { id: "white_terracotta", name: "白色のテラコッタ", cat: "terracotta", rgb: [209, 177, 161], checked: true },
+      { id: "orange_terracotta", name: "橙色のテラコッタ", cat: "terracotta", rgb: [159, 82, 36], checked: true },
+      { id: "magenta_terracotta", name: "赤紫色のテラコッタ", cat: "terracotta", rgb: [149, 87, 108], checked: true },
+      { id: "light_blue_terracotta", name: "空色のテラコッタ", cat: "terracotta", rgb: [112, 108, 138], checked: true },
+      { id: "yellow_terracotta", name: "黄色のテラコッタ", cat: "terracotta", rgb: [186, 133, 36], checked: true },
+      { id: "lime_terracotta", name: "黄緑色のテラコッタ", cat: "terracotta", rgb: [103, 117, 53], checked: true },
+      { id: "pink_terracotta", name: "桃色のテラコッタ", cat: "terracotta", rgb: [160, 77, 78], checked: true },
+      { id: "gray_terracotta", name: "灰色のテラコッタ", cat: "terracotta", rgb: [57, 41, 35], checked: true },
+      { id: "light_gray_terracotta", name: "薄灰色のテラコッタ", cat: "terracotta", rgb: [135, 107, 98], checked: true },
+      { id: "cyan_terracotta", name: "青緑色のテラコッタ", cat: "terracotta", rgb: [87, 92, 92], checked: true },
+      { id: "purple_terracotta", name: "紫色のテラコッタ", cat: "terracotta", rgb: [122, 73, 88], checked: true },
+      { id: "blue_terracotta", name: "青色のテラコッタ", cat: "terracotta", rgb: [76, 62, 92], checked: true },
+      { id: "brown_terracotta", name: "茶色のテラコッタ", cat: "terracotta", rgb: [76, 50, 35], checked: true },
+      { id: "green_terracotta", name: "緑色のテラコッタ", cat: "terracotta", rgb: [76, 82, 42], checked: true },
+      { id: "red_terracotta", name: "赤色のテラコッタ", cat: "terracotta", rgb: [142, 60, 46], checked: true },
+      { id: "black_terracotta", name: "黒色のテラコッタ", cat: "terracotta", rgb: [37, 22, 16], checked: true }
+    ];
+
+    const els = {
+      imageInput: document.getElementById("imageInput"),
+      bgFillToggle: document.getElementById("bgFillToggle"),
+      bgColorInput: document.getElementById("bgColorInput"),
+      blockList: document.getElementById("blockList"),
+      activeCountText: document.getElementById("activeCountText"),
+      sourceCanvas: document.getElementById("sourceCanvas"),
+      resultCanvas: document.getElementById("resultCanvas"),
+      downloadPngBtn: document.getElementById("downloadPngBtn"),
+      statsBody: document.querySelector("#statsTable tbody"),
+      debugBox: document.getElementById("debugBox")
+    };
+
+    const srcCtx = els.sourceCanvas.getContext("2d");
+    const resCtx = els.resultCanvas.getContext("2d");
+    let loadedImage = null;
+
+    function setDebug(msg) {
+      els.debugBox.textContent = msg;
+    }
+
+    window.addEventListener("error", (e) => {
+      setDebug("JSエラー発生: " + e.message);
+    });
+
+    function clamp(v, min = 0, max = 255) {
+      return v < min ? min : v > max ? max : v;
+    }
+
+    function hexToRgb(hex) {
+      const clean = hex.replace("#", "");
+      return [
+        parseInt(clean.slice(0, 2), 16),
+        parseInt(clean.slice(2, 4), 16),
+        parseInt(clean.slice(4, 6), 16)
+      ];
+    }
+
+    function renderBlockList() {
+      els.blockList.innerHTML = "";
+      BLOCK_DATA.forEach((b, idx) => {
+        const label = document.createElement("label");
+        label.className = "block-item";
+        label.innerHTML = `
+          <input type="checkbox" data-idx="${idx}" ${b.checked ? "checked" : ""}>
+          <span class="swatch" style="background: rgb(${b.rgb[0]},${b.rgb[1]},${b.rgb[2]});"></span>
+          <span>${b.name}</span>
+        `;
+        label.querySelector("input").addEventListener("change", (e) => {
+          BLOCK_DATA[idx].checked = e.target.checked;
+          updateActiveCount();
+          runConversion();
+        });
+        els.blockList.appendChild(label);
+      });
+      updateActiveCount();
+    }
+
+    function updateActiveCount() {
+      const active = BLOCK_DATA.filter(b => b.checked).length;
+      els.activeCountText.textContent = `有効ブロック: ${active} / ${BLOCK_DATA.length}`;
+    }
+
+    document.querySelectorAll("[data-preset]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const type = btn.dataset.preset;
+        BLOCK_DATA.forEach(b => {
+          if (type === "all") b.checked = true;
+          else if (type === "none") b.checked = false;
+          else if (type === "wool") b.checked = b.cat === "wool";
+          else if (type === "terracotta") b.checked = b.cat === "terracotta";
+          else if (type === "basic") b.checked = b.cat === "basic";
+        });
+        renderBlockList();
+        runConversion();
+      });
+    });
+
+    function applyBackgroundFill(data) {
+      const fillBg = els.bgFillToggle.checked;
+      const [bgR, bgG, bgB] = hexToRgb(els.bgColorInput.value);
+
+      for (let i = 0; i < data.length; i += 4) {
+        let r = data[i];
+        let g = data[i + 1];
+        let b = data[i + 2];
+        const a = data[i + 3] / 255;
+
+        if (fillBg && a < 1) {
+          r = r * a + bgR * (1 - a);
+          g = g * a + bgG * (1 - a);
+          b = b * a + bgB * (1 - a);
+        }
+
+        data[i] = clamp(r);
+        data[i + 1] = clamp(g);
+        data[i + 2] = clamp(b);
+        data[i + 3] = 255;
+      }
+    }
+
+    function findClosestBlock(r, g, b, activeBlocks) {
+      let best = activeBlocks[0];
+      let bestDist = Infinity;
+      for (let i = 0; i < activeBlocks.length; i++) {
+        const blk = activeBlocks[i];
+        const dr = r - blk.rgb[0];
+        const dg = g - blk.rgb[1];
+        const db = b - blk.rgb[2];
+        const dist = dr * dr * 0.3 + dg * dg * 0.59 + db * db * 0.11;
+        if (dist < bestDist) {
+          bestDist = dist;
+          best = blk;
+        }
+      }
+      return best;
+    }
+
+    function addError(buf, size, x, y, er, eg, eb, weight) {
+      if (x < 0 || x >= size || y < 0 || y >= size) return;
+      const idx = (y * size + x) * 4;
+      buf[idx] += er * weight;
+      buf[idx + 1] += eg * weight;
+      buf[idx + 2] += eb * weight;
+    }
+
+    function runConversion() {
+      if (!loadedImage) {
+        setDebug("状態: 画像未読み込み");
+        return;
+      }
+
+      const activeBlocks = BLOCK_DATA.filter(b => b.checked);
+      if (activeBlocks.length === 0) {
+        setDebug("状態: 有効ブロックが0個です");
+        return;
+      }
+
+      els.sourceCanvas.width = MAP_SIZE;
+      els.sourceCanvas.height = MAP_SIZE;
+      els.resultCanvas.width = MAP_SIZE;
+      els.resultCanvas.height = MAP_SIZE;
+
+      srcCtx.clearRect(0, 0, MAP_SIZE, MAP_SIZE);
+      srcCtx.drawImage(loadedImage, 0, 0, MAP_SIZE, MAP_SIZE);
+
+      const srcImg = srcCtx.getImageData(0, 0, MAP_SIZE, MAP_SIZE);
+      applyBackgroundFill(srcImg.data);
+      srcCtx.putImageData(srcImg, 0, 0);
+
+      const work = new Float32Array(srcImg.data);
+      const outImg = resCtx.createImageData(MAP_SIZE, MAP_SIZE);
+      const counts = new Map();
+
+      for (let y = 0; y < MAP_SIZE; y++) {
+        for (let x = 0; x < MAP_SIZE; x++) {
+          const idx = (y * MAP_SIZE + x) * 4;
+          const r = work[idx];
+          const g = work[idx + 1];
+          const b = work[idx + 2];
+
+          const matched = findClosestBlock(r, g, b, activeBlocks);
+
+          outImg.data[idx] = matched.rgb[0];
+          outImg.data[idx + 1] = matched.rgb[1];
+          outImg.data[idx + 2] = matched.rgb[2];
+          outImg.data[idx + 3] = 255;
+
+          counts.set(matched.id, (counts.get(matched.id) || 0) + 1);
+
+          const er = r - matched.rgb[0];
+          const eg = g - matched.rgb[1];
+          const eb = b - matched.rgb[2];
+
+          addError(work, MAP_SIZE, x + 1, y, er, eg, eb, 7 / 16);
+          addError(work, MAP_SIZE, x - 1, y + 1, er, eg, eb, 3 / 16);
+          addError(work, MAP_SIZE, x, y + 1, er, eg, eb, 5 / 16);
+          addError(work, MAP_SIZE, x + 1, y + 1, er, eg, eb, 1 / 16);
+        }
+      }
+
+      resCtx.putImageData(outImg, 0, 0);
+      renderStats(counts);
+      setDebug("状態: 変換完了（" + loadedImage.width + "×" + loadedImage.height + " → 128×128）");
+    }
+
+    function renderStats(counts) {
+      const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+      els.statsBody.innerHTML = "";
+
+      for (const [id, count] of sorted) {
+        const blk = BLOCK_DATA.find(b => b.id === id);
+        const stacks = (count / 64).toFixed(1);
+        const doubleChests = (count / 3456).toFixed(2);
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="swatch" style="background: rgb(${blk.rgb[0]},${blk.rgb[1]},${blk.rgb[2]});"></span>
+              <span>${blk.name}</span>
+            </div>
+          </td>
+          <td>${count.toLocaleString()} 個</td>
+          <td>${stacks} スタック</td>
+          <td>${doubleChests} LC</td>
+        `;
+        els.statsBody.appendChild(tr);
+      }
+    }
+
+    els.imageInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) {
+        setDebug("状態: ファイルが取得できませんでした");
+        return;
+      }
+      setDebug("状態: 読み込み中... (" + file.name + ")");
+      const reader = new FileReader();
+      reader.onerror = () => setDebug("状態: FileReader エラー");
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onerror = () => setDebug("状態: 画像デコードエラー");
+        img.onload = () => {
+          loadedImage = img;
+          runConversion();
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    [els.bgFillToggle, els.bgColorInput].forEach(el => {
+      el.addEventListener("change", runConversion);
+    });
+
+    els.downloadPngBtn.addEventListener("click", () => {
+      if (!loadedImage) return;
+      const a = document.createElement("a");
+      a.download = "mapart_2d_1x1.png";
+      a.href = els.resultCanvas.toDataURL("image/png");
+      a.click();
+    });
+
+    renderBlockList();
+    setDebug("状態: 初期化完了（有効ブロック: " + BLOCK_DATA.filter(b => b.checked).length + "）");
+  </script>
+</body>
+</html>

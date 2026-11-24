@@ -398,7 +398,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.2.4</div>
+  <div class="app-version" id="appVersion">v1.2.5</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -511,8 +511,7 @@
             </div>
           </div>
           <div class="action-row">
-            <button type="button" id="downloadPngBtn" disabled>高画質PNGを保存（プレビュー16倍）</button>
-            <button type="button" id="downloadGridBtn" class="secondary" disabled>座標付き設計図を保存（PNG）</button>
+            <button type="button" id="downloadPngBtn" disabled>設計図PNGを保存（プレビュー16倍）</button>
             <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
           </div>
           <div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
@@ -776,7 +775,6 @@
       resultCanvas: document.getElementById("resultCanvas"),
       resultTitle: document.getElementById("resultTitle"),
       downloadPngBtn: document.getElementById("downloadPngBtn"),
-      downloadGridBtn: document.getElementById("downloadGridBtn"),
       pngSaveStatus: document.getElementById("pngSaveStatus"),
       statsBody: document.querySelector("#statsTable tbody")
     };
@@ -1755,115 +1753,84 @@
       return true;
     }
 
-    els.downloadGridBtn.addEventListener("click", async () => {
-      if (!lastGrid || els.downloadGridBtn.disabled) return;
-      els.downloadGridBtn.disabled = true;
-      try {
-        const source = els.resultCanvas;
-        const cellSize = 16;
-        const mapWidth = MAP_SIZE * cellSize;
-        const mapHeight = MAP_SIZE * cellSize;
-        const marginLeft = 52;
-        const marginTop = 34;
-        const marginRight = 12;
-        const marginBottom = 12;
-        const output = document.createElement("canvas");
-        output.width = marginLeft + mapWidth + marginRight;
-        output.height = marginTop + mapHeight + marginBottom;
-        const ctx = output.getContext("2d", { alpha: false });
-        if (!ctx) throw new Error("PNG描画用Canvasを作成できません。");
-
-        ctx.fillStyle = "#242424";
-        ctx.fillRect(0, 0, output.width, output.height);
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(source, marginLeft, marginTop, mapWidth, mapHeight);
-
-        // 128×128マスの境界線を赤色で描画する。
-        ctx.strokeStyle = "rgba(225, 55, 55, 0.9)";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        for (let i = 0; i <= MAP_SIZE; i++) {
-          const x = marginLeft + i * cellSize + 0.5;
-          const y = marginTop + i * cellSize + 0.5;
-          ctx.moveTo(x, marginTop);
-          ctx.lineTo(x, marginTop + mapHeight);
-          ctx.moveTo(marginLeft, y);
-          ctx.lineTo(marginLeft + mapWidth, y);
-        }
-        ctx.stroke();
-
-        // 上端は列番号、左端は行番号。左上のマスが(1, 1)。
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "9px Arial, sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        for (let x = 0; x < MAP_SIZE; x++) {
-          ctx.fillText(String(x + 1), marginLeft + (x + 0.5) * cellSize, marginTop / 2);
-        }
-        for (let y = 0; y < MAP_SIZE; y++) {
-          ctx.fillText(String(y + 1), marginLeft / 2, marginTop + (y + 0.5) * cellSize);
-        }
-
-        setPngStatus("座標付きPNGを生成しています…\n画像サイズ: " + output.width + "×" + output.height + " px", "progress");
-        const blob = await new Promise((resolve, reject) => {
-          output.toBlob(value => value ? resolve(value) : reject(new Error("PNG画像の生成に失敗しました。")), "image/png");
-        });
-        if (blob.type !== "image/png" || blob.size < 100) {
-          throw new Error("生成したファイルが正常なPNGではありません。");
-        }
-        const header = new DataView(await blob.slice(0, 24).arrayBuffer());
-        if (header.getUint32(0, false) !== 0x89504e47 ||
-            header.getUint32(16, false) !== output.width ||
-            header.getUint32(20, false) !== output.height) {
-          throw new Error("PNG形式または画像サイズの検証に失敗しました。");
-        }
-
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "mapart_2d_grid_coordinates.png";
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
-        setPngStatus("座標付きPNGを保存しました。\n画像サイズ: " + output.width + "×" + output.height + " px\nファイルサイズ: " + (blob.size / 1024 / 1024).toFixed(2) + " MB" + "\n上端・左端の番号は1から始まります。", "success");
-      } catch (error) {
-        console.error("座標付きPNGの保存に失敗しました:", error);
-        setPngStatus("座標付きPNGの保存を中止しました。\nERROR: " + (error && error.message ? error.message : String(error)), "error");
-      } finally {
-        els.downloadGridBtn.disabled = !lastGrid;
-      }
-    });
-
     els.downloadPngBtn.addEventListener("click", async () => {
       if (!lastGrid || els.downloadPngBtn.disabled) return;
 
-      const sourceWidth = els.resultCanvas.width;
-      const sourceHeight = els.resultCanvas.height;
-      const outputWidth = sourceWidth * PNG_SCALE;
-      const outputHeight = sourceHeight * PNG_SCALE;
+      const source = els.resultCanvas;
+      const sourceWidth = source.width;
+      const sourceHeight = source.height;
+      if (sourceWidth % MAP_SIZE !== 0 || sourceHeight % MAP_SIZE !== 0) {
+        setPngStatus("設計図PNGを作成できません。\\nERROR: プレビューのマス目サイズが正しくありません。", "error");
+        return;
+      }
+      const tilePx = sourceWidth / MAP_SIZE;
+      const marginLeft = Math.ceil(tilePx * 1.8);
+      const marginTop = Math.ceil(tilePx * 1.25);
+      const marginRight = Math.ceil(tilePx * 0.25);
+      const marginBottom = Math.ceil(tilePx * 0.25);
+      const decorated = document.createElement("canvas");
+      decorated.width = marginLeft + sourceWidth + marginRight;
+      decorated.height = marginTop + sourceHeight + marginBottom;
+      const ctx = decorated.getContext("2d", { alpha: false });
+      if (!ctx) {
+        setPngStatus("設計図PNGを作成できません。\\nERROR: Canvasを作成できません。", "error");
+        return;
+      }
+
       els.downloadPngBtn.disabled = true;
+      const outputWidth = decorated.width * PNG_SCALE;
+      const outputHeight = decorated.height * PNG_SCALE;
       setPngStatus(
-        "高画質PNGを生成中…\n元プレビュー: " + sourceWidth + "×" + sourceHeight + " px\n保存サイズ: " + outputWidth + "×" + outputHeight + " px\n色データを16倍に複製しています。",
+        "設計図PNGを生成中…\\nプレビューを16倍に拡大し、マス目と座標番号を追加します。\\n保存サイズ: " + outputWidth.toLocaleString() + "×" + outputHeight.toLocaleString() + " px",
         "progress"
       );
 
       const totalStart = performance.now();
       let generationMs = 0;
       let verificationMs = 0;
-
       try {
+        ctx.fillStyle = "#242424";
+        ctx.fillRect(0, 0, decorated.width, decorated.height);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(source, marginLeft, marginTop);
+
+        // ブロック境界線。座標や線も含めてから、画像全体を16倍にする。
+        ctx.strokeStyle = "rgba(225, 55, 55, 0.9)";
+        ctx.lineWidth = Math.max(0.5, tilePx / 16);
+        ctx.beginPath();
+        for (let i = 0; i <= MAP_SIZE; i++) {
+          const x = marginLeft + i * tilePx + 0.5;
+          const y = marginTop + i * tilePx + 0.5;
+          ctx.moveTo(x, marginTop);
+          ctx.lineTo(x, marginTop + sourceHeight);
+          ctx.moveTo(marginLeft, y);
+          ctx.lineTo(marginLeft + sourceWidth, y);
+        }
+        ctx.stroke();
+
+        // 上端は列番号、左端は行番号。左上のマスは(1, 1)。
+        ctx.fillStyle = "#ffffff";
+        ctx.font = Math.max(1, tilePx * 0.36) + "px Arial, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        for (let x = 0; x < MAP_SIZE; x++) {
+          ctx.fillText(String(x + 1), marginLeft + (x + 0.5) * tilePx, marginTop / 2);
+        }
+        for (let y = 0; y < MAP_SIZE; y++) {
+          ctx.fillText(String(y + 1), marginLeft / 2, marginTop + (y + 0.5) * tilePx);
+        }
+
         const generationStart = performance.now();
-        const result = await createLosslessScaledPng(els.resultCanvas, PNG_SCALE, progress => {
+        const result = await createLosslessScaledPng(decorated, PNG_SCALE, progress => {
           const percent = Math.floor(progress * 100);
           setPngStatus(
-            "高画質PNGを生成中… " + percent + "%\n元プレビュー: " + sourceWidth + "×" + sourceHeight + " px\n保存サイズ: " + outputWidth + "×" + outputHeight + " px\n色補間なし・最近傍方式で処理中",
+            "設計図PNGを生成中… " + percent + "%\\n保存サイズ: " + outputWidth.toLocaleString() + "×" + outputHeight.toLocaleString() + " px\\n画像・マス目・座標を16倍に拡大しています。",
             "progress"
           );
         });
         generationMs = performance.now() - generationStart;
 
-        setPngStatus("PNGデータを検証中…\nピクセル複製・画像サイズ・sRGB・圧縮データを確認しています。", "progress");
+        setPngStatus("設計図PNGを検証中…\\nPNG寸法・色空間・圧縮データを確認しています。", "progress");
         const verificationStart = performance.now();
         await verifyPngHeader(result.blob, outputWidth, outputHeight);
         const verifiedRawBytes = await verifyDeflateStream(result.compressedChunks, outputWidth, outputHeight);
@@ -1874,7 +1841,7 @@
 
         const url = URL.createObjectURL(result.blob);
         const link = document.createElement("a");
-        link.download = "mapart_2d_" + els.previewStyle.value + "_16x.png";
+        link.download = "mapart_2d_blueprint_16x.png";
         link.href = url;
         document.body.appendChild(link);
         link.click();
@@ -1883,18 +1850,17 @@
 
         const totalMs = performance.now() - totalStart;
         setPngStatus(
-          "PNGダウンロードを開始しました。\n画像サイズ: " + result.width.toLocaleString() + "×" + result.height.toLocaleString() + " px\nファイル容量: " + formatFileSize(result.blob.size) + "\nPNG生成時間: " + (generationMs / 1000).toFixed(2) + " 秒\n検証時間: " + verificationMs.toFixed(1) + " ms\n合計処理時間: " + (totalMs / 1000).toFixed(2) + " 秒\n画素検証: 元画像の全ピクセル（" + result.sourcePixelCount.toLocaleString() + "個）を確認\n色空間: sRGB／PNG寸法・CRC・zlib展開チェック済み",
+          "設計図PNGを保存しました。\\n画像サイズ: " + result.width.toLocaleString() + "×" + result.height.toLocaleString() + " px\\nファイル容量: " + formatFileSize(result.blob.size) + "\\nPNG生成時間: " + (generationMs / 1000).toFixed(2) + " 秒\\n検証時間: " + verificationMs.toFixed(1) + " ms\\n合計処理時間: " + (totalMs / 1000).toFixed(2) + " 秒\\n16倍拡大・マス目・座標番号を含むPNGです。",
           "success"
         );
       } catch (error) {
-        console.error("高画質PNGの生成・検証に失敗しました:", error);
+        console.error("設計図PNGの生成・検証に失敗しました:", error);
         setPngStatus(
-          "PNG保存を中止しました。\nERROR: " + (error && error.message ? error.message : String(error)) + "\n画像の色・サイズを保証できないため、ダウンロードしていません。",
+          "設計図PNGの保存を中止しました。\\nERROR: " + (error && error.message ? error.message : String(error)) + "\\n画像の検証に失敗したため、ダウンロードしていません。",
           "error"
         );
       } finally {
         els.downloadPngBtn.disabled = !lastGrid;
-      els.downloadGridBtn.disabled = !lastGrid;
       }
     });
 

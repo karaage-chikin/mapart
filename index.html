@@ -1542,6 +1542,7 @@
 
       return {
         blob: new Blob(parts, { type: "image/png" }),
+        compressedChunks,
         width: outputWidth,
         height: outputHeight,
         pixelVerificationMs,
@@ -1608,8 +1609,13 @@
         });
         generationMs = performance.now() - generationStart;
 
+        setPngStatus("PNGデータを検証中…\\nピクセル複製・画像サイズ・sRGB・圧縮データを確認しています。", "progress");
         const verificationStart = performance.now();
         await verifyPngHeader(result.blob, outputWidth, outputHeight);
+        const verifiedRawBytes = await verifyDeflateStream(result.compressedChunks, outputWidth, outputHeight);
+        if (verifiedRawBytes !== (1 + outputWidth * 4) * outputHeight) {
+          throw new Error("PNGデータ量の検証に失敗しました。");
+        }
         verificationMs = result.pixelVerificationMs + (performance.now() - verificationStart);
 
         const url = URL.createObjectURL(result.blob);
@@ -1623,7 +1629,7 @@
 
         const totalMs = performance.now() - totalStart;
         setPngStatus(
-          "PNGダウンロードを開始しました。\n画像サイズ: " + result.width.toLocaleString() + "×" + result.height.toLocaleString() + " px\nファイル容量: " + formatFileSize(result.blob.size) + "\nPNG生成時間: " + (generationMs / 1000).toFixed(2) + " 秒\n検証時間: " + verificationMs.toFixed(1) + " ms\n合計処理時間: " + (totalMs / 1000).toFixed(2) + " 秒\n画素検証: 元画像の全ピクセル（" + result.sourcePixelCount.toLocaleString() + "個）を確認\n色空間: sRGB／PNG署名・寸法・IHDR CRC確認済み",
+          "PNGダウンロードを開始しました。\n画像サイズ: " + result.width.toLocaleString() + "×" + result.height.toLocaleString() + " px\nファイル容量: " + formatFileSize(result.blob.size) + "\nPNG生成時間: " + (generationMs / 1000).toFixed(2) + " 秒\n検証時間: " + verificationMs.toFixed(1) + " ms\n合計処理時間: " + (totalMs / 1000).toFixed(2) + " 秒\n画素検証: 元画像の全ピクセル（" + result.sourcePixelCount.toLocaleString() + "個）を確認\n色空間: sRGB／PNG寸法・CRC・zlib展開チェック済み",
           "success"
         );
       } catch (error) {

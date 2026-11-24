@@ -575,6 +575,16 @@
     .animation-progress input { flex: 1; min-width: 0; }
     .animation-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
     .animation-controls button { padding: 7px 9px; font-size: .75rem; }
+    .build-step-blocks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+    .build-step-item { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 7px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
+    .build-step-texture { width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 5px; background: var(--panel); }
+    .build-step-texture img { display: block; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+    .build-step-detail { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: .75rem; overflow-wrap: anywhere; }
+    .build-step-detail strong { color: var(--accent); font-size: .8rem; }
+    .build-step-detail span:last-child { color: var(--subtext); font-size: .68rem; }
+    .build-step-complete { grid-column: 1 / -1; padding: 16px; text-align: center; color: var(--success, #a6e3a1); }
+    @media (max-width: 620px) { .build-step-blocks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
     .animation-speed { display: flex; align-items: center; gap: 5px; margin-left: auto; color: var(--subtext); font-size: .75rem; }
     .animation-speed select { width: auto; padding: 5px; font-size: .75rem; }
     @media (max-width: 620px) { .animation-speed { margin-left: 0; } .animation-controls button { flex: 1 1 auto; } }

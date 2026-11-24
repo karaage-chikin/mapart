@@ -126,17 +126,17 @@
       background: var(--card);
     }
     .upload-button {
-      display: inline-block !important;
+      display: inline-block;
       width: fit-content;
       padding: 9px 14px;
-      margin: 0 0 8px !important;
+      margin: 0 0 8px;
       border-radius: 6px;
       background: var(--accent);
       color: #11111b;
       font-weight: 700;
       cursor: pointer;
     }
-    .upload-button:focus {
+    .upload-button:focus-visible {
       outline: 2px solid var(--text);
       outline-offset: 3px;
     }
@@ -466,7 +466,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.2.8</div>
+  <div class="app-version" id="appVersion">v1.2.9</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -490,8 +490,8 @@
           <div class="field">
             <label>元画像を選択（128×128に変換）</label>
             <div class="image-upload-area" id="imageUploadArea">
-              <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif" class="visually-hidden" aria-label="画像ファイルを選択">
-              <label for="imageInput" class="upload-button">画像ファイルを選択</label>
+              <input type="file" id="imageInput" accept="image/*" class="visually-hidden" aria-label="画像ファイルを選択">
+              <button type="button" id="selectImageBtn" class="upload-button">画像ファイルを選択</button>
               <span id="selectedImageName" class="selected-image-name" aria-live="polite">画像が選択されていません</span>
               <div class="upload-hint">ここに画像をドラッグ＆ドロップすることもできます</div>
             </div>
@@ -1634,7 +1634,12 @@
         const img = new Image();
         img.onload = () => {
           loadedImage = img;
-          runConversion();
+          try {
+            runConversion();
+          } catch (error) {
+            errorBox.hidden = false;
+            errorBox.textContent = "画像は読み込めましたが、変換中にエラーが発生しました: " + (error && error.message ? error.message : String(error));
+          }
         };
         img.onerror = () => {
           errorBox.hidden = false;
@@ -1645,9 +1650,15 @@
       reader.readAsDataURL(file);
     }
 
+    document.getElementById("selectImageBtn").addEventListener("click", () => {
+      // Safariを含むブラウザで、ユーザー操作から直接ファイル選択画面を開く。
+      els.imageInput.click();
+    });
+
     els.imageInput.addEventListener("change", (e) => {
       const file = e.target.files && e.target.files[0];
-      loadSelectedImage(file);
+      if (file) loadSelectedImage(file);
+      // 読み込み処理はFileオブジェクトを保持しているため、同じファイルの再選択も可能。
       e.target.value = "";
     });
 

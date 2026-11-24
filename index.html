@@ -661,7 +661,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.2</div>
+  <div class="app-version" id="appVersion">v1.5.3</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -832,15 +832,15 @@
 <div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
           <section class="animation-panel" aria-label="設置アニメーション">
             <h2>ブロック設置アニメーション</h2>
-            <p class="muted">上の行から順番に、各行を左から右へ設置します。</p>
+            <p class="muted">左上から横1列ずつ、左から右へ進みます。再生では4ブロック置くごとに表示を更新します。</p>
             <canvas id="animationCanvas" width="256" height="256" aria-label="ブロック設置アニメーション"></canvas>
-            <div class="animation-progress"><span id="animationCount">0 / 16,384 個</span><input id="animationSeek" type="range" min="0" max="16384" value="0" step="1" disabled></div>
+            <div class="animation-progress"><span id="animationCount">0 / 16,384 個</span><input id="animationSeek" type="range" min="0" max="16384" value="0" step="4" disabled></div>
             <div class="animation-controls">
               <button type="button" id="animationReset" class="secondary" disabled>最初へ</button>
-              <button type="button" id="animationStepBack" class="secondary" disabled>1マス戻る</button>
+              <button type="button" id="animationStepBack" class="secondary" disabled>4ブロック戻る</button>
               <button type="button" id="animationPlay" disabled>▶ 再生</button>
-              <button type="button" id="animationStepForward" class="secondary" disabled>1マス進む</button>
-              <label class="animation-speed">速度<select id="animationSpeed" disabled><option value="256">ゆっくり</option><option value="1024" selected>標準</option><option value="4096">速い</option><option value="8192">かなり速い</option></select></label>
+              <button type="button" id="animationStepForward" class="secondary" disabled>4ブロック進む</button>
+              <label class="animation-speed">速度<select id="animationSpeed" disabled><option value="64">ゆっくり</option><option value="256" selected>標準</option><option value="1024">速い</option><option value="2048">かなり速い</option></select></label>
             </div>
           </section>
         </div></aside>
@@ -1895,7 +1895,7 @@
       const advance = Math.floor(animationCarry);
       if (advance > 0) {
         animationCarry -= advance;
-        animationPlaced = Math.min(MAP_SIZE * MAP_SIZE, animationPlaced + advance);
+        animationPlaced = Math.min(MAP_SIZE * MAP_SIZE, animationPlaced + advance * 4);
         drawAnimationFrame();
       }
       if (animationPlaced >= MAP_SIZE * MAP_SIZE) {
@@ -1907,7 +1907,7 @@
 
     function setAnimationPosition(value) {
       stopAnimation();
-      animationPlaced = Math.max(0, Math.min(MAP_SIZE * MAP_SIZE, Math.floor(Number(value) || 0)));
+      animationPlaced = Math.max(0, Math.min(MAP_SIZE * MAP_SIZE, Math.round((Number(value) || 0) / 4) * 4));
       drawAnimationFrame();
     }
 
@@ -1921,8 +1921,8 @@
 
     animationSeek.addEventListener("input", () => setAnimationPosition(animationSeek.value));
     animationReset.addEventListener("click", () => setAnimationPosition(0));
-    animationStepBack.addEventListener("click", () => setAnimationPosition(animationPlaced - 1));
-    animationStepForward.addEventListener("click", () => setAnimationPosition(animationPlaced + 1));
+    animationStepBack.addEventListener("click", () => setAnimationPosition(animationPlaced - 4));
+    animationStepForward.addEventListener("click", () => setAnimationPosition(animationPlaced + 4));
     animationPlay.addEventListener("click", () => {
       if (!lastGrid) return;
       if (animationFrame) {

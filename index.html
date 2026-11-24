@@ -108,6 +108,55 @@
       font-size: 0.9rem;
     }
     select { width: 100%; }
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0, 0, 0, 0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+    .image-upload-area {
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--card);
+    }
+    .upload-button {
+      display: inline-block !important;
+      width: fit-content;
+      padding: 9px 14px;
+      margin: 0 0 8px !important;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #11111b;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .upload-button:focus {
+      outline: 2px solid var(--text);
+      outline-offset: 3px;
+    }
+    .selected-image-name, .upload-hint {
+      display: block;
+      overflow-wrap: anywhere;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .upload-hint { margin-top: 6px; }
+    .image-upload-area.drag-over {
+      border-color: var(--accent);
+      background: var(--panel);
+    }
+    .upload-error {
+      color: #ff5c5c;
+      font-size: 0.85rem;
+      margin-top: 6px;
+      white-space: pre-wrap;
+    }
     input[type="range"] {
       width: 100%;
       cursor: pointer;
@@ -398,7 +447,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.2.5</div>
+  <div class="app-version" id="appVersion">v1.2.6</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -420,8 +469,14 @@
         <div class="box">
           <h2>1. 画像＆表示設定</h2>
           <div class="field">
-            <label for="imageInput">元画像を選択（128×128に変換）</label>
-            <input type="file" id="imageInput" accept="image/*" style="width:100%;">
+            <label>元画像を選択（128×128に変換）</label>
+            <div class="image-upload-area" id="imageUploadArea">
+              <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif" class="visually-hidden" aria-label="画像ファイルを選択">
+              <label for="imageInput" class="upload-button">画像ファイルを選択</label>
+              <span id="selectedImageName" class="selected-image-name" aria-live="polite">画像が選択されていません</span>
+              <div class="upload-hint">ここに画像をドラッグ＆ドロップすることもできます</div>
+            </div>
+            <div id="imageUploadError" class="upload-error" role="alert" hidden></div>
           </div>
 
           <div class="field">
@@ -1481,19 +1536,56 @@
       }
     }
 
-    els.imageInput.addEventListener("change", (e) => {
-      const file = e.target.files && e.target.files[0];
+    function loadSelectedImage(file) {
+      const errorBox = document.getElementById("imageUploadError");
+      const nameBox = document.getElementById("selectedImageName");
+      errorBox.hidden = true;
+      errorBox.textContent = "";
       if (!file) return;
+      if (!file.type || !file.type.startsWith("image/")) {
+        errorBox.hidden = false;
+        errorBox.textContent = "画像ファイルを選択してください。";
+        return;
+      }
+      nameBox.textContent = file.name;
       const reader = new FileReader();
+      reader.onerror = () => {
+        errorBox.hidden = false;
+        errorBox.textContent = "画像ファイルを読み込めませんでした。別の画像で試してください。";
+      };
       reader.onload = (ev) => {
         const img = new Image();
         img.onload = () => {
           loadedImage = img;
           runConversion();
         };
+        img.onerror = () => {
+          errorBox.hidden = false;
+          errorBox.textContent = "この画像を開けませんでした。PNG・JPG・WebPなどの画像を選択してください。";
+        };
         img.src = ev.target.result;
       };
       reader.readAsDataURL(file);
+    }
+
+    els.imageInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      loadSelectedImage(file);
+      e.target.value = "";
+    });
+
+    const uploadArea = document.getElementById("imageUploadArea");
+    ["dragenter", "dragover"].forEach(type => uploadArea.addEventListener(type, e => {
+      e.preventDefault();
+      uploadArea.classList.add("drag-over");
+    }));
+    ["dragleave", "drop"].forEach(type => uploadArea.addEventListener(type, e => {
+      e.preventDefault();
+      uploadArea.classList.remove("drag-over");
+    }));
+    uploadArea.addEventListener("drop", e => {
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      loadSelectedImage(file);
     });
 
     [els.fitMode, els.bgFillToggle, els.bgColorInput].forEach(el => {

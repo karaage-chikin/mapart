@@ -832,7 +832,13 @@
 <div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
           <section class="animation-panel" aria-label="設置アニメーション">
             <h2>ブロック設置アニメーション</h2>
-            <p class="muted">左上から横1列ずつ、左から右へ進みます。再生では4ブロック置くごとに表示を更新します。</p>
+            <p class="muted">1行目は左から右へ進みます。2行目以降は選んだ端から開始し、4ブロック置くごとに表示を更新します。</p>
+            <label class="animation-row-direction">2行目の開始位置
+              <select id="animationSecondRowStart">
+                <option value="left" selected>左端から（各行とも左→右）</option>
+                <option value="right">右端から（行ごとに左右交互）</option>
+              </select>
+            </label>
             <canvas id="animationCanvas" width="256" height="256" aria-label="ブロック設置アニメーション"></canvas>
             <div class="animation-progress"><span id="animationCount">0 / 16,384 個</span><input id="animationSeek" type="range" min="0" max="16384" value="0" step="4" disabled></div>
             <div class="animation-controls">
@@ -1840,6 +1846,7 @@
 
     // 設置順は行優先（上から下）、各行は左から右。
     const animationCanvas = document.getElementById("animationCanvas");
+    const animationSecondRowStart = document.getElementById("animationSecondRowStart");
     const animationCtx = animationCanvas.getContext("2d");
     const animationSeek = document.getElementById("animationSeek");
     const animationCount = document.getElementById("animationCount");
@@ -1863,8 +1870,11 @@
       if (lastGrid) {
         for (let index = 0; index < animationPlaced; index++) {
           const block = lastGrid[index];
-          const x = index % MAP_SIZE;
           const y = Math.floor(index / MAP_SIZE);
+          const offset = index % MAP_SIZE;
+          const secondRowStartsRight = animationSecondRowStart.value === "right";
+          const reverseThisRow = secondRowStartsRight && y % 2 === 1;
+          const x = reverseThisRow ? MAP_SIZE - 1 - offset : offset;
           if (els.previewStyle.value === "texture" && patternCache.has(block.id)) {
             animationCtx.drawImage(patternCache.get(block.id), x * cell, y * cell, cell, cell);
           } else {
@@ -1919,6 +1929,7 @@
       drawAnimationFrame();
     }
 
+    animationSecondRowStart.addEventListener("change", () => drawAnimationFrame());
     animationSeek.addEventListener("input", () => setAnimationPosition(animationSeek.value));
     animationReset.addEventListener("click", () => setAnimationPosition(0));
     animationStepBack.addEventListener("click", () => setAnimationPosition(animationPlaced - 4));

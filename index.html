@@ -114,13 +114,45 @@
     .stats-table { min-width: 640px; table-layout: auto; }
     .stats-table th, .stats-table td { white-space: nowrap; }
     .stats-table th:first-child, .stats-table td:first-child { min-width: 150px; }
-    .map-color-row { align-items: flex-start; }
+    /* Responsive palette layout: use grid tracks so wrapped tiles cannot overlap rows. */
+    .map-color-row {
+      display: grid;
+      grid-template-columns: 30px 25px minmax(0, 1fr);
+      align-items: start;
+      gap: 7px;
+      min-height: 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
     .map-color-chip, .map-color-toggle { margin-top: 5px; }
+    .map-color-items {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+      align-items: start;
+      align-content: start;
+      gap: 7px;
+      min-width: 0;
+      width: 100%;
+    }
+    .map-block-tile {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      min-height: 78px;
+      height: auto;
+      flex: none;
+    }
+    .map-block-name {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      line-height: 1.25;
+    }
     @media (max-width: 760px) {
-      .map-color-row { gap: 5px; }
+      .map-color-row { grid-template-columns: 25px 24px minmax(0, 1fr); gap: 5px; }
       .map-color-chip { width: 25px; height: 25px; flex-basis: 25px; }
       .map-color-toggle { width: 24px; flex-basis: 24px; height: 27px; }
-      .map-block-tile { flex-basis: 68px; width: 68px; min-height: 70px; }
+      .map-color-items { grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 5px; }
+      .map-block-tile { min-height: 70px; padding: 4px 2px 3px; }
       .map-block-tile img { width: 36px; height: 36px; flex-basis: 36px; }
       .map-block-name { font-size: 9px; }
     }
@@ -601,7 +633,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.4.2</div>
+  <div class="app-version" id="appVersion">v1.4.3</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>

@@ -138,8 +138,10 @@
     }
     .block-item:hover { background: var(--card); }
     .swatch {
-      width: 16px;
-      height: 16px;
+      width: 28px;
+      height: 28px;
+      object-fit: cover;
+      image-rendering: pixelated;
       border-radius: 3px;
       border: 1px solid rgba(255,255,255,0.4);
       flex-shrink: 0;
@@ -303,7 +305,7 @@
                   <th>ブロック</th>
                   <th>必要個数</th>
                   <th>スタック (64個)</th>
-                  <th>ラージチェスト (3,456個)</th>
+                  <th>シュルカーボックス (1,728個)</th>
                 </tr>
               </thead>
               <tbody>
@@ -323,7 +325,8 @@
 
     // pattern: "speckle"（砂目/石）, "wool"（羊毛の繊維）, "planks"（板材/横ライン）, "bricks"（レンガ/タイル）, "smooth"（滑らか/鉱物）
     const BLOCK_DATA = [
-      { id: "grass_block", name: "草ブロック / スライム", cat: "basic", pattern: "speckle", rgb: [109, 153, 48], checked: true },
+      { id: "grass_block", name: "草ブロック", cat: "basic", pattern: "speckle", rgb: [109, 153, 48], checked: true, tint: "#91bd59" },
+      { id: "slime", name: "スライムブロック", cat: "basic", pattern: "smooth", rgb: [111, 190, 93], checked: true },
       { id: "sandstone", name: "砂 / 砂岩 / シラカバ材", cat: "basic", pattern: "speckle", rgb: [213, 201, 140], checked: true },
       { id: "cobweb", name: "キノコの柄 / クモの巣", cat: "basic", pattern: "wool", rgb: [171, 171, 171], checked: true },
       { id: "redstone_block", name: "レッドストーンブロック / TNT", cat: "basic", pattern: "bricks", rgb: [220, 0, 0], checked: true },
@@ -358,7 +361,8 @@
       { id: "purple_wool", name: "紫色の羊毛 / アメジスト", cat: "wool", pattern: "wool", rgb: [109, 54, 153], checked: true },
       { id: "blue_wool", name: "青色の羊毛 / コンクリート", cat: "wool", pattern: "wool", rgb: [44, 65, 153], checked: true },
       { id: "brown_wool", name: "茶色の羊毛 / ダークオーク材", cat: "wool", pattern: "wool", rgb: [88, 65, 44], checked: true },
-      { id: "green_wool", name: "緑色の羊毛 / 乾燥した昆布ブロック", cat: "wool", pattern: "wool", rgb: [88, 109, 44], checked: true },
+      { id: "green_wool", name: "緑色の羊毛", cat: "wool", pattern: "wool", rgb: [88, 109, 44], checked: true },
+      { id: "green_concrete", name: "緑色のコンクリート", cat: "basic", pattern: "smooth", rgb: [73, 91, 36], checked: true },
       { id: "red_wool", name: "赤色の羊毛 / レンガ / ネザーウォート", cat: "wool", pattern: "wool", rgb: [132, 44, 44], checked: true },
       { id: "black_wool", name: "黒色の羊毛 / 黒曜石 / 石炭", cat: "wool", pattern: "wool", rgb: [21, 21, 21], checked: true },
 
@@ -512,7 +516,31 @@
     function rebuildPatternCache(tilePx) {
       patternCache.clear();
       BLOCK_DATA.forEach(b => {
-        patternCache.set(b.id, b.textureImage || createBlockPatternCanvas(b, tilePx));
+        if (b.textureImage) {
+          const tile = document.createElement("canvas");
+          tile.width = tilePx;
+          tile.height = tilePx;
+          const ctx = tile.getContext("2d", { willReadFrequently: true });
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(b.textureImage, 0, 0, tilePx, tilePx);
+          if (b.tint) {
+            const pixels = ctx.getImageData(0, 0, tilePx, tilePx);
+            const tr = parseInt(b.tint.slice(1, 3), 16);
+            const tg = parseInt(b.tint.slice(3, 5), 16);
+            const tb = parseInt(b.tint.slice(5, 7), 16);
+            for (let i = 0; i < pixels.data.length; i += 4) {
+              pixels.data[i] = Math.round(pixels.data[i] * tr / 255);
+              pixels.data[i + 1] = Math.round(pixels.data[i + 1] * tg / 255);
+              pixels.data[i + 2] = Math.round(pixels.data[i + 2] * tb / 255);
+            }
+            ctx.putImageData(pixels, 0, 0);
+          }
+          b.textureTile = tile;
+          patternCache.set(b.id, tile);
+        } else {
+          b.textureTile = null;
+          patternCache.set(b.id, createBlockPatternCanvas(b, tilePx));
+        }
       });
     }
 
@@ -538,7 +566,8 @@
       if (Array.isArray(value)) value = value[0];
       if (value && typeof value === "object") value = value.path;
       if (typeof value !== "string") return null;
-      return (value.startsWith("textures/") ? value : "textures/blocks/" + value) + ".png";
+      const normalized = value.startsWith("textures/") ? value : "textures/blocks/" + value;
+      return normalized.endsWith(".png") ? normalized : normalized + ".png";
     }
 
     function loadTextureImage(path) {
@@ -591,6 +620,12 @@
             block.textureImage = img;
             block.texturePath = path;
             block.rgb = getTextureAverage(img);
+            if (block.tint) {
+              const tr = parseInt(block.tint.slice(1, 3), 16) / 255;
+              const tg = parseInt(block.tint.slice(3, 5), 16) / 255;
+              const tb = parseInt(block.tint.slice(5, 7), 16) / 255;
+              block.rgb = [Math.round(block.rgb[0] * tr), Math.round(block.rgb[1] * tg), Math.round(block.rgb[2] * tb)];
+            }
             block.lab = rgbToLab(block.rgb[0], block.rgb[1], block.rgb[2]);
             loaded++;
           } catch (error) {
@@ -624,6 +659,15 @@
           <span class="swatch" style="background: rgb(${b.rgb[0]},${b.rgb[1]},${b.rgb[2]});"></span>
           <span>${b.name}</span>
         `;
+        const swatch = label.querySelector(".swatch");
+        if (b.textureImage) {
+          const thumbnail = document.createElement("img");
+          thumbnail.className = "swatch";
+          thumbnail.src = b.textureImage.src;
+          thumbnail.alt = b.name + "のテクスチャ";
+          thumbnail.title = b.name + "のテクスチャ";
+          swatch.replaceWith(thumbnail);
+        }
         label.querySelector("input").addEventListener("change", (e) => {
           BLOCK_DATA[idx].checked = e.target.checked;
           updateActiveCount();
@@ -806,7 +850,7 @@
       for (const [id, count] of sorted) {
         const blk = BLOCK_DATA.find(b => b.id === id);
         const stacks = Math.ceil(count / 64).toLocaleString();
-        const doubleChests = Math.ceil(count / 3456).toLocaleString();
+        const shulkerBoxes = Math.ceil(count / 1728).toLocaleString();
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -818,8 +862,16 @@
           </td>
           <td>${count.toLocaleString()} 個</td>
           <td>${stacks} スタック分</td>
-          <td>${doubleChests} LC分</td>
+          <td>${shulkerBoxes} シュルカー分</td>
         `;
+        if (blk.textureImage) {
+          const swatch = tr.querySelector(".swatch");
+          const thumbnail = document.createElement("img");
+          thumbnail.className = "swatch";
+          thumbnail.src = blk.textureImage.src;
+          thumbnail.alt = blk.name + "のテクスチャ";
+          swatch.replaceWith(thumbnail);
+        }
         els.statsBody.appendChild(tr);
       }
     }

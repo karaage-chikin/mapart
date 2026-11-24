@@ -24,7 +24,7 @@
       padding: 20px;
     }
     .container {
-      max-width: 1200px;
+      max-width: 1500px;
       margin: 0 auto;
     }
     header {
@@ -199,7 +199,7 @@
     }
     canvas {
       width: 100%;
-      max-width: 384px;
+      max-width: 720px;
       aspect-ratio: 1 / 1;
       image-rendering: pixelated;
       background: #11111b;
@@ -326,7 +326,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.1.2</div>
+  <div class="app-version" id="appVersion">v1.1.3</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -1192,6 +1192,18 @@
       buf[idx + 2] += eb * weight;
     }
 
+    function drawBlockGrid(tilePx) {
+      if (tilePx < 2) return;
+      resCtx.save();
+      resCtx.fillStyle = "rgba(0, 0, 0, 0.42)";
+      for (let p = 0; p < MAP_SIZE; p++) {
+        const edge = p * tilePx;
+        resCtx.fillRect(edge, 0, 1, els.resultCanvas.height);
+        resCtx.fillRect(0, edge, els.resultCanvas.width, 1);
+      }
+      resCtx.restore();
+    }
+
     function renderResultPreview() {
       if (!lastGrid) return;
 
@@ -1218,21 +1230,32 @@
             resCtx.drawImage(tile, x * tilePx, y * tilePx, tilePx, tilePx);
           }
         }
+        drawBlockGrid(tilePx);
       } else {
-        els.resultCanvas.width = MAP_SIZE;
-        els.resultCanvas.height = MAP_SIZE;
-        els.resultTitle.textContent = "2D マップアート結果（単色 128×128）";
+        const solidTilePx = 4;
+        const outPx = MAP_SIZE * solidTilePx;
+        els.resultCanvas.width = outPx;
+        els.resultCanvas.height = outPx;
+        els.resultTitle.textContent = "2D マップアート結果（単色 / 1ブロック4×4px）";
 
-        const outImg = resCtx.createImageData(MAP_SIZE, MAP_SIZE);
-        for (let i = 0; i < lastGrid.length; i++) {
-          const blk = lastGrid[i];
-          const idx = i * 4;
-          outImg.data[idx] = blk.rgb[0];
-          outImg.data[idx + 1] = blk.rgb[1];
-          outImg.data[idx + 2] = blk.rgb[2];
-          outImg.data[idx + 3] = 255;
+        const outImg = resCtx.createImageData(outPx, outPx);
+        for (let y = 0; y < MAP_SIZE; y++) {
+          for (let x = 0; x < MAP_SIZE; x++) {
+            const blk = lastGrid[y * MAP_SIZE + x];
+            const rr = blk.rgb[0], gg = blk.rgb[1], bb = blk.rgb[2];
+            for (let py = 0; py < solidTilePx; py++) {
+              for (let px = 0; px < solidTilePx; px++) {
+                const idx = ((y * solidTilePx + py) * outPx + (x * solidTilePx + px)) * 4;
+                outImg.data[idx] = rr;
+                outImg.data[idx + 1] = gg;
+                outImg.data[idx + 2] = bb;
+                outImg.data[idx + 3] = 255;
+              }
+            }
+          }
         }
         resCtx.putImageData(outImg, 0, 0);
+        drawBlockGrid(solidTilePx);
       }
     }
 

@@ -2555,7 +2555,7 @@
         for (let i = 0; i < payloadBytes.length; i += chunkSize) {
           binary += String.fromCharCode(...payloadBytes.subarray(i, i + chunkSize));
         }
-        const encoded = btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
+        const encoded = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
         const target = new URL("build-step.html", window.location.href);
         opened.location.replace(target.href + "#" + mode + encoded);
       } catch (error) {

@@ -567,6 +567,17 @@
       white-space: pre-line;
       overflow-wrap: anywhere;
     }
+    .animation-panel { margin-top: 12px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+    .animation-panel h2 { margin: 0 0 6px; font-size: .95rem; border-left: 3px solid var(--accent); padding-left: 7px; }
+    #animationCanvas { display: block; width: min(100%, 420px); height: auto; aspect-ratio: 1; margin: 8px auto; image-rendering: pixelated; border: 1px solid var(--border); }
+    .animation-progress { display: flex; align-items: center; gap: 9px; font-size: .75rem; color: var(--subtext); }
+    .animation-progress span { white-space: nowrap; min-width: 92px; font-variant-numeric: tabular-nums; }
+    .animation-progress input { flex: 1; min-width: 0; }
+    .animation-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+    .animation-controls button { padding: 7px 9px; font-size: .75rem; }
+    .animation-speed { display: flex; align-items: center; gap: 5px; margin-left: auto; color: var(--subtext); font-size: .75rem; }
+    .animation-speed select { width: auto; padding: 5px; font-size: .75rem; }
+    @media (max-width: 620px) { .animation-speed { margin-left: 0; } .animation-controls button { flex: 1 1 auto; } }
     .png-save-status.success { border-color: rgba(166, 227, 161, .55); color: #a6e3a1; }
     .png-save-status.error { border-color: rgba(243, 139, 168, .65); color: #f38ba8; }
     .png-save-status.progress { border-color: rgba(137, 180, 250, .55); color: #89b4fa; }
@@ -650,7 +661,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.1</div>
+  <div class="app-version" id="appVersion">v1.5.2</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -819,6 +830,19 @@
             <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
           </div>
 <div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
+          <section class="animation-panel" aria-label="設置アニメーション">
+            <h2>ブロック設置アニメーション</h2>
+            <p class="muted">上の行から順番に、各行を左から右へ設置します。</p>
+            <canvas id="animationCanvas" width="256" height="256" aria-label="ブロック設置アニメーション"></canvas>
+            <div class="animation-progress"><span id="animationCount">0 / 16,384 個</span><input id="animationSeek" type="range" min="0" max="16384" value="0" step="1" disabled></div>
+            <div class="animation-controls">
+              <button type="button" id="animationReset" class="secondary" disabled>最初へ</button>
+              <button type="button" id="animationStepBack" class="secondary" disabled>1マス戻る</button>
+              <button type="button" id="animationPlay" disabled>▶ 再生</button>
+              <button type="button" id="animationStepForward" class="secondary" disabled>1マス進む</button>
+              <label class="animation-speed">速度<select id="animationSpeed" disabled><option value="256">ゆっくり</option><option value="1024" selected>標準</option><option value="4096">速い</option><option value="8192">かなり速い</option></select></label>
+            </div>
+          </section>
         </div></aside>
     </div>  </div>
 
@@ -1811,7 +1835,108 @@
       els.onlineBlueprintBtn.disabled = false;
       renderResultPreview();
       renderStats(counts);
+      resetAnimationForGrid();
     }
+
+    // 設置順は行優先（上から下）、各行は左から右。
+    const animationCanvas = document.getElementById("animationCanvas");
+    const animationCtx = animationCanvas.getContext("2d");
+    const animationSeek = document.getElementById("animationSeek");
+    const animationCount = document.getElementById("animationCount");
+    const animationPlay = document.getElementById("animationPlay");
+    const animationSpeed = document.getElementById("animationSpeed");
+    const animationReset = document.getElementById("animationReset");
+    const animationStepBack = document.getElementById("animationStepBack");
+    const animationStepForward = document.getElementById("animationStepForward");
+    let animationPlaced = 0;
+    let animationFrame = 0;
+    let animationLastTime = 0;
+    let animationCarry = 0;
+
+    function drawAnimationFrame() {
+      if (!animationCtx) return;
+      const size = animationCanvas.width;
+      const cell = size / MAP_SIZE;
+      animationCtx.clearRect(0, 0, size, size);
+      animationCtx.fillStyle = "#171717";
+      animationCtx.fillRect(0, 0, size, size);
+      if (lastGrid) {
+        for (let index = 0; index < animationPlaced; index++) {
+          const block = lastGrid[index];
+          const x = index % MAP_SIZE;
+          const y = Math.floor(index / MAP_SIZE);
+          if (els.previewStyle.value === "texture" && patternCache.has(block.id)) {
+            animationCtx.drawImage(patternCache.get(block.id), x * cell, y * cell, cell, cell);
+          } else {
+            const color = block.mapRgb || block.rgb || [128,128,128];
+            animationCtx.fillStyle = "rgb(" + color.join(",") + ")";
+            animationCtx.fillRect(x * cell, y * cell, cell, cell);
+          }
+        }
+      }
+      animationCount.textContent = animationPlaced.toLocaleString() + " / " + (MAP_SIZE * MAP_SIZE).toLocaleString() + " 個";
+      animationSeek.value = String(animationPlaced);
+    }
+
+    function stopAnimation() {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+      animationLastTime = 0;
+      animationCarry = 0;
+      animationPlay.textContent = "▶ 再生";
+    }
+
+    function animateBlocks(timestamp) {
+      if (!animationFrame) return;
+      if (!animationLastTime) animationLastTime = timestamp;
+      const elapsed = Math.min(100, timestamp - animationLastTime);
+      animationLastTime = timestamp;
+      animationCarry += elapsed * Number(animationSpeed.value) / 1000;
+      const advance = Math.floor(animationCarry);
+      if (advance > 0) {
+        animationCarry -= advance;
+        animationPlaced = Math.min(MAP_SIZE * MAP_SIZE, animationPlaced + advance);
+        drawAnimationFrame();
+      }
+      if (animationPlaced >= MAP_SIZE * MAP_SIZE) {
+        stopAnimation();
+        return;
+      }
+      animationFrame = requestAnimationFrame(animateBlocks);
+    }
+
+    function setAnimationPosition(value) {
+      stopAnimation();
+      animationPlaced = Math.max(0, Math.min(MAP_SIZE * MAP_SIZE, Math.floor(Number(value) || 0)));
+      drawAnimationFrame();
+    }
+
+    function resetAnimationForGrid() {
+      stopAnimation();
+      animationPlaced = 0;
+      const enabled = !!lastGrid;
+      [animationSeek, animationSpeed, animationReset, animationStepBack, animationStepForward, animationPlay].forEach(control => control.disabled = !enabled);
+      drawAnimationFrame();
+    }
+
+    animationSeek.addEventListener("input", () => setAnimationPosition(animationSeek.value));
+    animationReset.addEventListener("click", () => setAnimationPosition(0));
+    animationStepBack.addEventListener("click", () => setAnimationPosition(animationPlaced - 1));
+    animationStepForward.addEventListener("click", () => setAnimationPosition(animationPlaced + 1));
+    animationPlay.addEventListener("click", () => {
+      if (!lastGrid) return;
+      if (animationFrame) {
+        stopAnimation();
+        return;
+      }
+      if (animationPlaced >= MAP_SIZE * MAP_SIZE) animationPlaced = 0;
+      animationPlay.textContent = "⏸ 一時停止";
+      animationLastTime = 0;
+      animationFrame = requestAnimationFrame(animateBlocks);
+    });
+    animationSpeed.addEventListener("change", () => {
+      animationCarry = 0;
+    });
 
     function renderStats(counts) {
       const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);

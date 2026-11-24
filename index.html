@@ -633,7 +633,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.4.3</div>
+  <div class="app-version" id="appVersion">v1.4.4</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -1712,8 +1712,8 @@
       const inputX = readInteger(originXInput);
       const inputZ = readInteger(originZInput);
       if (inputX !== null && inputZ !== null && Number.isSafeInteger(inputX) && Number.isSafeInteger(inputZ)) {
-        const ox = Math.floor((inputX + MAP_SIZE / 2) / MAP_SIZE) * MAP_SIZE - MAP_SIZE / 2;
-        const oz = Math.floor((inputZ + MAP_SIZE / 2) / MAP_SIZE) * MAP_SIZE - MAP_SIZE / 2;
+        const ox = Math.floor((inputX - MAP_SIZE / 2) / MAP_SIZE) * MAP_SIZE + MAP_SIZE / 2;
+        const oz = Math.floor((inputZ - MAP_SIZE / 2) / MAP_SIZE) * MAP_SIZE + MAP_SIZE / 2;
         const rx = ox + MAP_SIZE - 1;
         const bz = oz + MAP_SIZE - 1;
         ctx.fillStyle = "#ffffff";
@@ -2311,8 +2311,8 @@
         coordinateBlockResult.textContent = "入力座標が正しくありません。";
         return;
       }
-      const ox = Math.floor((inputX + MAP_SIZE / 2) / MAP_SIZE) * MAP_SIZE - MAP_SIZE / 2;
-      const oz = Math.floor((inputZ + MAP_SIZE / 2) / MAP_SIZE) * MAP_SIZE - MAP_SIZE / 2;
+      const ox = Math.floor((inputX - MAP_SIZE / 2) / MAP_SIZE) * MAP_SIZE + MAP_SIZE / 2;
+      const oz = Math.floor((inputZ - MAP_SIZE / 2) / MAP_SIZE) * MAP_SIZE + MAP_SIZE / 2;
       const rightX = ox + MAP_SIZE - 1;
       const bottomZ = oz + MAP_SIZE - 1;
       coordinateRangeResult.innerHTML =

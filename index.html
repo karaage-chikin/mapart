@@ -322,6 +322,8 @@
           <div class="field">
             <button type="button" id="autoDitherBtn" class="secondary" style="width:100%;">✨ ディザリングを自動最適化</button>
             <div class="muted" id="autoDitherStatus" style="margin-top:6px;">画像とブロックを選択してから押すと、複数の方式・強さを比較します。</div>
+            <button type="button" id="autoPaletteDitherBtn" class="secondary" style="width:100%; margin-top:10px;">✨ ディザリング＋使用ブロックをまとめて最適化</button>
+            <div class="muted" id="autoPaletteDitherStatus" style="margin-top:6px;">選択中のブロックから、色の再現性と種類数のバランスを見て自動選択します。</div>
           </div>
           <div class="field" style="margin-bottom:0;">
             <label>
@@ -745,6 +747,8 @@
       ditherMethod: document.getElementById("ditherMethod"),
       autoDitherBtn: document.getElementById("autoDitherBtn"),
       autoDitherStatus: document.getElementById("autoDitherStatus"),
+      autoPaletteDitherBtn: document.getElementById("autoPaletteDitherBtn"),
+      autoPaletteDitherStatus: document.getElementById("autoPaletteDitherStatus"),
       ditherStrengthVal: document.getElementById("ditherStrengthVal"),
       bgFillToggle: document.getElementById("bgFillToggle"),
       bgColorInput: document.getElementById("bgColorInput"),
@@ -878,6 +882,7 @@
         const terrainJson = parseBedrockJson(await responses[1].text());
         const terrainData = terrainJson.texture_data || {};
         let loaded = 0, failed = 0;
+        const failedBlocks = [];
 
         let processed = 0;
         updateTextureLoading(5, "ブロックテクスチャを読み込んでいます…");
@@ -886,6 +891,7 @@
           const path = texturePathFromBlock(blockDefs[realId], terrainData);
           if (!path) {
             failed++;
+            failedBlocks.push({ name: block.name, id: block.id, reason: "ブロック定義またはテクスチャ名が見つからない" });
             processed++;
             updateTextureLoading(5 + processed / BLOCK_DATA.length * 90, "テクスチャ読み込み中… " + processed + " / " + BLOCK_DATA.length);
             continue;
@@ -905,6 +911,7 @@
             loaded++;
           } catch (error) {
             failed++;
+            failedBlocks.push({ name: block.name, id: block.id, reason: path + " の画像取得失敗" });
             console.warn("テクスチャ読み込み失敗:", block.id, path, error);
           }
           processed++;
@@ -915,7 +922,8 @@
         renderBlockList();
         if (els.textureStatus) {
           els.textureStatus.textContent = loaded
-            ? "統合版バニラテクスチャ読み込み完了：" + loaded + " / " + BLOCK_DATA.length + " 種（取得不可 " + failed + " 種は代替表示）"
+            ? "統合版バニラテクスチャ読み込み完了：" + loaded + " / " + BLOCK_DATA.length + " 種（取得不可 " + failed + " 種は代替表示）" +
+              (failedBlocks.length ? "\\n取得不可一覧：\\n" + failedBlocks.map((b, i) => (i + 1) + ". " + b.name + "（" + b.id + "）— " + b.reason).join("\\n") : "")
             : "公式テクスチャを取得できませんでした。従来の代替プレビューで動作します。";
         }
         runConversion();
@@ -1110,7 +1118,7 @@
           const idx = (y * size + x) * 4;
           const r = work[idx], g = work[idx + 1], b = work[idx + 2];
           const matched = findClosestBlockLab(r, g, b, activeBlocks);
-          const sourceLab = rgbToLab(clamp(r), clamp(g), clamp(b));
+          const sourceLab = rgbToLab(sourcePixels[idx], sourcePixels[idx + 1], sourcePixels[idx + 2]);
           const dL = sourceLab[0] - matched.lab[0];
           const da = sourceLab[1] - matched.lab[1];
           const db = sourceLab[2] - matched.lab[2];
@@ -1136,6 +1144,89 @@
         }
       }
       return totalError / (size * size);
+    }
+
+    function optimizeBlockPalette(sourcePixels, size, candidates, maxBlocks = 32) {
+      const samples = [];
+      const step = Math.max(1, Math.floor(size / 24));
+      for (let y = 0; y < size; y += step) for (let x = 0; x < size; x += step) {
+        const i = (y * size + x) * 4;
+        samples.push(rgbToLab(sourcePixels[i], sourcePixels[i + 1], sourcePixels[i + 2]));
+      }
+      const nearest = new Float64Array(samples.length).fill(Infinity);
+      const chosen = [], remaining = new Set(candidates.map((_, i) => i));
+      const limit = Math.min(maxBlocks, candidates.length);
+      let previousError = Infinity;
+      while (chosen.length < limit && remaining.size) {
+        let bestIndex = -1, bestError = Infinity;
+        for (const ci of remaining) {
+          const c = candidates[ci].lab;
+          let error = 0;
+          for (let p = 0; p < samples.length; p++) {
+            const l = samples[p], dl = l[0] - c[0], da = l[1] - c[1], db = l[2] - c[2];
+            error += Math.min(nearest[p], dl * dl + da * da + db * db);
+          }
+          if (error < bestError) { bestError = error; bestIndex = ci; }
+        }
+        if (bestIndex < 0) break;
+        if (chosen.length >= 8 && (previousError - bestError) / Math.max(previousError, 1) < 0.012) break;
+        chosen.push(candidates[bestIndex]);
+        remaining.delete(bestIndex);
+        const c = candidates[bestIndex].lab;
+        for (let p = 0; p < samples.length; p++) {
+          const l = samples[p], dl = l[0] - c[0], da = l[1] - c[1], db = l[2] - c[2];
+          nearest[p] = Math.min(nearest[p], dl * dl + da * da + db * db);
+        }
+        previousError = bestError;
+      }
+      return chosen.length ? chosen : [candidates[0]];
+    }
+
+    async function optimizePaletteAndDithering() {
+      if (!loadedImage) { els.autoPaletteDitherStatus.textContent = "先に元画像を選択してね。"; return; }
+      const candidates = BLOCK_DATA.filter(b => b.checked);
+      if (!candidates.length) { els.autoPaletteDitherStatus.textContent = "最適化の元にするブロックを1種類以上選択してね。"; return; }
+      els.autoPaletteDitherBtn.disabled = true;
+      els.autoPaletteDitherStatus.textContent = "画像を分析して使用ブロックを選んでいます…";
+      try {
+        drawFittedImage(loadedImage);
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 64;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(els.sourceCanvas, 0, 0, 64, 64);
+        const pixels = ctx.getImageData(0, 0, 64, 64).data;
+        const selected = optimizeBlockPalette(pixels, 64, candidates, 32);
+        const ids = new Set(selected.map(b => b.id));
+        BLOCK_DATA.forEach(b => { b.checked = ids.has(b.id); });
+        renderBlockList();
+
+        const methods = [];
+        for (let strength = 0; strength <= 100; strength += 10) {
+          methods.push({ method: "floyd", strength });
+          if (strength > 0) methods.push({ method: "atkinson", strength });
+        }
+        methods.push({ method: "none", strength: 0 });
+        let best = { score: Infinity, method: "floyd", strength: 75 };
+        for (let i = 0; i < methods.length; i++) {
+          const c = methods[i];
+          const score = evaluateDitherCandidate(pixels, 64, selected, c.method, c.strength / 100);
+          if (score < best.score) best = { ...c, score };
+          els.autoPaletteDitherStatus.textContent = "ディザリングを比較中… " + (i + 1) + " / " + methods.length;
+          if (i % 2 === 1) await new Promise(resolve => setTimeout(resolve, 0));
+        }
+        els.ditherMethod.value = best.method;
+        els.ditherStrength.value = best.strength;
+        els.ditherStrengthVal.textContent = best.strength + "%";
+        runConversion();
+        const methodName = best.method === "atkinson" ? "Atkinson" : best.method === "none" ? "なし" : "Floyd–Steinberg";
+        els.autoPaletteDitherStatus.textContent = "完了：ブロック " + candidates.length + " 種 → " + selected.length + " 種 ／ " + methodName + " " + best.strength + "%（64×64で色差を評価）";
+      } catch (error) {
+        console.error(error);
+        els.autoPaletteDitherStatus.textContent = "最適化中にエラーが発生しました。";
+      } finally {
+        els.autoPaletteDitherBtn.disabled = false;
+      }
     }
 
     async function optimizeDithering() {
@@ -1309,6 +1400,7 @@
     });
     els.ditherMethod.addEventListener("change", runConversion);
     els.autoDitherBtn.addEventListener("click", optimizeDithering);
+    els.autoPaletteDitherBtn.addEventListener("click", optimizePaletteAndDithering);
 
     els.downloadPngBtn.addEventListener("click", () => {
       if (!lastGrid) return;

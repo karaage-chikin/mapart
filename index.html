@@ -111,6 +111,19 @@
       width: auto; max-width: 100%; max-height: calc(100dvh - 290px); height: auto; object-fit: contain;
     }
     .tab-panel[data-panel="stats"] > .box > div { max-height: calc(100dvh - 250px); overflow: auto; }
+    .stats-table { min-width: 640px; table-layout: auto; }
+    .stats-table th, .stats-table td { white-space: nowrap; }
+    .stats-table th:first-child, .stats-table td:first-child { min-width: 150px; }
+    .map-color-row { align-items: flex-start; }
+    .map-color-chip, .map-color-toggle { margin-top: 5px; }
+    @media (max-width: 760px) {
+      .map-color-row { gap: 5px; }
+      .map-color-chip { width: 25px; height: 25px; flex-basis: 25px; }
+      .map-color-toggle { width: 24px; flex-basis: 24px; height: 27px; }
+      .map-block-tile { flex-basis: 68px; width: 68px; min-height: 70px; }
+      .map-block-tile img { width: 36px; height: 36px; flex-basis: 36px; }
+      .map-block-name { font-size: 9px; }
+    }
     .coordinate-panel .box { margin-bottom: 10px; }
     @media (max-width: 620px) {
       .workspace-shell { grid-template-columns: 92px minmax(0, 1fr) minmax(220px, .9fr); gap: 6px; height: calc(100dvh - 118px); }
@@ -296,30 +309,58 @@
     .map-color-toggle:hover { background: rgba(255,70,70,.15); }
     .map-color-items {
       display: flex;
+      flex: 1 1 0;
       flex-wrap: wrap;
       align-items: flex-start;
-      gap: 3px;
+      gap: 7px;
       min-width: 0;
     }
     .map-block-tile {
       position: relative;
-      display: block;
-      width: 29px;
-      height: 29px;
-      padding: 0;
-      border: 1px solid rgba(255,255,255,.12);
-      border-radius: 1px;
+      display: flex;
+      flex: 0 0 76px;
+      width: 76px;
+      min-height: 76px;
+      padding: 4px 3px 3px;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 5px;
       cursor: pointer;
-      background: #171717;
+      background: var(--card);
       overflow: hidden;
+      text-align: center;
     }
     .map-block-tile img {
       display: block;
-      width: 100%;
-      height: 100%;
+      width: 40px;
+      height: 40px;
+      flex: 0 0 40px;
       object-fit: cover;
       image-rendering: pixelated;
+      border-radius: 2px;
     }
+    .map-block-name {
+      display: block;
+      width: 100%;
+      color: var(--text);
+      font-size: 10px;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+    .map-block-tile input {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      margin: 0;
+      accent-color: #48d36b;
+      cursor: pointer;
+    }
+    .map-block-tile.is-unknown .map-block-name { color: var(--subtext); }
     .map-block-tile input {
       position: absolute;
       top: 1px;
@@ -560,7 +601,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.4.1</div>
+  <div class="app-version" id="appVersion">v1.4.2</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -671,11 +712,10 @@
           <div class="muted" id="activeCountText" style="margin-bottom:6px;">有効ブロック: 0 / 0</div>
           <div class="block-list" id="blockList"></div>
         </div></section>
-ction>
         <section class="tab-panel" role="tabpanel" data-panel="stats"><div class="box">
           <h2>必要ブロック一覧（2D平面配置）</h2>
           <div style="overflow-x:auto;">
-            <table id="statsTable">
+            <table id="statsTable" class="stats-table">
               <thead>
                 <tr>
                   <th>ブロック</th>
@@ -1372,7 +1412,7 @@ ction>
           tile.className = "map-block-tile" + (block.checked ? "" : " is-off");
           tile.title = block.name + " / 地図色 RGB(" + key + ")";
           const image = document.createElement("img");
-          image.alt = block.name;
+          image.alt = "";
           if (block.textureImage) {
             image.src = block.textureImage.src;
           } else {
@@ -1380,6 +1420,9 @@ ction>
               '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34"><rect width="34" height="34" fill="rgb(' + key + ')"/></svg>'
             );
           }
+          const name = document.createElement("span");
+          name.className = "map-block-name";
+          name.textContent = block.name;
           const checkbox = document.createElement("input");
           checkbox.type = "checkbox";
           checkbox.checked = block.checked;
@@ -1391,7 +1434,7 @@ ction>
             runConversion();
             syncToggle();
           });
-          tile.append(image, checkbox);
+          tile.append(image, checkbox, name);
           items.appendChild(tile);
         });
         syncToggle();
@@ -1419,12 +1462,15 @@ ction>
           tile.className = "map-block-tile is-unknown";
           tile.title = block.name + "（地図色未確認）";
           const image = document.createElement("img");
-          image.alt = block.name;
+          image.alt = "";
           if (block.textureImage) image.src = block.textureImage.src;
           else image.src = "data:image/svg+xml," + encodeURIComponent(
             '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34"><rect width="34" height="34" fill="#777"/></svg>'
           );
-          tile.appendChild(image);
+          const name = document.createElement("span");
+          name.className = "map-block-name";
+          name.textContent = block.name;
+          tile.append(image, name);
           items.appendChild(tile);
         });
         row.append(chip, spacer, items);

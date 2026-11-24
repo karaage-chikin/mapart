@@ -327,6 +327,25 @@
       border: 2px solid var(--border);
       border-radius: 4px;
     }
+    .blueprint-preview-scroll {
+      width: 100%;
+      max-height: 75vh;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: #171717;
+      text-align: left;
+    }
+    #blueprintPreviewCanvas {
+      display: block;
+      width: auto;
+      max-width: none;
+      height: auto;
+      aspect-ratio: auto;
+      border: 0;
+      border-radius: 0;
+      image-rendering: pixelated;
+    }
     .action-row {
       display: flex;
       flex-wrap: wrap;
@@ -447,7 +466,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.2.7</div>
+  <div class="app-version" id="appVersion">v1.2.8</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -562,7 +581,10 @@
           <div class="canvas-row">
             <div class="canvas-card">
               <h3 id="resultTitle">2D マップアート結果（ブロック模様）</h3>
-              <canvas id="resultCanvas" width="128" height="128"></canvas>
+              <div class="blueprint-preview-scroll">
+                <canvas id="blueprintPreviewCanvas" width="128" height="128" aria-label="座標番号付きマップアートプレビュー"></canvas>
+              </div>
+              <canvas id="resultCanvas" width="128" height="128" hidden></canvas>
             </div>
           </div>
           <div class="action-row">
@@ -828,6 +850,7 @@
       blockList: document.getElementById("blockList"),
       activeCountText: document.getElementById("activeCountText"),
       resultCanvas: document.getElementById("resultCanvas"),
+      blueprintPreviewCanvas: document.getElementById("blueprintPreviewCanvas"),
       resultTitle: document.getElementById("resultTitle"),
       downloadPngBtn: document.getElementById("downloadPngBtn"),
       pngSaveStatus: document.getElementById("pngSaveStatus"),
@@ -1425,6 +1448,60 @@
         }
         resCtx.putImageData(outImg, 0, 0);
         drawBlockGrid(solidTilePx);
+      }
+      renderBlueprintPreview();
+    }
+
+    function renderBlueprintPreview() {
+      if (!lastGrid) return;
+      const source = els.resultCanvas;
+      const preview = els.blueprintPreviewCanvas;
+      const scale = 2;
+      const tilePx = source.width / MAP_SIZE;
+      const left = Math.ceil(tilePx * 2.4);
+      const top = Math.ceil(tilePx * 2.4);
+      const right = Math.ceil(tilePx * 0.25);
+      const bottom = Math.ceil(tilePx * 0.25);
+      const width = (left + source.width + right) * scale;
+      const height = (top + source.height + bottom) * scale;
+      preview.width = width;
+      preview.height = height;
+      const ctx = preview.getContext("2d");
+      if (!ctx) return;
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = "#171717";
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(source, left * scale, top * scale, source.width * scale, source.height * scale);
+      const lineWidth = Math.max(1, tilePx * scale / 16);
+      ctx.strokeStyle = "rgba(225,55,55,0.9)";
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      for (let i = 0; i <= MAP_SIZE; i++) {
+        const x = (left + i * tilePx) * scale + 0.5;
+        const y = (top + i * tilePx) * scale + 0.5;
+        ctx.moveTo(x, top * scale);
+        ctx.lineTo(x, (top + source.height) * scale);
+        ctx.moveTo(left * scale, y);
+        ctx.lineTo((left + source.width) * scale, y);
+      }
+      ctx.stroke();
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = "#111111";
+      ctx.lineWidth = Math.max(1, tilePx * scale * 0.045);
+      ctx.font = "bold " + Math.max(10, tilePx * scale * 0.52) + "px Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (let x = 0; x < MAP_SIZE; x++) {
+        const px = (left + (x + 0.5) * tilePx) * scale;
+        const py = top * scale / 2;
+        ctx.strokeText(String(x + 1), px, py, tilePx * scale * 0.96);
+        ctx.fillText(String(x + 1), px, py, tilePx * scale * 0.96);
+      }
+      for (let y = 0; y < MAP_SIZE; y++) {
+        const px = left * scale / 2;
+        const py = (top + (y + 0.5) * tilePx) * scale;
+        ctx.strokeText(String(y + 1), px, py, tilePx * scale * 0.96);
+        ctx.fillText(String(y + 1), px, py, tilePx * scale * 0.96);
       }
     }
 

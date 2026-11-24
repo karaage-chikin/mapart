@@ -200,7 +200,7 @@
   <div class="container">
     <header>
       <h1>Minecraft MapArt 2D Generator</h1>
-      <span class="badge">2D / 1×1 (128×128) / ブロック模様プレビュー対応</span>
+      <span class="badge">2D / 1×1 (128×128) / 統合版バニラテクスチャ</span>
     </header>
 
     <div class="grid-main">
@@ -215,7 +215,7 @@
           <div class="field">
             <label for="previewStyle">結果プレビューの見た目</label>
             <select id="previewStyle">
-              <option value="texture">ブロック模様プレビュー（テクスチャ風）</option>
+              <option value="texture">統合版ブロックテクスチャプレビュー</option>
               <option value="solid">単色プレビュー（1ブロック＝1色）</option>
             </select>
           </div>
@@ -224,7 +224,7 @@
             <label for="textureScale">模様の細かさ（1ブロックあたりの描画サイズ）</label>
             <select id="textureScale">
               <option value="4">粗め（4×4px / 全体が見やすい）</option>
-              <option value="8" selected>標準（8×8px / 模様がはっきり見える）</option>
+              <option value="8" selected>標準（8×8px / 拡大表示）</option>
               <option value="16">細かい（16×16px / ドット感強め）</option>
             </select>
           </div>
@@ -259,13 +259,16 @@
         </div>
 
         <div class="box">
-          <h2>2. 使用ブロック選択（拡張2Dパレット）</h2>
+          <h2>2. 使用ブロック選択（統合版バニラパレット）</h2>
           <div class="preset-bar">
             <button type="button" class="secondary" data-preset="all">全選択</button>
             <button type="button" class="secondary" data-preset="none">全解除</button>
             <button type="button" class="secondary" data-preset="wool">羊毛系</button>
             <button type="button" class="secondary" data-preset="terracotta">テラコッタ系</button>
             <button type="button" class="secondary" data-preset="basic">基本・鉱物/自然系</button>
+          </div>
+          <div class="muted" id="textureStatus" role="status" style="margin:8px 0 10px;">
+            統合版バニラテクスチャを読み込みます…
           </div>
           <div class="muted" id="activeCountText" style="margin-bottom:6px;">有効ブロック: 0 / 0</div>
           <div class="block-list" id="blockList"></div>
@@ -496,7 +499,8 @@
       resultCanvas: document.getElementById("resultCanvas"),
       resultTitle: document.getElementById("resultTitle"),
       downloadPngBtn: document.getElementById("downloadPngBtn"),
-      statsBody: document.querySelector("#statsTable tbody")
+      statsBody: document.querySelector("#statsTable tbody"),
+      textureStatus: document.getElementById("textureStatus")
     };
 
     const srcCtx = els.sourceCanvas.getContext("2d");
@@ -508,8 +512,106 @@
     function rebuildPatternCache(tilePx) {
       patternCache.clear();
       BLOCK_DATA.forEach(b => {
-        patternCache.set(b.id, createBlockPatternCanvas(b, tilePx));
+        patternCache.set(b.id, b.textureImage || createBlockPatternCanvas(b, tilePx));
       });
+    }
+
+    // Mojang公式Bedrock Samplesのバニラ定義から、各ブロックの上面テクスチャを取得する。
+    const BEDROCK_SAMPLE_BASE = "https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/";
+    const BEDROCK_ID_ALIASES = {
+      grass_block: "grass", snow_block: "snow", cobweb: "web"
+    };
+
+    function parseBedrockJson(text) {
+      return JSON.parse(text.replace(/^\\s*\\/\\/.*$/gm, ""));
+    }
+
+    function texturePathFromBlock(blockDef, terrainData) {
+      if (!blockDef || !blockDef.textures) return null;
+      let textureKey = typeof blockDef.textures === "string"
+        ? blockDef.textures
+        : (blockDef.textures.up || blockDef.textures.side || blockDef.textures.down);
+      if (!textureKey) return null;
+      const entry = terrainData[textureKey];
+      if (!entry) return null;
+      let value = entry.textures;
+      if (Array.isArray(value)) value = value[0];
+      if (value && typeof value === "object") value = value.path;
+      if (typeof value !== "string") return null;
+      return (value.startsWith("textures/") ? value : "textures/blocks/" + value) + ".png";
+    }
+
+    function loadTextureImage(path) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("画像を取得できません: " + path));
+        img.src = BEDROCK_SAMPLE_BASE + path;
+      });
+    }
+
+    function getTextureAverage(img) {
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth || img.width;
+      c.height = img.naturalHeight || img.height;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(0, 0, c.width, c.height).data;
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const a = data[i + 3] / 255;
+        if (a <= 0.05) continue;
+        r += data[i] * a; g += data[i + 1] * a; b += data[i + 2] * a; n += a;
+      }
+      if (!n) return [0, 0, 0];
+      return [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
+    }
+
+    async function loadBedrockTextures() {
+      if (els.textureStatus) els.textureStatus.textContent = "統合版のブロック定義・テクスチャ一覧を取得中…";
+      try {
+        const urls = [
+          BEDROCK_SAMPLE_BASE + "blocks.json",
+          BEDROCK_SAMPLE_BASE + "textures/terrain_texture.json"
+        ];
+        const responses = await Promise.all(urls.map(url => fetch(url)));
+        if (responses.some(response => !response.ok)) throw new Error("公式サンプルのJSONを取得できませんでした。");
+        const blockDefs = parseBedrockJson(await responses[0].text());
+        const terrainJson = parseBedrockJson(await responses[1].text());
+        const terrainData = terrainJson.texture_data || {};
+        let loaded = 0, failed = 0;
+
+        for (const block of BLOCK_DATA) {
+          const realId = BEDROCK_ID_ALIASES[block.id] || block.id;
+          const path = texturePathFromBlock(blockDefs[realId], terrainData);
+          if (!path) { failed++; continue; }
+          try {
+            const img = await loadTextureImage(path);
+            block.textureImage = img;
+            block.texturePath = path;
+            block.rgb = getTextureAverage(img);
+            block.lab = rgbToLab(block.rgb[0], block.rgb[1], block.rgb[2]);
+            loaded++;
+          } catch (error) {
+            failed++;
+            console.warn("テクスチャ読み込み失敗:", block.id, path, error);
+          }
+        }
+
+        rebuildPatternCache(Number(els.textureScale.value));
+        renderBlockList();
+        if (els.textureStatus) {
+          els.textureStatus.textContent = loaded
+            ? "統合版バニラテクスチャ読み込み完了：" + loaded + " / " + BLOCK_DATA.length + " 種（取得不可 " + failed + " 種は代替表示）"
+            : "公式テクスチャを取得できませんでした。従来の代替プレビューで動作します。";
+        }
+        runConversion();
+      } catch (error) {
+        console.error(error);
+        if (els.textureStatus) els.textureStatus.textContent =
+          "公式テクスチャを取得できませんでした。ネット接続を確認してください（代替プレビューで動作中）。";
+      }
     }
 
     function renderBlockList() {
@@ -652,7 +754,12 @@
       if (!loadedImage) return;
 
       const activeBlocks = BLOCK_DATA.filter(b => b.checked);
-      if (activeBlocks.length === 0) return;
+      if (activeBlocks.length === 0) {
+        lastGrid = null;
+        resCtx.clearRect(0, 0, els.resultCanvas.width, els.resultCanvas.height);
+        els.statsBody.innerHTML = '<tr><td colspan="4" class="muted">ブロックを1種類以上選択してください。</td></tr>';
+        return;
+      }
 
       drawFittedImage(loadedImage);
 
@@ -698,8 +805,8 @@
 
       for (const [id, count] of sorted) {
         const blk = BLOCK_DATA.find(b => b.id === id);
-        const stacks = (count / 64).toFixed(1);
-        const doubleChests = (count / 3456).toFixed(2);
+        const stacks = Math.ceil(count / 64).toLocaleString();
+        const doubleChests = Math.ceil(count / 3456).toLocaleString();
 
         const tr = document.createElement("tr");
         tr.innerHTML = `
@@ -710,8 +817,8 @@
             </div>
           </td>
           <td>${count.toLocaleString()} 個</td>
-          <td>${stacks} スタック</td>
-          <td>${doubleChests} LC</td>
+          <td>${stacks} スタック分</td>
+          <td>${doubleChests} LC分</td>
         `;
         els.statsBody.appendChild(tr);
       }
@@ -758,6 +865,7 @@
 
     rebuildPatternCache(Number(els.textureScale.value));
     renderBlockList();
+    loadBedrockTextures();
   </script>
 </body>
 </html>

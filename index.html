@@ -2175,7 +2175,7 @@
       coordinateBlockResult.innerHTML =
         "<strong>設計図：" + col + "列目・" + row + "行目</strong><br>" +
         "ワールド座標：X " + lx + " / Z " + lz + "<br>" +
-        "置くブロック：<strong>" + escapeHtml(block ? block.name : "不明") + "</strong>";
+        "置くブロック：<strong>" + (block ? block.name : "不明") + "</strong>";
     }
 
     [originXInput, originZInput, lookupXInput, lookupZInput].forEach(input => {

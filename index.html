@@ -322,8 +322,8 @@
           <div class="field">
             <button type="button" id="autoDitherBtn" class="secondary" style="width:100%;">✨ ディザリングを自動最適化</button>
             <div class="muted" id="autoDitherStatus" style="margin-top:6px;">画像とブロックを選択してから押すと、複数の方式・強さを比較します。</div>
-            <button type="button" id="autoPaletteDitherBtn" class="secondary" style="width:100%; margin-top:10px;">✨ ディザリング＋使用ブロックをまとめて最適化</button>
-            <div class="muted" id="autoPaletteDitherStatus" style="margin-top:6px;">選択中のブロックから、色の再現性と種類数のバランスを見て自動選択します。</div>
+            <button type="button" id="autoPaletteDitherBtn" class="secondary" style="width:100%; margin-top:10px;">✨ ブロック＋ディザリングを反復最適化</button>
+            <div class="muted" id="autoPaletteDitherStatus" style="margin-top:6px;">ブロック構成とディザリングを繰り返し評価し、使われないブロックを除外します。</div>
           </div>
           <div class="field" style="margin-bottom:0;">
             <label>
@@ -1227,12 +1227,44 @@
       return chosen.length ? chosen : [candidates[0]];
     }
 
+    function countDitherUsage(sourcePixels, size, activeBlocks, method, strength) {
+      const work = new Float32Array(sourcePixels);
+      const usage = new Map();
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const idx = (y * size + x) * 4;
+          const r = work[idx], g = work[idx + 1], b = work[idx + 2];
+          const matched = findClosestBlockLab(r, g, b, activeBlocks);
+          usage.set(matched.id, (usage.get(matched.id) || 0) + 1);
+          if (strength > 0 && method !== "none") {
+            const er = (r - matched.rgb[0]) * strength;
+            const eg = (g - matched.rgb[1]) * strength;
+            const eb = (b - matched.rgb[2]) * strength;
+            if (method === "atkinson") {
+              addError(work, size, x + 1, y, er, eg, eb, 1 / 8);
+              addError(work, size, x + 2, y, er, eg, eb, 1 / 8);
+              addError(work, size, x - 1, y + 1, er, eg, eb, 1 / 8);
+              addError(work, size, x, y + 1, er, eg, eb, 1 / 8);
+              addError(work, size, x + 1, y + 1, er, eg, eb, 1 / 8);
+              addError(work, size, x, y + 2, er, eg, eb, 1 / 8);
+            } else {
+              addError(work, size, x + 1, y, er, eg, eb, 7 / 16);
+              addError(work, size, x - 1, y + 1, er, eg, eb, 3 / 16);
+              addError(work, size, x, y + 1, er, eg, eb, 5 / 16);
+              addError(work, size, x + 1, y + 1, er, eg, eb, 1 / 16);
+            }
+          }
+        }
+      }
+      return usage;
+    }
+
     async function optimizePaletteAndDithering() {
       if (!loadedImage) { els.autoPaletteDitherStatus.textContent = "先に元画像を選択してね。"; return; }
       const candidates = BLOCK_DATA.filter(b => b.checked);
       if (!candidates.length) { els.autoPaletteDitherStatus.textContent = "最適化の元にするブロックを1種類以上選択してね。"; return; }
       els.autoPaletteDitherBtn.disabled = true;
-      els.autoPaletteDitherStatus.textContent = "画像を分析して使用ブロックを選んでいます…";
+      els.autoPaletteDitherStatus.textContent = "画像を分析して初期ブロック構成を作っています…";
       try {
         drawFittedImage(loadedImage);
         const canvas = document.createElement("canvas");
@@ -1241,31 +1273,44 @@
         ctx.imageSmoothingEnabled = true;
         ctx.drawImage(els.sourceCanvas, 0, 0, 64, 64);
         const pixels = ctx.getImageData(0, 0, 64, 64).data;
-        const selected = optimizeBlockPalette(pixels, 64, candidates, 32);
-        const ids = new Set(selected.map(b => b.id));
-        BLOCK_DATA.forEach(b => { b.checked = ids.has(b.id); });
-        renderBlockList();
-
+        let selected = optimizeBlockPalette(pixels, 64, candidates, 32);
         const methods = [];
         for (let strength = 0; strength <= 100; strength += 10) {
           methods.push({ method: "floyd", strength });
           if (strength > 0) methods.push({ method: "atkinson", strength });
         }
         methods.push({ method: "none", strength: 0 });
-        let best = { score: Infinity, method: "floyd", strength: 75 };
-        for (let i = 0; i < methods.length; i++) {
-          const c = methods[i];
-          const score = evaluateDitherCandidate(pixels, 64, selected, c.method, c.strength / 100);
-          if (score < best.score) best = { ...c, score };
-          els.autoPaletteDitherStatus.textContent = "ディザリングを比較中… " + (i + 1) + " / " + methods.length;
-          if (i % 2 === 1) await new Promise(resolve => setTimeout(resolve, 0));
+
+        let best = null;
+        let rounds = 0;
+        for (let round = 0; round < 5; round++) {
+          rounds = round + 1;
+          let roundBest = { score: Infinity, method: "floyd", strength: 75 };
+          for (let i = 0; i < methods.length; i++) {
+            const option = methods[i];
+            const score = evaluateDitherCandidate(pixels, 64, selected, option.method, option.strength / 100);
+            if (score < roundBest.score) roundBest = { ...option, score };
+            els.autoPaletteDitherStatus.textContent = "反復最適化中… " + rounds + "/5回目・方式比較 " + (i + 1) + "/" + methods.length;
+            if (i % 3 === 2) await new Promise(resolve => setTimeout(resolve, 0));
+          }
+          best = roundBest;
+
+          // 現在の方式で実際に使われないブロックを除き、残った構成でもう一度評価する
+          const usage = countDitherUsage(pixels, 64, selected, best.method, best.strength / 100);
+          const used = selected.filter(block => (usage.get(block.id) || 0) > 0);
+          if (used.length === selected.length || used.length === 0) break;
+          selected = used;
         }
+
+        const selectedIds = new Set(selected.map(block => block.id));
+        BLOCK_DATA.forEach(block => { block.checked = selectedIds.has(block.id); });
+        renderBlockList();
         els.ditherMethod.value = best.method;
         els.ditherStrength.value = best.strength;
         els.ditherStrengthVal.textContent = best.strength + "%";
         runConversion();
         const methodName = best.method === "atkinson" ? "Atkinson" : best.method === "none" ? "なし" : "Floyd–Steinberg";
-        els.autoPaletteDitherStatus.textContent = "完了：ブロック " + candidates.length + " 種 → " + selected.length + " 種 ／ " + methodName + " " + best.strength + "%（64×64で色差を評価）";
+        els.autoPaletteDitherStatus.textContent = "完了：" + candidates.length + "種類から " + selected.length + "種類に整理 ／ " + methodName + " " + best.strength + "% ／ " + rounds + "回反復（未使用ブロックを除外しながら再評価）";
       } catch (error) {
         console.error(error);
         els.autoPaletteDitherStatus.textContent = "最適化中にエラーが発生しました。";
@@ -1274,7 +1319,7 @@
       }
     }
 
-    async function optimizeDithering() {
+        async function optimizeDithering() {
       if (!loadedImage) {
         els.autoDitherStatus.textContent = "先に元画像を選択してね。";
         return;

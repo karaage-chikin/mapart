@@ -47,7 +47,7 @@
       color: var(--accent);
       padding: 4px 10px;
       border-radius: 999px;
-      font-size: 0.85rem;
+      font-size: 0.9rem;
       font-weight: bold;
     }
     .grid-main {
@@ -55,8 +55,11 @@
       grid-template-columns: minmax(420px, 0.9fr) minmax(0, 1.6fr);
       gap: 18px;
     }
-    @media (max-width: 900px) {
+    @media (max-width: 1100px) {
       .grid-main { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      .block-list { grid-template-columns: 1fr; max-height: 560px; }
     }
     .box {
       background: var(--panel);
@@ -124,22 +127,35 @@
       padding: 8px;
       background: var(--bg);
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 4px;
     }
-    .category-title {\n      grid-column: 1 / -1;\n      position: sticky;\n      top: -8px;\n      z-index: 2;\n      padding: 8px 10px;\n      margin-top: 5px;\n      background: var(--panel);\n      color: var(--accent);\n      border-bottom: 1px solid var(--border);\n      font-weight: 700;\n      font-size: 0.95rem;\n    }\n    .block-item {
+    .category-title {
+      grid-column: 1 / -1;
+      position: sticky;
+      top: -8px;
+      z-index: 2;
+      padding: 8px 10px;
+      margin-top: 5px;
+      background: var(--panel);
+      color: var(--accent);
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .block-item {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 4px 6px;
-      border-radius: 5px;
+      padding: 7px 8px;
+      min-height: 46px;\n      border: 1px solid var(--border);\n      border-radius: 6px;
       font-size: 0.85rem;
       cursor: pointer;
     }
     .block-item:hover { background: var(--card); }
     .swatch {
-      width: 28px;
-      height: 28px;
+      width: 36px;
+      height: 36px;
       object-fit: cover;
       image-rendering: pixelated;
       border-radius: 3px;

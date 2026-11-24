@@ -304,6 +304,14 @@
           </div>
 
           <div class="field">
+            <label for="ditherMethod">ディザリング方式</label>
+            <select id="ditherMethod">
+              <option value="floyd">Floyd–Steinberg（標準・なめらか）</option>
+              <option value="atkinson">Atkinson（細かい粒状感）</option>
+              <option value="none">なし（くっきり）</option>
+            </select>
+          </div>
+          <div class="field">
             <label>
               <span>ディザリング強さ</span>
               <span id="ditherStrengthVal">75%</span>
@@ -311,6 +319,10 @@
             <input type="range" id="ditherStrength" min="0" max="100" value="75">
           </div>
 
+          <div class="field">
+            <button type="button" id="autoDitherBtn" class="secondary" style="width:100%;">✨ ディザリングを自動最適化</button>
+            <div class="muted" id="autoDitherStatus" style="margin-top:6px;">画像とブロックを選択してから押すと、複数の方式・強さを比較します。</div>
+          </div>
           <div class="field" style="margin-bottom:0;">
             <label>
               <span>余白・透過部分の背景色</span>
@@ -730,6 +742,9 @@
       textureScale: document.getElementById("textureScale"),
       fitMode: document.getElementById("fitMode"),
       ditherStrength: document.getElementById("ditherStrength"),
+      ditherMethod: document.getElementById("ditherMethod"),
+      autoDitherBtn: document.getElementById("autoDitherBtn"),
+      autoDitherStatus: document.getElementById("autoDitherStatus"),
       ditherStrengthVal: document.getElementById("ditherStrengthVal"),
       bgFillToggle: document.getElementById("bgFillToggle"),
       bgColorInput: document.getElementById("bgColorInput"),
@@ -1087,6 +1102,91 @@
       }
     }
 
+    function evaluateDitherCandidate(sourcePixels, size, activeBlocks, method, strength) {
+      const work = new Float32Array(sourcePixels);
+      let totalError = 0;
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const idx = (y * size + x) * 4;
+          const r = work[idx], g = work[idx + 1], b = work[idx + 2];
+          const matched = findClosestBlockLab(r, g, b, activeBlocks);
+          const sourceLab = rgbToLab(clamp(r), clamp(g), clamp(b));
+          const dL = sourceLab[0] - matched.lab[0];
+          const da = sourceLab[1] - matched.lab[1];
+          const db = sourceLab[2] - matched.lab[2];
+          totalError += dL * dL + da * da + db * db;
+          if (strength > 0 && method !== "none") {
+            const er = (r - matched.rgb[0]) * strength;
+            const eg = (g - matched.rgb[1]) * strength;
+            const eb = (b - matched.rgb[2]) * strength;
+            if (method === "atkinson") {
+              addError(work, size, x + 1, y, er, eg, eb, 1 / 8);
+              addError(work, size, x + 2, y, er, eg, eb, 1 / 8);
+              addError(work, size, x - 1, y + 1, er, eg, eb, 1 / 8);
+              addError(work, size, x, y + 1, er, eg, eb, 1 / 8);
+              addError(work, size, x + 1, y + 1, er, eg, eb, 1 / 8);
+              addError(work, size, x, y + 2, er, eg, eb, 1 / 8);
+            } else {
+              addError(work, size, x + 1, y, er, eg, eb, 7 / 16);
+              addError(work, size, x - 1, y + 1, er, eg, eb, 3 / 16);
+              addError(work, size, x, y + 1, er, eg, eb, 5 / 16);
+              addError(work, size, x + 1, y + 1, er, eg, eb, 1 / 16);
+            }
+          }
+        }
+      }
+      return totalError / (size * size);
+    }
+
+    async function optimizeDithering() {
+      if (!loadedImage) {
+        els.autoDitherStatus.textContent = "先に元画像を選択してね。";
+        return;
+      }
+      const activeBlocks = BLOCK_DATA.filter(b => b.checked);
+      if (!activeBlocks.length) {
+        els.autoDitherStatus.textContent = "使用するブロックを1種類以上選択してね。";
+        return;
+      }
+      els.autoDitherBtn.disabled = true;
+      els.autoDitherStatus.textContent = "候補を比較中…";
+      try {
+        const sampleCanvas = document.createElement("canvas");
+        const sampleSize = 64;
+        sampleCanvas.width = sampleSize;
+        sampleCanvas.height = sampleSize;
+        const sampleCtx = sampleCanvas.getContext("2d", { willReadFrequently: true });
+        sampleCtx.imageSmoothingEnabled = true;
+        sampleCtx.drawImage(els.sourceCanvas, 0, 0, sampleSize, sampleSize);
+        const pixels = sampleCtx.getImageData(0, 0, sampleSize, sampleSize).data;
+        let best = { score: Infinity, method: "floyd", strength: 75 };
+        const candidates = [];
+        for (let strength = 0; strength <= 100; strength += 10) {
+          candidates.push({ method: "floyd", strength });
+          if (strength > 0) candidates.push({ method: "atkinson", strength });
+        }
+        candidates.push({ method: "none", strength: 0 });
+        for (let i = 0; i < candidates.length; i++) {
+          const c = candidates[i];
+          const score = evaluateDitherCandidate(pixels, sampleSize, activeBlocks, c.method, c.strength / 100);
+          if (score < best.score) best = { ...c, score };
+          els.autoDitherStatus.textContent = "候補を比較中… " + (i + 1) + " / " + candidates.length;
+          if (i % 2 === 1) await new Promise(resolve => setTimeout(resolve, 0));
+        }
+        els.ditherMethod.value = best.method;
+        els.ditherStrength.value = best.strength;
+        els.ditherStrengthVal.textContent = best.strength + "%";
+        runConversion();
+        const name = best.method === "atkinson" ? "Atkinson" : best.method === "none" ? "なし" : "Floyd–Steinberg";
+        els.autoDitherStatus.textContent = "最適候補：" + name + " ／ " + best.strength + "%（64×64の縮小画像で色差を比較）";
+      } catch (error) {
+        console.error(error);
+        els.autoDitherStatus.textContent = "自動最適化中にエラーが発生しました。";
+      } finally {
+        els.autoDitherBtn.disabled = false;
+      }
+    }
+
     function runConversion() {
       if (!loadedImage) return;
 
@@ -1118,15 +1218,23 @@
 
           counts.set(matched.id, (counts.get(matched.id) || 0) + 1);
 
-          if (strength > 0) {
+          if (strength > 0 && els.ditherMethod.value !== "none") {
             const er = (r - matched.rgb[0]) * strength;
             const eg = (g - matched.rgb[1]) * strength;
             const eb = (b - matched.rgb[2]) * strength;
-
-            addError(work, MAP_SIZE, x + 1, y, er, eg, eb, 7 / 16);
-            addError(work, MAP_SIZE, x - 1, y + 1, er, eg, eb, 3 / 16);
-            addError(work, MAP_SIZE, x, y + 1, er, eg, eb, 5 / 16);
-            addError(work, MAP_SIZE, x + 1, y + 1, er, eg, eb, 1 / 16);
+            if (els.ditherMethod.value === "atkinson") {
+              addError(work, MAP_SIZE, x + 1, y, er, eg, eb, 1 / 8);
+              addError(work, MAP_SIZE, x + 2, y, er, eg, eb, 1 / 8);
+              addError(work, MAP_SIZE, x - 1, y + 1, er, eg, eb, 1 / 8);
+              addError(work, MAP_SIZE, x, y + 1, er, eg, eb, 1 / 8);
+              addError(work, MAP_SIZE, x + 1, y + 1, er, eg, eb, 1 / 8);
+              addError(work, MAP_SIZE, x, y + 2, er, eg, eb, 1 / 8);
+            } else {
+              addError(work, MAP_SIZE, x + 1, y, er, eg, eb, 7 / 16);
+              addError(work, MAP_SIZE, x - 1, y + 1, er, eg, eb, 3 / 16);
+              addError(work, MAP_SIZE, x, y + 1, er, eg, eb, 5 / 16);
+              addError(work, MAP_SIZE, x + 1, y + 1, er, eg, eb, 1 / 16);
+            }
           }
         }
       }
@@ -1199,6 +1307,8 @@
       els.ditherStrengthVal.textContent = `${els.ditherStrength.value}%`;
       runConversion();
     });
+    els.ditherMethod.addEventListener("change", runConversion);
+    els.autoDitherBtn.addEventListener("click", optimizeDithering);
 
     els.downloadPngBtn.addEventListener("click", () => {
       if (!lastGrid) return;

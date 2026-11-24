@@ -231,6 +231,22 @@
       color: var(--subtext);
       font-size: 0.82rem;
     }
+    .png-save-status {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      color: var(--subtext);
+      font-size: 0.82rem;
+      line-height: 1.55;
+      white-space: pre-line;
+      overflow-wrap: anywhere;
+    }
+    .png-save-status.success { border-color: rgba(166, 227, 161, .55); color: #a6e3a1; }
+    .png-save-status.error { border-color: rgba(243, 139, 168, .65); color: #f38ba8; }
+    .png-save-status.progress { border-color: rgba(137, 180, 250, .55); color: #89b4fa; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
     body.is-loading { overflow: hidden; }
     body.is-loading .container { visibility: hidden; }
     .texture-loading-screen {
@@ -310,7 +326,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.1.1</div>
+  <div class="app-version" id="appVersion">v1.1.2</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -423,9 +439,10 @@
             </div>
           </div>
           <div class="action-row">
-            <button type="button" id="downloadPngBtn">変換結果をPNG保存</button>
+            <button type="button" id="downloadPngBtn" disabled>高画質PNGを保存（プレビュー16倍）</button>
             <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
           </div>
+          <div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
         </div>
 
         <div class="box">
@@ -695,6 +712,7 @@
       resultCanvas: document.getElementById("resultCanvas"),
       resultTitle: document.getElementById("resultTitle"),
       downloadPngBtn: document.getElementById("downloadPngBtn"),
+      pngSaveStatus: document.getElementById("pngSaveStatus"),
       statsBody: document.querySelector("#statsTable tbody")
     };
 
@@ -1224,6 +1242,7 @@
       const activeBlocks = BLOCK_DATA.filter(b => b.checked);
       if (activeBlocks.length === 0) {
         lastGrid = null;
+        els.downloadPngBtn.disabled = true;
         resCtx.clearRect(0, 0, els.resultCanvas.width, els.resultCanvas.height);
         els.statsBody.innerHTML = '<tr><td colspan="4" class="muted">ブロックを1種類以上選択してください。</td></tr>';
         return;
@@ -1271,6 +1290,7 @@
       }
 
       lastGrid = grid;
+      els.downloadPngBtn.disabled = false;
       renderResultPreview();
       renderStats(counts);
     }
@@ -1356,12 +1376,224 @@
     });
     els.ditherMethod.addEventListener("change", runConversion);
 
-    els.downloadPngBtn.addEventListener("click", () => {
-      if (!lastGrid) return;
-      const a = document.createElement("a");
-      a.download = `mapart_2d_${els.previewStyle.value}.png`;
-      a.href = els.resultCanvas.toDataURL("image/png");
-      a.click();
+    const PNG_SCALE = 16;
+    const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const PNG_CRC_TABLE = (() => {
+      const table = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+        table[n] = c >>> 0;
+      }
+      return table;
+    })();
+
+    function pngCrc32(typeBytes, dataBytes) {
+      let crc = 0xffffffff;
+      for (let i = 0; i < typeBytes.length; i++) crc = PNG_CRC_TABLE[(crc ^ typeBytes[i]) & 0xff] ^ (crc >>> 8);
+      for (let i = 0; i < dataBytes.length; i++) crc = PNG_CRC_TABLE[(crc ^ dataBytes[i]) & 0xff] ^ (crc >>> 8);
+      return (crc ^ 0xffffffff) >>> 0;
+    }
+
+    function pngChunkParts(type, data) {
+      const typeBytes = new Uint8Array(4);
+      for (let i = 0; i < 4; i++) typeBytes[i] = type.charCodeAt(i);
+      const lengthBytes = new Uint8Array(4);
+      new DataView(lengthBytes.buffer).setUint32(0, data.length, false);
+      const crcBytes = new Uint8Array(4);
+      new DataView(crcBytes.buffer).setUint32(0, pngCrc32(typeBytes, data), false);
+      return [lengthBytes, typeBytes, data, crcBytes];
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+    }
+
+    function setPngStatus(message, state) {
+      els.pngSaveStatus.className = "png-save-status" + (state ? " " + state : "");
+      els.pngSaveStatus.textContent = message;
+    }
+
+    async function createLosslessScaledPng(sourceCanvas, scale, onProgress) {
+      if (typeof CompressionStream !== "function") {
+        throw new Error("このブラウザはストリーム圧縮に対応していません。最新のSafari / Chromeでお試しください。");
+      }
+
+      const width = sourceCanvas.width;
+      const height = sourceCanvas.height;
+      const outputWidth = width * scale;
+      const outputHeight = height * scale;
+      if (!width || !height || outputWidth > 0xffffffff || outputHeight > 0xffffffff) {
+        throw new Error("画像サイズがPNGの対応範囲を超えています。");
+      }
+
+      const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
+      const sourceBytes = sourceContext.getImageData(0, 0, width, height).data;
+      const littleEndian = new Uint8Array(new Uint32Array([0x01020304]).buffer)[0] === 0x04;
+      const sourcePixels32 = littleEndian
+        ? new Uint32Array(sourceBytes.buffer, sourceBytes.byteOffset, width * height)
+        : null;
+
+      const compressor = new CompressionStream("deflate");
+      const writer = compressor.writable.getWriter();
+      const reader = compressor.readable.getReader();
+      const compressedChunks = [];
+      let readerError = null;
+
+      const readTask = (async () => {
+        try {
+          while (true) {
+            const item = await reader.read();
+            if (item.done) break;
+            if (item.value && item.value.length) compressedChunks.push(item.value);
+          }
+        } catch (error) {
+          readerError = error;
+          throw error;
+        }
+      })();
+
+      const rowPixels32 = littleEndian ? new Uint32Array(outputWidth) : null;
+      const rowBytes = littleEndian ? new Uint8Array(rowPixels32.buffer) : new Uint8Array(outputWidth * 4);
+      const filterByte = new Uint8Array([0]);
+      let completedRows = 0;
+
+      try {
+        for (let sourceY = 0; sourceY < height; sourceY++) {
+          if (littleEndian) {
+            const sourceRowStart = sourceY * width;
+            for (let x = 0; x < width; x++) {
+              const pixel = sourcePixels32[sourceRowStart + x];
+              rowPixels32.fill(pixel, x * scale, (x + 1) * scale);
+            }
+          } else {
+            const sourceRowStart = sourceY * width * 4;
+            for (let x = 0; x < width; x++) {
+              const sourceOffset = sourceRowStart + x * 4;
+              const targetOffset = x * scale * 4;
+              for (let repeat = 0; repeat < scale; repeat++) {
+                const offset = targetOffset + repeat * 4;
+                rowBytes[offset] = sourceBytes[sourceOffset];
+                rowBytes[offset + 1] = sourceBytes[sourceOffset + 1];
+                rowBytes[offset + 2] = sourceBytes[sourceOffset + 2];
+                rowBytes[offset + 3] = sourceBytes[sourceOffset + 3];
+              }
+            }
+          }
+
+          for (let repeatY = 0; repeatY < scale; repeatY++) {
+            await writer.write(filterByte);
+            await writer.write(rowBytes);
+            completedRows++;
+            if (completedRows % 128 === 0 || completedRows === outputHeight) {
+              onProgress(completedRows / outputHeight);
+              await new Promise(resolve => setTimeout(resolve, 0));
+            }
+          }
+        }
+        await writer.close();
+        await readTask;
+      } catch (error) {
+        try { await writer.abort(error); } catch (_) {}
+        try { await reader.cancel(error); } catch (_) {}
+        try { await readTask; } catch (_) {}
+        throw readerError || error;
+      }
+
+      const ihdr = new Uint8Array(13);
+      const ihdrView = new DataView(ihdr.buffer);
+      ihdrView.setUint32(0, outputWidth, false);
+      ihdrView.setUint32(4, outputHeight, false);
+      ihdr[8] = 8;
+      ihdr[9] = 6;
+      ihdr[10] = 0;
+      ihdr[11] = 0;
+      ihdr[12] = 0;
+
+      const parts = [PNG_SIGNATURE, ...pngChunkParts("IHDR", ihdr)];
+      for (const chunk of compressedChunks) parts.push(...pngChunkParts("IDAT", chunk));
+      parts.push(...pngChunkParts("IEND", new Uint8Array(0)));
+
+      return { blob: new Blob(parts, { type: "image/png" }), width: outputWidth, height: outputHeight };
+    }
+
+    async function verifyPngHeader(blob, expectedWidth, expectedHeight) {
+      if (!(blob instanceof Blob) || blob.type !== "image/png" || blob.size < 57) {
+        throw new Error("PNGファイルを正常に生成できませんでした。");
+      }
+      const header = new Uint8Array(await blob.slice(0, 33).arrayBuffer());
+      for (let i = 0; i < PNG_SIGNATURE.length; i++) {
+        if (header[i] !== PNG_SIGNATURE[i]) throw new Error("PNG署名の検証に失敗しました。");
+      }
+      const view = new DataView(header.buffer, header.byteOffset, header.byteLength);
+      if (view.getUint32(16, false) !== expectedWidth || view.getUint32(20, false) !== expectedHeight) {
+        throw new Error("PNG画像サイズの検証に失敗しました。");
+      }
+      if (header[24] !== 8 || header[25] !== 6) throw new Error("PNGの色形式がRGBA 8-bitではありません。");
+      const storedCrc = view.getUint32(29, false);
+      if (pngCrc32(header.subarray(12, 16), header.subarray(16, 29)) !== storedCrc) {
+        throw new Error("PNGヘッダーのチェックサム検証に失敗しました。");
+      }
+      return true;
+    }
+
+    els.downloadPngBtn.addEventListener("click", async () => {
+      if (!lastGrid || els.downloadPngBtn.disabled) return;
+
+      const sourceWidth = els.resultCanvas.width;
+      const sourceHeight = els.resultCanvas.height;
+      const outputWidth = sourceWidth * PNG_SCALE;
+      const outputHeight = sourceHeight * PNG_SCALE;
+      els.downloadPngBtn.disabled = true;
+      setPngStatus(
+        "高画質PNGを生成中…\n元プレビュー: " + sourceWidth + "×" + sourceHeight + " px\n保存サイズ: " + outputWidth + "×" + outputHeight + " px\n色データを16倍に複製しています。",
+        "progress"
+      );
+
+      const totalStart = performance.now();
+      let generationMs = 0;
+      let verificationMs = 0;
+
+      try {
+        const generationStart = performance.now();
+        const result = await createLosslessScaledPng(els.resultCanvas, PNG_SCALE, progress => {
+          const percent = Math.floor(progress * 100);
+          setPngStatus(
+            "高画質PNGを生成中… " + percent + "%\n元プレビュー: " + sourceWidth + "×" + sourceHeight + " px\n保存サイズ: " + outputWidth + "×" + outputHeight + " px\n色補間なし・最近傍方式で処理中",
+            "progress"
+          );
+        });
+        generationMs = performance.now() - generationStart;
+
+        const verificationStart = performance.now();
+        await verifyPngHeader(result.blob, outputWidth, outputHeight);
+        verificationMs = performance.now() - verificationStart;
+
+        const url = URL.createObjectURL(result.blob);
+        const link = document.createElement("a");
+        link.download = "mapart_2d_" + els.previewStyle.value + "_16x.png";
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+
+        const totalMs = performance.now() - totalStart;
+        setPngStatus(
+          "PNGダウンロードを開始しました。\n画像サイズ: " + result.width.toLocaleString() + "×" + result.height.toLocaleString() + " px\nファイル容量: " + formatFileSize(result.blob.size) + "\nPNG生成時間: " + (generationMs / 1000).toFixed(2) + " 秒\n検証時間: " + verificationMs.toFixed(1) + " ms\n合計処理時間: " + (totalMs / 1000).toFixed(2) + " 秒\n品質: 元プレビューのRGBA値をそのまま複製／PNG署名・寸法・IHDR CRC確認済み",
+          "success"
+        );
+      } catch (error) {
+        console.error("高画質PNGの生成・検証に失敗しました:", error);
+        setPngStatus(
+          "PNG保存を中止しました。\nERROR: " + (error && error.message ? error.message : String(error)) + "\n画像の色・サイズを保証できないため、ダウンロードしていません。",
+          "error"
+        );
+      } finally {
+        els.downloadPngBtn.disabled = !lastGrid;
+      }
     });
 
     try {

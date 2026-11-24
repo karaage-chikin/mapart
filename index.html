@@ -107,6 +107,23 @@
       padding: 6px 8px;
       font-size: 0.9rem;
     }
+    input[type="file"] {
+      display: block;
+      width: 100%;
+      min-height: 44px;
+      cursor: pointer;
+    }
+    input[type="file"]::file-selector-button {
+      min-height: 38px;
+      margin-right: 10px;
+      padding: 7px 12px;
+      border: 0;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #11111b;
+      font-weight: 700;
+      cursor: pointer;
+    }
     select { width: 100%; }
     .visually-hidden {
       position: absolute !important;
@@ -327,16 +344,9 @@
       border: 2px solid var(--border);
       border-radius: 4px;
     }
-    /* hidden属性がcanvas共通CSSに上書きされないよう明示 */
-    #resultCanvas[hidden], #blueprintPreviewCanvas[hidden] {
-      display: none !important;
-    }
-    #blueprintPreviewCanvas {
-      display: none;
-    }
-    .blueprint-preview-scroll.has-result #blueprintPreviewCanvas {
-      display: block;
-    }
+    #resultCanvas[hidden] { display: none !important; }
+    .blueprint-preview-scroll #blueprintPreviewCanvas { display: none !important; }
+    .blueprint-preview-scroll.has-result #blueprintPreviewCanvas { display: block !important; }
     .blueprint-empty-message {
       min-height: 180px;
       display: flex;
@@ -489,7 +499,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.3.0</div>
+  <div class="app-version" id="appVersion">v1.3.1</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -513,8 +523,7 @@
           <div class="field">
             <label>元画像を選択（128×128に変換）</label>
             <div class="image-upload-area" id="imageUploadArea">
-              <input type="file" id="imageInput" accept="image/*,.heic,.heif" class="visually-hidden" aria-label="画像ファイルを選択">
-              <label for="imageInput" class="upload-button">画像ファイルを選択</label>
+              <input type="file" id="imageInput" accept="image/*,.heic,.heif" aria-label="画像ファイルを選択">
               <span id="selectedImageName" class="selected-image-name" aria-live="polite">画像が選択されていません</span>
               <div class="upload-hint">ここに画像をドラッグ＆ドロップすることもできます</div>
             </div>
@@ -1674,8 +1683,9 @@
 
     els.imageInput.addEventListener("change", (e) => {
       const file = e.target.files && e.target.files[0];
-      if (file) loadSelectedImage(file);
-      // 読み込み処理はFileオブジェクトを保持しているため、同じファイルの再選択も可能。
+      if (!file) return;
+      loadSelectedImage(file);
+      // 次回、同じファイルを選んでもchangeが発火するようにする。
       e.target.value = "";
     });
 

@@ -447,7 +447,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.2.6</div>
+  <div class="app-version" id="appVersion">v1.2.7</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -1856,8 +1856,8 @@
         return;
       }
       const tilePx = sourceWidth / MAP_SIZE;
-      const marginLeft = Math.ceil(tilePx * 1.8);
-      const marginTop = Math.ceil(tilePx * 1.25);
+      const marginLeft = Math.ceil(tilePx * 2.4);
+      const marginTop = Math.ceil(tilePx * 2.4);
       const marginRight = Math.ceil(tilePx * 0.25);
       const marginBottom = Math.ceil(tilePx * 0.25);
       const decorated = document.createElement("canvas");
@@ -1900,16 +1900,30 @@
         }
         ctx.stroke();
 
+        // 座標欄は十分な余白を確保し、16倍出力後にも数字を読みやすくする。
         // 上端は列番号、左端は行番号。左上のマスは(1, 1)。
+        ctx.fillStyle = "#171717";
+        ctx.fillRect(marginLeft, 0, sourceWidth, marginTop);
+        ctx.fillRect(0, marginTop, marginLeft, sourceHeight);
         ctx.fillStyle = "#ffffff";
-        ctx.font = Math.max(1, tilePx * 0.36) + "px Arial, sans-serif";
+        ctx.strokeStyle = "#111111";
+        ctx.lineWidth = Math.max(0.6, tilePx * 0.045);
+        ctx.font = "bold " + Math.max(1, tilePx * 0.52) + "px Arial, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         for (let x = 0; x < MAP_SIZE; x++) {
-          ctx.fillText(String(x + 1), marginLeft + (x + 0.5) * tilePx, marginTop / 2);
+          const label = String(x + 1);
+          const px = marginLeft + (x + 0.5) * tilePx;
+          const py = marginTop / 2;
+          ctx.strokeText(label, px, py, tilePx * 0.96);
+          ctx.fillText(label, px, py, tilePx * 0.96);
         }
         for (let y = 0; y < MAP_SIZE; y++) {
-          ctx.fillText(String(y + 1), marginLeft / 2, marginTop + (y + 0.5) * tilePx);
+          const label = String(y + 1);
+          const px = marginLeft / 2;
+          const py = marginTop + (y + 0.5) * tilePx;
+          ctx.strokeText(label, px, py, tilePx * 0.96);
+          ctx.fillText(label, px, py, tilePx * 0.96);
         }
 
         const generationStart = performance.now();

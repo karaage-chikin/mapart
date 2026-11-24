@@ -295,7 +295,6 @@
             <button type="button" class="secondary" data-preset="end">エンド</button>
             <button type="button" class="secondary" data-preset="decorative">装飾・海洋</button>
             <button type="button" class="secondary" data-preset="sculk">スカルク</button>
-            <button type="button" class="secondary" data-preset="glass">ガラス</button>
           </div>
           <div class="muted" id="textureStatus" role="status" style="margin:8px 0 10px;">
             統合版バニラテクスチャを読み込みます…
@@ -558,24 +557,27 @@
       { id:"cherry_leaves", name:"桜の葉", cat:"natural", rgb:[185,122,135], checked:true },
       { id:"azalea_leaves", name:"ツツジの葉", cat:"natural", rgb:[75,125,51], checked:true },
       // ガラス系（初期状態では未選択）
-      { id:"glass", name:"ガラス", cat:"glass", rgb:[190,205,210], checked:false },
-      { id:"tinted_glass", name:"遮光ガラス", cat:"glass", rgb:[65,65,68], checked:false },
-      { id:"white_stained_glass", name:"白色の色付きガラス", cat:"glass", rgb:[220,220,220], checked:false },
-      { id:"orange_stained_glass", name:"橙色の色付きガラス", cat:"glass", rgb:[216,127,51], checked:false },
-      { id:"magenta_stained_glass", name:"赤紫色の色付きガラス", cat:"glass", rgb:[178,76,216], checked:false },
-      { id:"light_blue_stained_glass", name:"空色の色付きガラス", cat:"glass", rgb:[102,153,216], checked:false },
-      { id:"yellow_stained_glass", name:"黄色の色付きガラス", cat:"glass", rgb:[229,229,51], checked:false },
-      { id:"lime_stained_glass", name:"黄緑色の色付きガラス", cat:"glass", rgb:[127,204,25], checked:false },
-      { id:"pink_stained_glass", name:"桃色の色付きガラス", cat:"glass", rgb:[242,127,165], checked:false },
-      { id:"gray_stained_glass", name:"灰色の色付きガラス", cat:"glass", rgb:[76,76,76], checked:false },
-      { id:"light_gray_stained_glass", name:"薄灰色の色付きガラス", cat:"glass", rgb:[153,153,153], checked:false },
-      { id:"cyan_stained_glass", name:"青緑色の色付きガラス", cat:"glass", rgb:[76,127,153], checked:false },
-      { id:"purple_stained_glass", name:"紫色の色付きガラス", cat:"glass", rgb:[127,63,178], checked:false },
-      { id:"blue_stained_glass", name:"青色の色付きガラス", cat:"glass", rgb:[51,76,178], checked:false },
-      { id:"brown_stained_glass", name:"茶色の色付きガラス", cat:"glass", rgb:[102,76,51], checked:false },
-      { id:"green_stained_glass", name:"緑色の色付きガラス", cat:"glass", rgb:[102,127,51], checked:false },
-      { id:"red_stained_glass", name:"赤色の色付きガラス", cat:"glass", rgb:[153,51,51], checked:false },
-      { id:"black_stained_glass", name:"黒色の色付きガラス", cat:"glass", rgb:[25,25,25], checked:false }
+      { id:"crafting_table", name:"作業台", cat:"wood", rgb:[125,92,58], checked:true },
+      { id:"chest", name:"チェスト", cat:"wood", rgb:[150,105,48], checked:true },
+      { id:"barrel", name:"樽", cat:"wood", rgb:[145,105,57], checked:true },
+      { id:"jukebox", name:"ジュークボックス", cat:"wood", rgb:[105,72,48], checked:true },
+      { id:"bee_nest", name:"ミツバチの巣", cat:"wood", rgb:[190,150,70], checked:true },
+      { id:"ochre_froglight", name:"黄土色のフロッグライト", cat:"decorative", rgb:[238,220,145], checked:true },
+      { id:"verdant_froglight", name:"新緑色のフロッグライト", cat:"decorative", rgb:[140,185,110], checked:true },
+      { id:"pearlescent_froglight", name:"真珠色のフロッグライト", cat:"decorative", rgb:[220,180,205], checked:true },
+      { id:"mossy_stone_bricks", name:"苔むした石レンガ", cat:"stone", rgb:[100,115,83], checked:true },
+      { id:"cracked_stone_bricks", name:"ひび割れた石レンガ", cat:"stone", rgb:[115,115,110], checked:true },
+      { id:"stone_bricks", name:"石レンガ", cat:"stone", rgb:[122,122,122], checked:true },
+      { id:"smooth_stone", name:"滑らかな石", cat:"stone", rgb:[158,158,158], checked:true },
+      { id:"mangrove_roots", name:"マングローブの根", cat:"wood", rgb:[105,76,56], checked:true },
+      { id:"nether_wart_block", name:"ネザーウォートブロック", cat:"nether", rgb:[115,35,42], checked:true },
+      { id:"exposed_copper", name:"風化した銅ブロック", cat:"ore", rgb:[155,125,95], checked:true },
+      { id:"weathered_copper", name:"錆びた銅ブロック", cat:"ore", rgb:[105,145,115], checked:true },
+      { id:"oxidized_copper", name:"酸化した銅ブロック", cat:"ore", rgb:[80,135,110], checked:true },
+      { id:"waxed_copper", name:"錆止めされた銅ブロック", cat:"ore", rgb:[190,120,75], checked:true },
+      { id:"waxed_exposed_copper", name:"錆止めされた風化した銅ブロック", cat:"ore", rgb:[155,125,95], checked:true },
+      { id:"waxed_weathered_copper", name:"錆止めされた錆びた銅ブロック", cat:"ore", rgb:[105,145,115], checked:true },
+      { id:"waxed_oxidized_copper", name:"錆止めされた酸化した銅ブロック", cat:"ore", rgb:[80,135,110], checked:true }
     ];
 
     function clamp(v, min = 0, max = 255) {

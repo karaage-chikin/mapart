@@ -51,9 +51,28 @@
       font-weight: bold;
     }
     .grid-main {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .grid-main > div { display: contents; }
+    .grid-main > div:first-child > .box:first-child { grid-column: 1; grid-row: 1; }
+    .grid-main > div:nth-child(2) > .box:first-child { grid-column: 2; grid-row: 1; }
+    .grid-main > div:first-child > .box:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+    .grid-main > div:nth-child(2) > .box:nth-child(2) { grid-column: 1 / -1; grid-row: 3; }
+    @media (max-width: 900px) {
+      .grid-main { grid-template-columns: 1fr; }
+      .grid-main > div:first-child > .box:first-child,
+      .grid-main > div:nth-child(2) > .box:first-child,
+      .grid-main > div:first-child > .box:nth-child(2),
+      .grid-main > div:nth-child(2) > .box:nth-child(2) {
+        grid-column: 1;
+      }
+      .grid-main > div:first-child > .box:first-child { grid-row: 1; }
+      .grid-main > div:nth-child(2) > .box:first-child { grid-row: 2; }
+      .grid-main > div:first-child > .box:nth-child(2) { grid-row: 3; }
+      .grid-main > div:nth-child(2) > .box:nth-child(2) { grid-row: 4; }
     }
     @media (max-width: 560px) {
       .block-list { grid-template-columns: 1fr; max-height: 560px; }
@@ -278,7 +297,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.0.4</div>
+  <div class="app-version" id="appVersion">v1.0.5</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -564,7 +583,6 @@
       { id:"mud", name:"泥", cat:"natural", rgb:[60,58,54], checked:true },
       { id:"packed_mud", name:"固めた泥", cat:"stone", rgb:[136,105,79], checked:true },
       { id:"mud_bricks", name:"泥レンガ", cat:"stone", rgb:[137,105,79], checked:true },
-      { id:"honey_block", name:"ハチミツブロック", cat:"natural", rgb:[229,176,55], checked:true },
       { id:"hay_block", name:"干草の俵", cat:"natural", rgb:[167,139,34], checked:true },
       { id:"bone_block", name:"骨ブロック", cat:"stone", rgb:[224,219,190], checked:true },
       { id:"glowstone", name:"グロウストーン", cat:"nether", rgb:[171,132,75], checked:true },
@@ -573,14 +591,8 @@
       { id:"soul_sand", name:"ソウルサンド", cat:"nether", rgb:[81,62,51], checked:true },
       { id:"soul_soil", name:"ソウルソイル", cat:"nether", rgb:[75,57,49], checked:true },
       { id:"end_stone", name:"エンドストーン", cat:"end", rgb:[219,220,158], checked:true },
-      { id:"purpur_block", name:"プルプァブロック", cat:"end", rgb:[169,125,169], checked:true },
-      { id:"purpur_pillar", name:"プルプァの柱", cat:"end", rgb:[171,128,171], checked:true },
       { id:"amethyst_block", name:"アメジストブロック", cat:"decorative", rgb:[132,96,171], checked:true },
       { id:"budding_amethyst", name:"芽生えたアメジスト", cat:"decorative", rgb:[132,96,171], checked:true },
-      { id:"prismarine", name:"プリズマリン", cat:"decorative", rgb:[99,156,144], checked:true },
-      { id:"prismarine_bricks", name:"プリズマリンレンガ", cat:"decorative", rgb:[99,168,157], checked:true },
-      { id:"dark_prismarine", name:"ダークプリズマリン", cat:"decorative", rgb:[52,91,77], checked:true },
-      { id:"target", name:"ターゲット", cat:"decorative", rgb:[190,71,65], checked:true },
       { id:"sculk", name:"スカルク", cat:"sculk", rgb:[12,29,34], checked:true },
       { id:"sculk_catalyst", name:"スカルクカタリスト", cat:"sculk", rgb:[26,47,53], checked:true },
       { id:"sculk_shrieker", name:"スカルクシュリーカー", cat:"sculk", rgb:[17,35,40], checked:true },
@@ -591,21 +603,11 @@
       { id:"quartz_pillar", name:"クォーツの柱", cat:"stone", rgb:[220,216,208], checked:true },
       { id:"smooth_quartz", name:"滑らかなクォーツ", cat:"stone", rgb:[231,228,220], checked:true },
       // ガラス系（初期状態では未選択）
-      { id:"ochre_froglight", name:"黄土色のフロッグライト", cat:"decorative", rgb:[238,220,145], checked:true },
-      { id:"verdant_froglight", name:"新緑色のフロッグライト", cat:"decorative", rgb:[140,185,110], checked:true },
-      { id:"pearlescent_froglight", name:"真珠色のフロッグライト", cat:"decorative", rgb:[220,180,205], checked:true },
       { id:"mossy_stone_bricks", name:"苔むした石レンガ", cat:"stone", rgb:[100,115,83], checked:true },
       { id:"cracked_stone_bricks", name:"ひび割れた石レンガ", cat:"stone", rgb:[115,115,110], checked:true },
       { id:"stone_bricks", name:"石レンガ", cat:"stone", rgb:[122,122,122], checked:true },
       { id:"smooth_stone", name:"滑らかな石", cat:"stone", rgb:[158,158,158], checked:true },
       { id:"nether_wart_block", name:"ネザーウォートブロック", cat:"nether", rgb:[115,35,42], checked:true },
-      { id:"exposed_copper", name:"風化した銅ブロック", cat:"ore", rgb:[155,125,95], checked:true },
-      { id:"weathered_copper", name:"錆びた銅ブロック", cat:"ore", rgb:[105,145,115], checked:true },
-      { id:"oxidized_copper", name:"酸化した銅ブロック", cat:"ore", rgb:[80,135,110], checked:true },
-      { id:"waxed_copper", name:"錆止めされた銅ブロック", cat:"ore", rgb:[190,120,75], checked:true },
-      { id:"waxed_exposed_copper", name:"錆止めされた風化した銅ブロック", cat:"ore", rgb:[155,125,95], checked:true },
-      { id:"waxed_weathered_copper", name:"錆止めされた錆びた銅ブロック", cat:"ore", rgb:[105,145,115], checked:true },
-      { id:"waxed_oxidized_copper", name:"錆止めされた酸化した銅ブロック", cat:"ore", rgb:[80,135,110], checked:true }
     ];
 
     function clamp(v, min = 0, max = 255) {

@@ -661,7 +661,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.3</div>
+  <div class="app-version" id="appVersion">v1.5.4</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -830,23 +830,23 @@
             <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
           </div>
 <div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
-          <section class="animation-panel" aria-label="設置アニメーション">
-            <h2>ブロック設置アニメーション</h2>
-            <p class="muted">1行目は左から右へ進みます。2行目以降は選んだ端から開始し、4ブロック置くごとに表示を更新します。</p>
-            <label class="animation-row-direction">2行目の開始位置
+          <section class="animation-panel" aria-label="ブロック設置手順">
+            <h2>ブロック設置手順</h2>
+            <p class="muted">表示された4ブロックを順番に置き、完了したら「次へ」を押してください。</p>
+            <label class="animation-row-direction">2行目以降の進行方向
               <select id="animationSecondRowStart">
-                <option value="left" selected>左端から（各行とも左→右）</option>
-                <option value="right">右端から（行ごとに左右交互）</option>
+                <option value="left" selected>毎行、左端から右へ</option>
+                <option value="right">左右交互（2行目は右端から）</option>
               </select>
             </label>
-            <canvas id="animationCanvas" width="256" height="256" aria-label="ブロック設置アニメーション"></canvas>
-            <div class="animation-progress"><span id="animationCount">0 / 16,384 個</span><input id="animationSeek" type="range" min="0" max="16384" value="0" step="4" disabled></div>
+            <div class="animation-progress"><strong id="animationCount">設計図を作成すると手順が表示されます</strong></div>
+            <div id="buildStepBlocks" class="build-step-blocks" aria-live="polite">
+              <p class="muted">先に画像を変換してください。</p>
+            </div>
             <div class="animation-controls">
               <button type="button" id="animationReset" class="secondary" disabled>最初へ</button>
-              <button type="button" id="animationStepBack" class="secondary" disabled>4ブロック戻る</button>
-              <button type="button" id="animationPlay" disabled>▶ 再生</button>
-              <button type="button" id="animationStepForward" class="secondary" disabled>4ブロック進む</button>
-              <label class="animation-speed">速度<select id="animationSpeed" disabled><option value="64">ゆっくり</option><option value="256" selected>標準</option><option value="1024">速い</option><option value="2048">かなり速い</option></select></label>
+              <button type="button" id="animationStepBack" class="secondary" disabled>前へ</button>
+              <button type="button" id="animationStepForward" disabled>次へ（4ブロック）</button>
             </div>
           </section>
         </div></aside>
@@ -1844,110 +1844,85 @@
       resetAnimationForGrid();
     }
 
-    // 設置順は行優先（上から下）、各行は左から右。
-    const animationCanvas = document.getElementById("animationCanvas");
+    // 4ブロック単位の手動設置手順。行ごとの進行方向を選択可能。
     const animationSecondRowStart = document.getElementById("animationSecondRowStart");
-    const animationCtx = animationCanvas.getContext("2d");
-    const animationSeek = document.getElementById("animationSeek");
     const animationCount = document.getElementById("animationCount");
-    const animationPlay = document.getElementById("animationPlay");
-    const animationSpeed = document.getElementById("animationSpeed");
     const animationReset = document.getElementById("animationReset");
     const animationStepBack = document.getElementById("animationStepBack");
     const animationStepForward = document.getElementById("animationStepForward");
+    const buildStepBlocks = document.getElementById("buildStepBlocks");
     let animationPlaced = 0;
-    let animationFrame = 0;
-    let animationLastTime = 0;
-    let animationCarry = 0;
+    const BUILD_STEP_SIZE = 4;
+
+    function buildOrderPosition(orderIndex) {
+      const row = Math.floor(orderIndex / MAP_SIZE);
+      const offset = orderIndex % MAP_SIZE;
+      const reverse = animationSecondRowStart.value === "right" && row % 2 === 1;
+      return { x: reverse ? MAP_SIZE - 1 - offset : offset, y: row, block: lastGrid[row * MAP_SIZE + offset] };
+    }
 
     function drawAnimationFrame() {
-      if (!animationCtx) return;
-      const size = animationCanvas.width;
-      const cell = size / MAP_SIZE;
-      animationCtx.clearRect(0, 0, size, size);
-      animationCtx.fillStyle = "#171717";
-      animationCtx.fillRect(0, 0, size, size);
-      if (lastGrid) {
-        for (let index = 0; index < animationPlaced; index++) {
-          const block = lastGrid[index];
-          const y = Math.floor(index / MAP_SIZE);
-          const offset = index % MAP_SIZE;
-          const secondRowStartsRight = animationSecondRowStart.value === "right";
-          const reverseThisRow = secondRowStartsRight && y % 2 === 1;
-          const x = reverseThisRow ? MAP_SIZE - 1 - offset : offset;
-          if (els.previewStyle.value === "texture" && patternCache.has(block.id)) {
-            animationCtx.drawImage(patternCache.get(block.id), x * cell, y * cell, cell, cell);
+      const total = MAP_SIZE * MAP_SIZE;
+      const first = Math.min(animationPlaced, total);
+      const last = Math.min(first + BUILD_STEP_SIZE, total);
+      const page = Math.floor(first / BUILD_STEP_SIZE) + 1;
+      const pages = Math.ceil(total / BUILD_STEP_SIZE);
+      animationCount.textContent = first >= total
+        ? "設置完了！ " + total.toLocaleString() + " / " + total.toLocaleString() + " 個"
+        : "手順 " + page.toLocaleString() + " / " + pages.toLocaleString() + "　設置済み " + first.toLocaleString() + " / " + total.toLocaleString() + " 個";
+      buildStepBlocks.innerHTML = "";
+      if (!lastGrid) {
+        buildStepBlocks.innerHTML = '<p class="muted">先に画像を変換してください。</p>';
+      } else if (first >= total) {
+        buildStepBlocks.innerHTML = '<p class="build-step-complete">すべてのブロックを置き終わりました！</p>';
+      } else {
+        for (let i = first; i < last; i++) {
+          const pos = buildOrderPosition(i);
+          const card = document.createElement("div");
+          card.className = "build-step-item";
+          const preview = document.createElement("div");
+          preview.className = "build-step-texture";
+          if (pos.block.textureImage) {
+            const img = document.createElement("img");
+            img.src = pos.block.textureImage.src;
+            img.alt = pos.block.name;
+            preview.appendChild(img);
           } else {
-            const color = block.mapRgb || block.rgb || [128,128,128];
-            animationCtx.fillStyle = "rgb(" + color.join(",") + ")";
-            animationCtx.fillRect(x * cell, y * cell, cell, cell);
+            preview.style.background = "rgb(" + (pos.block.mapRgb || pos.block.rgb || [128,128,128]).join(",") + ")";
           }
+          const detail = document.createElement("div");
+          detail.className = "build-step-detail";
+          const number = document.createElement("strong");
+          number.textContent = (i + 1).toLocaleString() + "番";
+          const name = document.createElement("span");
+          name.textContent = pos.block.name;
+          const coordinate = document.createElement("span");
+          coordinate.textContent = "列 " + (pos.x + 1) + " ・ 行 " + (pos.y + 1);
+          detail.append(number, name, coordinate);
+          card.append(preview, detail);
+          buildStepBlocks.appendChild(card);
         }
       }
-      animationCount.textContent = animationPlaced.toLocaleString() + " / " + (MAP_SIZE * MAP_SIZE).toLocaleString() + " 個";
-      animationSeek.value = String(animationPlaced);
-    }
-
-    function stopAnimation() {
-      if (animationFrame) cancelAnimationFrame(animationFrame);
-      animationFrame = 0;
-      animationLastTime = 0;
-      animationCarry = 0;
-      animationPlay.textContent = "▶ 再生";
-    }
-
-    function animateBlocks(timestamp) {
-      if (!animationFrame) return;
-      if (!animationLastTime) animationLastTime = timestamp;
-      const elapsed = Math.min(100, timestamp - animationLastTime);
-      animationLastTime = timestamp;
-      animationCarry += elapsed * Number(animationSpeed.value) / 1000;
-      const advance = Math.floor(animationCarry);
-      if (advance > 0) {
-        animationCarry -= advance;
-        animationPlaced = Math.min(MAP_SIZE * MAP_SIZE, animationPlaced + advance * 4);
-        drawAnimationFrame();
-      }
-      if (animationPlaced >= MAP_SIZE * MAP_SIZE) {
-        stopAnimation();
-        return;
-      }
-      animationFrame = requestAnimationFrame(animateBlocks);
+      animationReset.disabled = !lastGrid || first === 0;
+      animationStepBack.disabled = !lastGrid || first === 0;
+      animationStepForward.disabled = !lastGrid || first >= total;
+      animationStepForward.textContent = first + BUILD_STEP_SIZE >= total ? "完了" : "次へ（4ブロック）";
     }
 
     function setAnimationPosition(value) {
-      stopAnimation();
-      animationPlaced = Math.max(0, Math.min(MAP_SIZE * MAP_SIZE, Math.round((Number(value) || 0) / 4) * 4));
+      animationPlaced = Math.max(0, Math.min(MAP_SIZE * MAP_SIZE, Math.floor((Number(value) || 0) / BUILD_STEP_SIZE) * BUILD_STEP_SIZE));
       drawAnimationFrame();
     }
 
     function resetAnimationForGrid() {
-      stopAnimation();
       animationPlaced = 0;
-      const enabled = !!lastGrid;
-      [animationSeek, animationSpeed, animationReset, animationStepBack, animationStepForward, animationPlay].forEach(control => control.disabled = !enabled);
       drawAnimationFrame();
     }
 
     animationSecondRowStart.addEventListener("change", () => drawAnimationFrame());
-    animationSeek.addEventListener("input", () => setAnimationPosition(animationSeek.value));
     animationReset.addEventListener("click", () => setAnimationPosition(0));
-    animationStepBack.addEventListener("click", () => setAnimationPosition(animationPlaced - 4));
-    animationStepForward.addEventListener("click", () => setAnimationPosition(animationPlaced + 4));
-    animationPlay.addEventListener("click", () => {
-      if (!lastGrid) return;
-      if (animationFrame) {
-        stopAnimation();
-        return;
-      }
-      if (animationPlaced >= MAP_SIZE * MAP_SIZE) animationPlaced = 0;
-      animationPlay.textContent = "⏸ 一時停止";
-      animationLastTime = 0;
-      animationFrame = requestAnimationFrame(animateBlocks);
-    });
-    animationSpeed.addEventListener("change", () => {
-      animationCarry = 0;
-    });
+    animationStepBack.addEventListener("click", () => setAnimationPosition(animationPlaced - BUILD_STEP_SIZE));
+    animationStepForward.addEventListener("click", () => setAnimationPosition(animationPlaced + BUILD_STEP_SIZE));
 
     function renderStats(counts) {
       const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);

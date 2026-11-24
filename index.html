@@ -356,6 +356,38 @@
     #blueprintPreviewCanvas[hidden] {
       display: none !important;
     }
+    .coordinate-input-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .coordinate-input-grid label {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 0.9rem;
+    }
+    .coordinate-input-grid input {
+      width: 100%;
+      min-width: 0;
+      padding: 9px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+    }
+    .coordinate-result {
+      padding: 10px;
+      border-radius: 6px;
+      background: var(--panel);
+      line-height: 1.7;
+      overflow-wrap: anywhere;
+    }
+    @media (max-width: 520px) {
+      .coordinate-input-grid { grid-template-columns: 1fr; }
+    }
     .action-row {
       display: flex;
       flex-wrap: wrap;
@@ -476,7 +508,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.3.3</div>
+  <div class="app-version" id="appVersion">v1.3.4</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -599,6 +631,24 @@
             <button type="button" id="downloadPngBtn" disabled>設計図PNGを保存（プレビュー16倍）</button>
             <button type="button" id="onlineBlueprintBtn" class="secondary" disabled>オンラインで表示</button>
             <span class="muted">合計ブロック数: 16,384 個（1×1 / 2D平面）</span>
+          </div>
+          <div class="box" style="margin-top:14px;">
+            <h3>ワールド座標の範囲</h3>
+            <p class="muted">設計図の左上（1列目・1行目）に置くブロックのワールド座標を入力してください。右方向はX+、下方向はZ+として128×128の範囲を計算します。</p>
+            <div class="coordinate-input-grid">
+              <label>左上のX座標<input type="number" step="1" id="originXInput" placeholder="例：1000"></label>
+              <label>左上のZ座標<input type="number" step="1" id="originZInput" placeholder="例：2000"></label>
+            </div>
+            <div id="coordinateRangeResult" class="coordinate-result" aria-live="polite">左上のX・Z座標を入力すると、作成する範囲を表示します。</div>
+          </div>
+          <div class="box" style="margin-top:14px;">
+            <h3>座標からブロックを調べる</h3>
+            <p class="muted">ワールド座標を入力すると、設計図の何列目・何行目にあり、どのブロックを置くか表示します。</p>
+            <div class="coordinate-input-grid">
+              <label>調べるX座標<input type="number" step="1" id="lookupXInput" placeholder="X座標"></label>
+              <label>調べるZ座標<input type="number" step="1" id="lookupZInput" placeholder="Z座標"></label>
+            </div>
+            <div id="coordinateBlockResult" class="coordinate-result" aria-live="polite">左上の座標と調べたい座標を入力してください。</div>
           </div>
           <div id="pngSaveStatus" class="png-save-status" role="status" aria-live="polite">保存画像は現在の2Dプレビューを16倍に拡大します。色の補間・ぼかし・再ディザリングは行いません。</div>
         </div>
@@ -2061,6 +2111,75 @@
       } finally {
         els.downloadPngBtn.disabled = !lastGrid;
       }
+    });
+
+    const originXInput = document.getElementById("originXInput");
+    const originZInput = document.getElementById("originZInput");
+    const lookupXInput = document.getElementById("lookupXInput");
+    const lookupZInput = document.getElementById("lookupZInput");
+    const coordinateRangeResult = document.getElementById("coordinateRangeResult");
+    const coordinateBlockResult = document.getElementById("coordinateBlockResult");
+
+    function readInteger(input) {
+      if (input.value.trim() === "") return null;
+      const value = Number(input.value);
+      return Number.isSafeInteger(value) ? value : NaN;
+    }
+
+    function updateCoordinateTools() {
+      const ox = readInteger(originXInput);
+      const oz = readInteger(originZInput);
+      const lx = readInteger(lookupXInput);
+      const lz = readInteger(lookupZInput);
+
+      if (ox === null || oz === null) {
+        coordinateRangeResult.textContent = "左上のX・Z座標を入力すると、作成する範囲を表示します。";
+        coordinateBlockResult.textContent = "左上の座標と調べたい座標を入力してください。";
+        return;
+      }
+      if (!Number.isSafeInteger(ox) || !Number.isSafeInteger(oz)) {
+        coordinateRangeResult.textContent = "X・Zには整数を入力してください。";
+        coordinateBlockResult.textContent = "左上の座標が正しくありません。";
+        return;
+      }
+
+      const rightX = ox + MAP_SIZE - 1;
+      const bottomZ = oz + MAP_SIZE - 1;
+      coordinateRangeResult.innerHTML =
+        "<strong>作成する範囲（128×128）</strong><br>" +
+        "左上：X " + ox + " / Z " + oz + "<br>" +
+        "右上：X " + rightX + " / Z " + oz + "<br>" +
+        "左下：X " + ox + " / Z " + bottomZ + "<br>" +
+        "右下：X " + rightX + " / Z " + bottomZ + "<br>" +
+        "<span class='muted'>X方向：" + ox + " ～ " + rightX + " ／ Z方向：" + oz + " ～ " + bottomZ + "</span>";
+
+      if (lx === null || lz === null) {
+        coordinateBlockResult.textContent = "調べたいX・Z座標を入力してください。";
+        return;
+      }
+      if (!Number.isSafeInteger(lx) || !Number.isSafeInteger(lz)) {
+        coordinateBlockResult.textContent = "調べるX・Zには整数を入力してください。";
+        return;
+      }
+      const col = lx - ox + 1;
+      const row = lz - oz + 1;
+      if (col < 1 || col > MAP_SIZE || row < 1 || row > MAP_SIZE) {
+        coordinateBlockResult.textContent = "この座標は指定した128×128の範囲外です。";
+        return;
+      }
+      if (!lastGrid) {
+        coordinateBlockResult.textContent = "範囲内です（" + col + "列目・" + row + "行目）。画像を読み込んで変換すると、置くブロック名も表示されます。";
+        return;
+      }
+      const block = lastGrid[(row - 1) * MAP_SIZE + (col - 1)];
+      coordinateBlockResult.innerHTML =
+        "<strong>設計図：" + col + "列目・" + row + "行目</strong><br>" +
+        "ワールド座標：X " + lx + " / Z " + lz + "<br>" +
+        "置くブロック：<strong>" + escapeHtml(block ? block.name : "不明") + "</strong>";
+    }
+
+    [originXInput, originZInput, lookupXInput, lookupZInput].forEach(input => {
+      input.addEventListener("input", updateCoordinateTools);
     });
 
     els.onlineBlueprintBtn.addEventListener("click", () => {

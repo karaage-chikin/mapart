@@ -280,7 +280,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.0.0</div>
+  <div class="app-version" id="appVersion">v1.0.1</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -434,8 +434,6 @@
       // 自然・地形
       { id:"grass_block", name:"草ブロック", cat:"natural", rgb:[109,153,48], checked:true, tint:"#91bd59" },
       { id:"dirt", name:"土", cat:"natural", rgb:[130,94,66], checked:true },
-      { id:"coarse_dirt", name:"粗い土", cat:"natural", rgb:[119,85,59], checked:true },
-      { id:"podzol", name:"ポドゾル", cat:"natural", rgb:[111,74,42], checked:true },
       { id:"sand", name:"砂", cat:"natural", rgb:[219,207,163], checked:true },
       { id:"red_sand", name:"赤い砂", cat:"natural", rgb:[190,102,33], checked:true },
       { id:"gravel", name:"砂利", cat:"natural", rgb:[128,124,128], checked:true },
@@ -445,12 +443,6 @@
       { id:"packed_ice", name:"氷塊", cat:"ice", rgb:[140,175,220], checked:true },
       { id:"blue_ice", name:"青氷", cat:"ice", rgb:[85,130,205], checked:true },
       { id:"slime", name:"スライムブロック", cat:"natural", rgb:[111,190,93], checked:true },
-      { id:"honeycomb_block", name:"ハニカムブロック", cat:"natural", rgb:[224,151,45], checked:true },
-      { id:"moss_block", name:"苔ブロック", cat:"natural", rgb:[89,116,52], checked:true },
-      { id:"moss_carpet", name:"苔のカーペット", cat:"natural", rgb:[93,120,57], checked:true },
-      { id:"glow_lichen", name:"ヒカリゴケ", cat:"natural", rgb:[108,144,129], checked:true },
-      { id:"sponge", name:"スポンジ", cat:"natural", rgb:[195,190,70], checked:true },
-      { id:"wet_sponge", name:"濡れたスポンジ", cat:"natural", rgb:[150,151,58], checked:true },
 
       // 石・鉱物
       { id:"stone", name:"石", cat:"stone", rgb:[125,125,125], checked:true },
@@ -574,19 +566,9 @@
       { id:"mud", name:"泥", cat:"natural", rgb:[60,58,54], checked:true },
       { id:"packed_mud", name:"固めた泥", cat:"stone", rgb:[136,105,79], checked:true },
       { id:"mud_bricks", name:"泥レンガ", cat:"stone", rgb:[137,105,79], checked:true },
-      { id:"mycelium", name:"菌糸", cat:"natural", rgb:[111,87,88], checked:true },
-      { id:"muddy_mangrove_roots", name:"泥だらけのマングローブの根", cat:"wood", rgb:[91,65,49], checked:true },
       { id:"honey_block", name:"ハチミツブロック", cat:"natural", rgb:[229,176,55], checked:true },
       { id:"hay_block", name:"干草の俵", cat:"natural", rgb:[167,139,34], checked:true },
       { id:"bone_block", name:"骨ブロック", cat:"stone", rgb:[224,219,190], checked:true },
-      { id:"bookshelf", name:"本棚", cat:"wood", rgb:[126,91,52], checked:true },
-      { id:"chiseled_bookshelf", name:"模様入りの本棚", cat:"wood", rgb:[126,91,52], checked:true },
-      { id:"melon_block", name:"スイカ", cat:"natural", rgb:[111,142,48], checked:true },
-      { id:"pumpkin", name:"カボチャ", cat:"natural", rgb:[191,119,34], checked:true },
-      { id:"carved_pumpkin", name:"くり抜かれたカボチャ", cat:"natural", rgb:[190,119,35], checked:true },
-      { id:"mushroom_stem", name:"キノコの柄", cat:"natural", rgb:[202,190,170], checked:true },
-      { id:"brown_mushroom_block", name:"茶色のキノコブロック", cat:"natural", rgb:[151,111,77], checked:true },
-      { id:"red_mushroom_block", name:"赤色のキノコブロック", cat:"natural", rgb:[184,67,55], checked:true },
       { id:"glowstone", name:"グロウストーン", cat:"nether", rgb:[171,132,75], checked:true },
       { id:"shroomlight", name:"シュルームライト", cat:"nether", rgb:[217,126,58], checked:true },
       { id:"magma", name:"マグマブロック", cat:"nether", rgb:[111,48,37], checked:true },
@@ -610,28 +592,7 @@
       { id:"quartz_bricks", name:"クォーツレンガ", cat:"stone", rgb:[220,216,208], checked:true },
       { id:"quartz_pillar", name:"クォーツの柱", cat:"stone", rgb:[220,216,208], checked:true },
       { id:"smooth_quartz", name:"滑らかなクォーツ", cat:"stone", rgb:[231,228,220], checked:true },
-      { id:"stripped_oak_log", name:"樹皮を剥いだオークの原木", cat:"wood", rgb:[173,142,91], checked:true },
-      { id:"stripped_spruce_log", name:"樹皮を剥いだトウヒの原木", cat:"wood", rgb:[112,82,51], checked:true },
-      { id:"stripped_birch_log", name:"樹皮を剥いだシラカバの原木", cat:"wood", rgb:[194,177,119], checked:true },
-      { id:"stripped_jungle_log", name:"樹皮を剥いだジャングルの原木", cat:"wood", rgb:[171,124,84], checked:true },
-      { id:"stripped_acacia_log", name:"樹皮を剥いだアカシアの原木", cat:"wood", rgb:[174,92,57], checked:true },
-      { id:"stripped_dark_oak_log", name:"樹皮を剥いだダークオークの原木", cat:"wood", rgb:[69,49,31], checked:true },
-      { id:"stripped_mangrove_log", name:"樹皮を剥いだマングローブの原木", cat:"wood", rgb:[117,53,44], checked:true },
-      { id:"stripped_cherry_log", name:"樹皮を剥いだ桜の原木", cat:"wood", rgb:[184,124,119], checked:true },
-      { id:"oak_log", name:"オークの原木", cat:"wood", rgb:[109,85,50], checked:true },
-      { id:"spruce_log", name:"トウヒの原木", cat:"wood", rgb:[60,43,25], checked:true },
-      { id:"birch_log", name:"シラカバの原木", cat:"wood", rgb:[196,178,123], checked:true },
-      { id:"jungle_log", name:"ジャングルの原木", cat:"wood", rgb:[86,67,35], checked:true },
-      { id:"acacia_log", name:"アカシアの原木", cat:"wood", rgb:[105,95,84], checked:true },
-      { id:"dark_oak_log", name:"ダークオークの原木", cat:"wood", rgb:[60,46,28], checked:true },
-      { id:"mangrove_log", name:"マングローブの原木", cat:"wood", rgb:[84,46,39], checked:true },
-      { id:"cherry_log", name:"桜の原木", cat:"wood", rgb:[104,70,65], checked:true },
       // ガラス系（初期状態では未選択）
-      { id:"crafting_table", name:"作業台", cat:"wood", rgb:[125,92,58], checked:true },
-      { id:"chest", name:"チェスト", cat:"wood", rgb:[150,105,48], checked:true },
-      { id:"barrel", name:"樽", cat:"wood", rgb:[145,105,57], checked:true },
-      { id:"jukebox", name:"ジュークボックス", cat:"wood", rgb:[105,72,48], checked:true },
-      { id:"bee_nest", name:"ミツバチの巣", cat:"wood", rgb:[190,150,70], checked:true },
       { id:"ochre_froglight", name:"黄土色のフロッグライト", cat:"decorative", rgb:[238,220,145], checked:true },
       { id:"verdant_froglight", name:"新緑色のフロッグライト", cat:"decorative", rgb:[140,185,110], checked:true },
       { id:"pearlescent_froglight", name:"真珠色のフロッグライト", cat:"decorative", rgb:[220,180,205], checked:true },
@@ -639,7 +600,6 @@
       { id:"cracked_stone_bricks", name:"ひび割れた石レンガ", cat:"stone", rgb:[115,115,110], checked:true },
       { id:"stone_bricks", name:"石レンガ", cat:"stone", rgb:[122,122,122], checked:true },
       { id:"smooth_stone", name:"滑らかな石", cat:"stone", rgb:[158,158,158], checked:true },
-      { id:"mangrove_roots", name:"マングローブの根", cat:"wood", rgb:[105,76,56], checked:true },
       { id:"nether_wart_block", name:"ネザーウォートブロック", cat:"nether", rgb:[115,35,42], checked:true },
       { id:"exposed_copper", name:"風化した銅ブロック", cat:"ore", rgb:[155,125,95], checked:true },
       { id:"weathered_copper", name:"錆びた銅ブロック", cat:"ore", rgb:[105,145,115], checked:true },

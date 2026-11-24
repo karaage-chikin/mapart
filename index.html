@@ -575,6 +575,15 @@
     .animation-progress input { flex: 1; min-width: 0; }
     .animation-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
     .animation-controls button { padding: 7px 9px; font-size: .75rem; }
+
+    .build-step-zoom { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; width: 100%; margin: 10px 0 12px; }
+    .build-step-zoom-cell { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .build-step-zoom-cell .zoom-texture { width: 100%; aspect-ratio: 1; border: 2px solid var(--accent); border-radius: 5px; overflow: hidden; background: var(--card); }
+    .build-step-zoom-cell .zoom-texture img { display: block; width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+    .build-step-zoom-cell .zoom-texture .zoom-color { width: 100%; height: 100%; }
+    .build-step-zoom-cell .zoom-number { font-size: .78rem; font-weight: 700; text-align: center; }
+    .build-step-zoom-cell .zoom-coord { font-size: .66rem; color: var(--subtext); text-align: center; }
+    .build-step-zoom-title { margin: 10px 0 4px; font-weight: 700; font-size: .85rem; }
     .build-step-blocks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
     .build-step-item { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 7px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); }
     .build-step-texture { width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 5px; background: var(--panel); }
@@ -671,7 +680,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.4</div>
+  <div class="app-version" id="appVersion">v1.5.5</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -1881,6 +1890,13 @@
         ? "設置完了！ " + total.toLocaleString() + " / " + total.toLocaleString() + " 個"
         : "手順 " + page.toLocaleString() + " / " + pages.toLocaleString() + "　設置済み " + first.toLocaleString() + " / " + total.toLocaleString() + " 個";
       buildStepBlocks.innerHTML = "";
+      const zoom = document.createElement("div");
+      zoom.className = "build-step-zoom";
+      const zoomTitle = document.createElement("div");
+      zoomTitle.className = "build-step-zoom-title";
+      zoomTitle.textContent = "今回置く4マス";
+      buildStepBlocks.appendChild(zoomTitle);
+      buildStepBlocks.appendChild(zoom);
       if (!lastGrid) {
         buildStepBlocks.innerHTML = '<p class="muted">先に画像を変換してください。</p>';
       } else if (first >= total) {
@@ -1911,6 +1927,31 @@
           detail.append(number, name, coordinate);
           card.append(preview, detail);
           buildStepBlocks.appendChild(card);
+
+          // 今回の4マスを大きく横並びで表示
+          const zoomCell = document.createElement("div");
+          zoomCell.className = "build-step-zoom-cell";
+          const zoomTexture = document.createElement("div");
+          zoomTexture.className = "zoom-texture";
+          if (pos.block.textureImage) {
+            const zoomImg = document.createElement("img");
+            zoomImg.src = pos.block.textureImage.src;
+            zoomImg.alt = pos.block.name;
+            zoomTexture.appendChild(zoomImg);
+          } else {
+            const color = document.createElement("div");
+            color.className = "zoom-color";
+            color.style.background = "rgb(" + (pos.block.mapRgb || pos.block.rgb || [128,128,128]).join(",") + ")";
+            zoomTexture.appendChild(color);
+          }
+          const zoomNumber = document.createElement("div");
+          zoomNumber.className = "zoom-number";
+          zoomNumber.textContent = (i + 1).toLocaleString() + "番";
+          const zoomCoord = document.createElement("div");
+          zoomCoord.className = "zoom-coord";
+          zoomCoord.textContent = "列" + (pos.x + 1) + "・行" + (pos.y + 1);
+          zoomCell.append(zoomTexture, zoomNumber, zoomCoord);
+          zoom.appendChild(zoomCell);
         }
       }
       animationReset.disabled = !lastGrid || first === 0;

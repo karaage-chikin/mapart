@@ -280,6 +280,14 @@
       margin-top: 6px;
       white-space: pre-wrap;
     }
+    .recent-uploads { margin-top: 10px; padding: 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); }
+    .recent-uploads-title { font-size: 0.82rem; font-weight: 700; margin-bottom: 7px; }
+    .recent-uploads-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+    .recent-upload-item { min-width: 0; padding: 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--card); color: var(--text); text-align: left; display: flex; flex-direction: column; gap: 4px; }
+    .recent-upload-item img { width: 100%; height: 64px; object-fit: contain; background: var(--bg); border-radius: 4px; image-rendering: auto; }
+    .recent-upload-item span { font-size: 0.72rem; overflow-wrap: anywhere; line-height: 1.25; }
+    .recent-upload-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    @media (max-width: 540px) { .recent-uploads-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } .recent-upload-item img { height: 52px; } }
     input[type="range"] {
       width: 100%;
       cursor: pointer;
@@ -642,7 +650,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.4.9</div>
+  <div class="app-version" id="appVersion">v1.5.0</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -675,6 +683,10 @@
               <input type="file" id="imageInput" accept="image/*,.heic,.heif" aria-label="画像ファイルを選択">
               <span id="selectedImageName" class="selected-image-name" aria-live="polite">画像が選択されていません</span>
               <div class="upload-hint">ここに画像をドラッグ＆ドロップすることもできます</div>
+            </div>
+            <div id="recentUploads" class="recent-uploads" aria-live="polite">
+              <div class="recent-uploads-title">最近のアップロード（過去3件）</div>
+              <div id="recentUploadsList" class="recent-uploads-list"><span class="muted">まだ履歴はありません</span></div>
             </div>
             <div id="imageUploadError" class="upload-error" role="alert" hidden></div>
           </div>
@@ -1850,41 +1862,111 @@
       }
     }
 
-    function loadSelectedImage(file) {
+    const RECENT_UPLOAD_DB = "mapart-recent-uploads";
+    const RECENT_UPLOAD_STORE = "images";
+    function openRecentUploadDb() {
+      return new Promise((resolve, reject) => {
+        if (!("indexedDB" in window)) return reject(new Error("IndexedDB is not supported"));
+        const request = indexedDB.open(RECENT_UPLOAD_DB, 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(RECENT_UPLOAD_STORE)) db.createObjectStore(RECENT_UPLOAD_STORE, { keyPath: "id" });
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("Could not open upload history"));
+      });
+    }
+    async function getRecentUploads() {
+      const db = await openRecentUploadDb();
+      return new Promise((resolve, reject) => {
+        const request = db.transaction(RECENT_UPLOAD_STORE, "readonly").objectStore(RECENT_UPLOAD_STORE).getAll();
+        request.onsuccess = () => { db.close(); resolve((request.result || []).sort((a,b) => b.createdAt-a.createdAt).slice(0,3)); };
+        request.onerror = () => { db.close(); reject(request.error); };
+      });
+    }
+    async function saveRecentUpload(name, dataUrl) {
+      const db = await openRecentUploadDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(RECENT_UPLOAD_STORE, "readwrite");
+        const store = tx.objectStore(RECENT_UPLOAD_STORE);
+        store.put({ id: Date.now() + "-" + Math.random().toString(36).slice(2,8), name, dataUrl, createdAt: Date.now() });
+        const all = store.getAll();
+        all.onsuccess = () => {
+          const keep = all.result.sort((a,b) => b.createdAt-a.createdAt).slice(0,3).map(item => item.id);
+          all.result.forEach(item => { if (!keep.includes(item.id)) store.delete(item.id); });
+        };
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      });
+    }
+    async function renderRecentUploads() {
+      const list = document.getElementById("recentUploadsList");
+      if (!list) return;
+      try {
+        const items = await getRecentUploads();
+        list.replaceChildren();
+        if (!items.length) {
+          const empty = document.createElement("span"); empty.className = "muted"; empty.textContent = "まだ履歴はありません"; list.appendChild(empty); return;
+        }
+        items.forEach(item => {
+          const button = document.createElement("button");
+          button.type = "button"; button.className = "recent-upload-item";
+          button.title = item.name + " を読み込む";
+          const image = document.createElement("img"); image.src = item.dataUrl; image.alt = "";
+          const label = document.createElement("span"); label.textContent = item.name;
+          button.append(image, label);
+          button.addEventListener("click", () => loadImageDataUrl(item.dataUrl, item.name, false));
+          list.appendChild(button);
+        });
+      } catch (error) {
+        console.warn("最近のアップロード履歴を読み込めません:", error);
+        list.textContent = "このブラウザでは履歴を利用できません";
+      }
+    }
+    function loadImageDataUrl(dataUrl, fileName, saveToHistory) {
       const errorBox = document.getElementById("imageUploadError");
       const nameBox = document.getElementById("selectedImageName");
+      errorBox.hidden = false;
+      errorBox.textContent = "画像ファイルを読み込んでいます…";
+      nameBox.textContent = fileName || "選択した画像";
+      const img = new Image();
+      img.onload = async () => {
+        loadedImage = img;
+        try {
+          runConversion();
+          errorBox.hidden = true;
+          errorBox.textContent = "";
+          if (saveToHistory) {
+            try { await saveRecentUpload(fileName || "画像", dataUrl); await renderRecentUploads(); }
+            catch (storageError) { console.warn("最近のアップロードを保存できません:", storageError); }
+          }
+        } catch (error) {
+          console.error("画像変換エラー:", error);
+          errorBox.hidden = false;
+          errorBox.textContent = "画像は読み込めましたが、変換に失敗しました: " + (error && error.message ? error.message : String(error));
+        }
+      };
+      img.onerror = () => {
+        errorBox.hidden = false;
+        errorBox.textContent = "画像形式をブラウザで読み込めませんでした。iPadの場合は写真アプリからJPEGまたはPNGとして書き出して選択してください。";
+      };
+      img.src = dataUrl;
+    }
+    function loadSelectedImage(file) {
+      const errorBox = document.getElementById("imageUploadError");
       errorBox.hidden = true;
       errorBox.textContent = "";
       if (!file) return;
-      nameBox.textContent = file.name || "選択した画像";
+      const name = file.name || "選択した画像";
+      document.getElementById("selectedImageName").textContent = name;
       errorBox.hidden = false;
       errorBox.textContent = "画像ファイルを読み込んでいます…";
       const reader = new FileReader();
-      reader.onerror = () => {
-        errorBox.textContent = "ファイルの読み込みに失敗しました。別の画像ファイルを選択してください。";
-      };
-      reader.onload = event => {
-        const img = new Image();
-        img.onload = () => {
-          loadedImage = img;
-          try {
-            runConversion();
-            errorBox.hidden = true;
-            errorBox.textContent = "";
-          } catch (error) {
-            console.error("画像変換エラー:", error);
-            errorBox.hidden = false;
-            errorBox.textContent = "画像は読み込めましたが、変換に失敗しました: " + (error && error.message ? error.message : String(error));
-          }
-        };
-        img.onerror = () => {
-          errorBox.hidden = false;
-          errorBox.textContent = "画像形式をブラウザで読み込めませんでした。iPadの場合は写真アプリからJPEGまたはPNGとして書き出して選択してください。";
-        };
-        img.src = String(event.target.result);
-      };
+      reader.onerror = () => { errorBox.textContent = "ファイルの読み込みに失敗しました。別の画像ファイルを選択してください。"; };
+      reader.onload = event => loadImageDataUrl(String(event.target.result), name, true);
       reader.readAsDataURL(file);
     }
+    renderRecentUploads();
 
     els.imageInput.addEventListener("change", (e) => {
       const file = e.target.files && e.target.files.length ? e.target.files[0] : null;

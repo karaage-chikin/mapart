@@ -1609,7 +1609,7 @@
         });
         generationMs = performance.now() - generationStart;
 
-        setPngStatus("PNGデータを検証中…\\nピクセル複製・画像サイズ・sRGB・圧縮データを確認しています。", "progress");
+        setPngStatus("PNGデータを検証中…\nピクセル複製・画像サイズ・sRGB・圧縮データを確認しています。", "progress");
         const verificationStart = performance.now();
         await verifyPngHeader(result.blob, outputWidth, outputHeight);
         const verifiedRawBytes = await verifyDeflateStream(result.compressedChunks, outputWidth, outputHeight);

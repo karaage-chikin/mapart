@@ -257,9 +257,30 @@
     .texture-loading-errors:empty { display: none; }
     .texture-loading-error-title { color: #f38ba8; font-weight: 700; margin-bottom: 5px; }
     .texture-loading-error-item { overflow-wrap: anywhere; }
+  
+    .app-version {
+      position: fixed;
+      right: 12px;
+      bottom: 10px;
+      z-index: 10001;
+      padding: 5px 9px;
+      border: 1px solid var(--border, #45475a);
+      border-radius: 7px;
+      background: rgba(30, 30, 46, .88);
+      color: var(--subtext, #a6adc8);
+      font-size: 11px;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+      pointer-events: none;
+      user-select: none;
+    }
+    @media (max-width: 600px) {
+      .app-version { right: 8px; bottom: 8px; font-size: 10px; }
+    }
   </style>
 </head>
 <body class="is-loading">
+  <div class="app-version" id="appVersion">v1.0.0</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>

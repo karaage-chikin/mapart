@@ -100,16 +100,20 @@ async function loadTextures(){
  const terrainJson=JSON.parse((await terrainRes.text()).replace(/^\s*\/\/.*$/gm,""));
  const terrain=terrainJson.texture_data||{};
  const used=[...new Set(indices)].map(i=>PALETTE[i]);
- let done=0;
- for(const item of used){
-  const path=texturePath(blockDefs[ALIASES[item.id]||item.id],terrain);
-  if(path){
-   const img=new Image();img.src=BASE+path;
-   try{await img.decode();images.set(item.id,img);}catch(_){}
+ let done=0,cursor=0;
+ async function worker(){
+  while(cursor<used.length){
+   const item=used[cursor++];
+   const path=texturePath(blockDefs[ALIASES[item.id]||item.id],terrain);
+   if(path){
+    const img=new Image();img.src=BASE+path;
+    try{await img.decode();images.set(item.id,img);}catch(_){}
+   }
+   done++;
+   status.textContent="ブロックテクスチャ読み込み中… "+done+" / "+used.length;
   }
-  done++;
-  status.textContent="ブロックテクスチャ読み込み中… "+done+" / "+used.length;
  }
+ await Promise.all(Array.from({length:Math.min(8,used.length)},()=>worker()));
  status.textContent="準備完了！表示されたブロックを置いて、次へ進んでください。";
 }
 function position(order){

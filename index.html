@@ -135,26 +135,45 @@
       width: 100%;
     }
     .map-block-tile {
+      position: relative;
       box-sizing: border-box;
       width: 100%;
       min-width: 0;
-      min-height: 78px;
-      height: auto;
+      min-height: 46px;
+      height: 46px;
+      padding: 3px;
       flex: none;
+      justify-content: flex-start;
     }
     .map-block-name {
-      white-space: normal;
-      overflow-wrap: anywhere;
+      position: absolute;
+      z-index: 2;
+      left: 3px;
+      right: 3px;
+      bottom: 3px;
+      display: block;
+      width: auto;
+      max-height: 15px;
+      overflow: hidden;
+      padding: 1px 2px;
+      border-radius: 2px;
+      background: rgba(0, 0, 0, .42);
+      color: rgba(255, 255, 255, .78);
+      font-size: 8px;
       line-height: 1.25;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      text-shadow: 0 1px 2px rgba(0,0,0,.9);
+      pointer-events: none;
     }
     @media (max-width: 760px) {
       .map-color-row { grid-template-columns: 25px 24px minmax(0, 1fr); gap: 5px; }
       .map-color-chip { width: 25px; height: 25px; flex-basis: 25px; }
       .map-color-toggle { width: 24px; flex-basis: 24px; height: 27px; }
       .map-color-items { grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 5px; }
-      .map-block-tile { min-height: 70px; padding: 4px 2px 3px; }
+      .map-block-tile { min-height: 42px; height: 42px; padding: 2px; }
       .map-block-tile img { width: 36px; height: 36px; flex-basis: 36px; }
-      .map-block-name { font-size: 9px; }
+      .map-block-name { font-size: 7px; left: 2px; right: 2px; bottom: 2px; max-height: 13px; }
     }
     .coordinate-panel .box { margin-bottom: 10px; }
     @media (max-width: 620px) {
@@ -633,7 +652,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.4.4</div>
+  <div class="app-version" id="appVersion">v1.4.5</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>

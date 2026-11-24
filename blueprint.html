@@ -28,7 +28,11 @@ small{color:#b8b8cc}
   const download = document.getElementById("download");
   const hash = location.hash.slice(1);
   let dataUrl = "";
-  try { dataUrl = decodeURIComponent(hash); } catch (_) {}
+  try {
+    const base64 = hash.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - base64.length % 4) % 4);
+    dataUrl = "data:image/png;base64," + padded;
+  } catch (_) {}
   if (!dataUrl.startsWith("data:image/png;base64,")) {
     message.textContent = "設計図データがURLにありません。元のサイトで「オンラインで表示」を押してください。";
     return;

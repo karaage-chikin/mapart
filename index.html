@@ -398,7 +398,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.2.3</div>
+  <div class="app-version" id="appVersion">v1.2.4</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -1826,7 +1826,7 @@
         link.click();
         link.remove();
         setTimeout(() => URL.revokeObjectURL(url), 60000);
-        setPngStatus("座標付きPNGを保存しました。\n画像サイズ: " + output.width + "×" + output.height + " px\nファイルサイズ: " + formatBytes(blob.size) + "\n上端・左端の番号は1から始まります。", "success");
+        setPngStatus("座標付きPNGを保存しました。\n画像サイズ: " + output.width + "×" + output.height + " px\nファイルサイズ: " + (blob.size / 1024 / 1024).toFixed(2) + " MB" + "\n上端・左端の番号は1から始まります。", "success");
       } catch (error) {
         console.error("座標付きPNGの保存に失敗しました:", error);
         setPngStatus("座標付きPNGの保存を中止しました。\nERROR: " + (error && error.message ? error.message : String(error)), "error");

@@ -20,7 +20,7 @@ small{color:#b8b8cc}
 </head>
 <body>
 <header><h1>Minecraft MapArt 設計図</h1><div class="actions"><button id="download" disabled>PNGを保存</button><button id="copy">このURLをコピー</button></div></header>
-<main><div><div id="message">設計図を読み込んでいます…</div><small id="storageNote">短縮リンクは作成した端末・ブラウザの保存データを参照します。別端末へ共有する場合は、PNGを保存して共有してください。</small><img id="blueprint" alt="Minecraft MapArt 座標付き設計図" hidden></div></main>
+<main><div><div id="message">設計図を読み込んでいます…</div><small id="storageNote">共有リンクはクラウドに保存されます。保存期間は30日です。</small><img id="blueprint" alt="Minecraft MapArt 座標付き設計図" hidden></div></main>
 <script src="mapart-shared.js"></script>
 <script>
 (() => {
@@ -29,6 +29,9 @@ small{color:#b8b8cc}
   const download = document.getElementById("download");
   const hash = location.hash.slice(1);
   let dataUrl = "";
+  const DB_NAME = "mapart-share-v1", STORE = "payloads";
+  function openShareDb() { return new Promise((resolve,reject)=>{ const req=indexedDB.open(DB_NAME,1); req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:"id"});}; req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); }
+  async function readLegacySharedPayload(id) { const db=await openShareDb(); return new Promise((resolve,reject)=>{const req=db.transaction(STORE,"readonly").objectStore(STORE).get(id);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);}); }
   const base64ToBytes = value => {
     const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
@@ -45,16 +48,20 @@ small{color:#b8b8cc}
     }
     return "data:image/png;base64," + btoa(binary);
   };
-  const DB_NAME = "mapart-share-v1", STORE = "payloads";
-  function openShareDb() { return new Promise((resolve,reject)=>{ const req=indexedDB.open(DB_NAME,1); req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:"id"});}; req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); }
-  async function readSharedPayload(id) { const db=await openShareDb(); return new Promise((resolve,reject)=>{const req=db.transaction(STORE,"readonly").objectStore(STORE).get(id);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);}); }
+
   async function loadBlueprint() {
     try {
       let pngBytes;
+      const cloudMatch = hash.match(/^id=cloud_([a-zA-Z0-9_-]{12,40})$/);
       const sharedMatch = hash.match(/^id=([a-zA-Z0-9_-]{8,80})$/);
-      if (sharedMatch) {
-        const saved = await readSharedPayload(sharedMatch[1]);
-        if (!saved || !saved.bytes) throw new Error("設計図データが見つかりません。このURLを作成したブラウザと同じ端末・ブラウザで開いてください。");
+      if (cloudMatch) {
+        const response = await fetch("https://mapart-api.karaage-chikin-029.workers.dev/api/blueprints/" + encodeURIComponent(cloudMatch[1]));
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.data) throw new Error(result.error || "クラウド上の設計図が見つかりません。リンクの期限切れ、またはURLの誤りを確認してください。");
+        pngBytes = base64ToBytes(result.data);
+      } else if (sharedMatch) {
+        const saved = await readLegacySharedPayload(sharedMatch[1]);
+        if (!saved || !saved.bytes) throw new Error("旧形式の設計図データが見つかりません。以前に作成した端末・ブラウザで開いてください。");
         pngBytes = new Uint8Array(saved.bytes);
       } else {
         if (!hash) throw new Error("設計図データがURLにありません。元のサイトで「オンラインで表示」を押してください。");

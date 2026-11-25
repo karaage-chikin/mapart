@@ -52,7 +52,7 @@ small{color:#b8b8cc}
   async function loadBlueprint() {
     try {
       let pngBytes;
-      const cloudMatch = hash.match(/^id=cloud_([a-zA-Z0-9_-]{12,40})$/);
+      const cloudMatch = hash.match(/^id=cloud_([a-f0-9]{32})$/);
       const sharedMatch = hash.match(/^id=([a-zA-Z0-9_-]{8,80})$/);
       if (cloudMatch) {
         const response = await fetch("https://mapart-api.karaage-chikin-029.workers.dev/api/blueprints/" + encodeURIComponent(cloudMatch[1]));

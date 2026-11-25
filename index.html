@@ -731,11 +731,13 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.33</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.34</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.33</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.34</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
+      <li>自動補正・通常変換の色判定をテクスチャ平均色から分離し、Minecraftマップカラーだけで評価</li>
+      <li>自動最適化の評価を、出力される128×128マップカラーの平均色差へ統一</li>
       <li>クラウド保存の通信タイムアウトとHTTP別エラー表示を追加</li>
       <li>クラウド保存領域に件数・総容量の上限を追加</li>
       <li>Safariで新しいタブを先に確保し、保存中・失敗時の案内を改善</li>
@@ -1503,7 +1505,7 @@
               const tb = parseInt(block.tint.slice(5, 7), 16) / 255;
               block.rgb = [Math.round(block.rgb[0] * tr), Math.round(block.rgb[1] * tg), Math.round(block.rgb[2] * tb)];
             }
-            block.lab = rgbToLab(block.rgb[0], block.rgb[1], block.rgb[2]);
+            // rgb はUI用テクスチャ色。検索・最適化用LabはmapRgb由来の値を維持する。
           } catch (error) {
             console.warn("テクスチャ読み込み失敗:", block.id, path, error);
             block.textureLoadFailed = true;
@@ -2398,7 +2400,11 @@
           const cf=p.contrast===0?1:(259*(p.contrast+255))/(255*(259-p.contrast));
           r=cf*(r+p.brightness-128)+128;g=cf*(g+p.brightness-128)+128;b=cf*(b+p.brightness-128)+128;
           const l=.2126*r+.7152*g+.0722*b;r=l+(r-l)*(p.saturation/100);g=l+(g-l)*(p.saturation/100);b=l+(b-l)*(p.saturation/100);
-          const chroma=Math.max(r,g,b)-Math.min(r,g,b),vf=1+(p.vibrance/100-1)*(1-chroma/255),ex=100/p.gamma,rr=clamp(Math.round(255*Math.pow(clamp(r)/255,ex))+p.temperature*.72),gg=clamp(Math.round(255*Math.pow(clamp(g)/255,ex))),bb=clamp(Math.round(255*Math.pow(clamp(b)/255,ex))-p.temperature*.72),vl=.2126*rr+.7152*gg+.0722*bb;
+          const ex=100/p.gamma;
+          let rr=clamp(255*Math.pow(clamp(r)/255,ex)+p.temperature*.72);
+          let gg=clamp(255*Math.pow(clamp(g)/255,ex));
+          let bb=clamp(255*Math.pow(clamp(b)/255,ex)-p.temperature*.72);
+          const chroma=Math.max(rr,gg,bb)-Math.min(rr,gg,bb),vf=1+(p.vibrance/100-1)*(1-chroma/255),vl=.2126*rr+.7152*gg+.0722*bb;
           return [clamp(vl+(rr-vl)*vf),clamp(vl+(gg-vl)*vf),clamp(vl+(bb-vl)*vf)];
         }
         function evaluate(p){
@@ -2442,7 +2448,8 @@
             for(let yy=y;yy<y+2;yy++)for(let xx=x;xx<x+2;xx++){const i=yy*N+xx,q=i*4,z=i*3;ar+=source[q];ag+=source[q+1];ab+=source[q+2];br+=outputRGB[z];bg+=outputRGB[z+1];bb+=outputRGB[z+2];}
             const A=labOf(ar/4,ag/4,ab/4),B=labOf(br/4,bg/4,bb/4),dl=A[0]-B[0],da=A[1]-B[1],db=A[2]-B[2];region+=dl*dl+da*da+db*db;regions++;
           }
-          let clipped=0;for(let i=0;i<total;i++){const z=i*3;if(outputRGB[z]<2||outputRGB[z]>253||outputRGB[z+1]<2||outputRGB[z+1]>253||outputRGB[z+2]<2||outputRGB[z+2]>253)clipped++;}return .35*(grad/Math.max(1,gradWeight))+.25*(edgeColor/Math.max(1,edgeWeight))+.25*(pixelError/total)+.15*(region/Math.max(1,regions))+(clipped/total)*180;
+          // 最終的なマップ出力色の平均色差だけで評価する。テクスチャや輪郭評価は混ぜない。
+          return pixelError/total;
         }
         let index=0,best=null,bestScore=Infinity;const top=[];
         function batch(){const end=Math.min(candidates.length,index+3);

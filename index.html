@@ -112,6 +112,7 @@
     }
     .tab-panel[data-panel="stats"] > .box { height: 100%; display: flex; flex-direction: column; min-height: 0; }
     .error-map-canvas { width: min(100%, 640px); height: auto; image-rendering: pixelated; border: 1px solid var(--border); background: #111; display: block; }
+    .outline-canvas { display:block; width:min(100%, 512px); height:auto; aspect-ratio:1; image-rendering:pixelated; border:1px solid var(--border); background:#171a22; }
     .error-map-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:10px 0; }
     .error-map-legend { display:flex; flex-wrap:wrap; gap:12px; font-size:.82rem; color:var(--subtext); }
     .error-map-legend span { display:inline-flex; align-items:center; gap:5px; }
@@ -736,11 +737,12 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.37</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.38</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.37</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.38</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
+      <li>輪郭確認モードを追加し、元画像とマップアートの輪郭の一致・欠落・余分な線を可視化</li>
       <li>色の誤差ヒートマップを追加し、元画像と実際のマップカラーの差を可視化</li>
       <li>誤差ヒートマップに単独表示・元画像重ね表示・マスごとの色差確認を追加</li>
       <li>自動補正・通常変換の色判定をテクスチャ平均色から分離し、Minecraftマップカラーだけで評価</li>
@@ -807,6 +809,7 @@
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="quality">画質・色調補正</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="blocks">ブロック選択</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="error">色の誤差</button>
+        <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="outline">輪郭確認</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="stats">必要数一覧</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="coordinates">ワールド座標</button>
       </nav>
@@ -900,6 +903,21 @@
           <canvas id="errorMapCanvas" class="error-map-canvas" width="128" height="128" aria-label="色の誤差ヒートマップ"></canvas>
           <p id="errorMapStatus" class="muted" role="status" aria-live="polite">画像を変換すると誤差ヒートマップを表示できます。</p>
           <div id="errorMapPixelInfo" class="coordinate-result">ヒートマップのマスをクリックすると、その位置の色差を確認できます。</div>
+        </div></section>
+        <section class="tab-panel" role="tabpanel" data-panel="outline"><div class="box">
+          <h2>輪郭確認モード</h2>
+          <p class="muted">補正後の元画像と、選択ブロックのMinecraftマップカラーから輪郭を抽出して比較します。テクスチャ画像は使わず、自動補正の採点・変換結果にも影響しません。</p>
+          <div class="error-map-controls">
+            <label for="outlineThreshold">輪郭の検出感度 <strong id="outlineThresholdValue">90</strong></label>
+            <input id="outlineThreshold" type="range" min="20" max="240" step="5" value="90">
+          </div>
+          <div class="error-map-legend">
+            <span><i class="error-map-dot" style="background:#39d98a"></i>一致している輪郭</span>
+            <span><i class="error-map-dot" style="background:#ff5252"></i>元画像にあるが再現できていない輪郭</span>
+            <span><i class="error-map-dot" style="background:#48cfff"></i>マップアート側に余分な輪郭</span>
+          </div>
+          <canvas id="outlineCheckCanvas" class="outline-canvas" width="128" height="128" aria-label="元画像とマップアートの輪郭比較"></canvas>
+          <p id="outlineCheckStatus" class="muted" role="status" aria-live="polite">画像を変換すると輪郭の比較を表示できます。</p>
         </div></section>
         <section class="tab-panel" role="tabpanel" data-panel="stats"><div class="box">
           <h2>必要ブロック一覧（2D平面配置）</h2>
@@ -2047,6 +2065,7 @@
       renderResultPreview();
       renderStats(counts);
       renderErrorHeatmap();
+      renderOutlineCheck();
       if (conversionStatus) conversionStatus.textContent = "画像変換完了：128×128・16,384マスを処理しました。";
       return true;
     }
@@ -2084,6 +2103,87 @@
       ctx.putImageData(image,0,0);
       if (status) status.textContent = "平均色差 ΔE76: " + (total/lastGrid.length).toFixed(2) + " / 最大: " + max.toFixed(2) + " / 大きな誤差（ΔE 20以上）: " + severe.toLocaleString() + "マス";
     }
+
+
+    function renderOutlineCheck() {
+      const canvas = document.getElementById("outlineCheckCanvas");
+      const status = document.getElementById("outlineCheckStatus");
+      const thresholdInput = document.getElementById("outlineThreshold");
+      const thresholdValue = document.getElementById("outlineThresholdValue");
+      if (!canvas || !lastGrid || !lastSourcePixels || lastGrid.length !== MAP_SIZE * MAP_SIZE) {
+        if (status) status.textContent = "画像をアップロードして変換してください。";
+        return;
+      }
+      const threshold = Number(thresholdInput?.value || 90);
+      if (thresholdValue) thresholdValue.textContent = String(threshold);
+      const size = MAP_SIZE;
+      const sourceLuma = new Float32Array(size * size);
+      const outputLuma = new Float32Array(size * size);
+      for (let i = 0; i < size * size; i++) {
+        const p = i * 4;
+        sourceLuma[i] = 0.2126 * lastSourcePixels[p] + 0.7152 * lastSourcePixels[p + 1] + 0.0722 * lastSourcePixels[p + 2];
+        const rgb = lastGrid[i].mapRgb;
+        outputLuma[i] = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+      }
+      const detectEdges = values => {
+        const edges = new Uint8Array(size * size);
+        for (let y = 1; y < size - 1; y++) {
+          for (let x = 1; x < size - 1; x++) {
+            const i = y * size + x;
+            const a = values[i - size - 1], b = values[i - size], c = values[i - size + 1];
+            const d = values[i - 1], f = values[i + 1];
+            const g = values[i + size - 1], h = values[i + size], j = values[i + size + 1];
+            const gx = -a + c - 2 * d + 2 * f - g + j;
+            const gy = -a - 2 * b - c + g + 2 * h + j;
+            if (Math.hypot(gx, gy) >= threshold) edges[i] = 1;
+          }
+        }
+        return edges;
+      };
+      const sourceEdges = detectEdges(sourceLuma);
+      const outputEdges = detectEdges(outputLuma);
+      const nearEdge = (edges, x, y) => {
+        for (let oy = -1; oy <= 1; oy++) {
+          for (let ox = -1; ox <= 1; ox++) {
+            const nx = x + ox, ny = y + oy;
+            if (nx >= 0 && nx < size && ny >= 0 && ny < size && edges[ny * size + nx]) return true;
+          }
+        }
+        return false;
+      };
+      const image = canvas.getContext("2d").createImageData(size, size);
+      let sourceCount = 0, matched = 0, missing = 0, extra = 0;
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const i = y * size + x, p = i * 4;
+          const src = sourceEdges[i] === 1, out = outputEdges[i] === 1;
+          if (src) {
+            sourceCount++;
+            if (nearEdge(outputEdges, x, y)) {
+              matched++;
+              image.data[p] = 57; image.data[p + 1] = 217; image.data[p + 2] = 138;
+            } else {
+              missing++;
+              image.data[p] = 255; image.data[p + 1] = 82; image.data[p + 2] = 82;
+            }
+          } else if (out && !nearEdge(sourceEdges, x, y)) {
+            extra++;
+            image.data[p] = 72; image.data[p + 1] = 207; image.data[p + 2] = 255;
+          } else {
+            image.data[p] = 23; image.data[p + 1] = 26; image.data[p + 2] = 34;
+          }
+          image.data[p + 3] = 255;
+        }
+      }
+      canvas.getContext("2d").putImageData(image, 0, 0);
+      const rate = sourceCount ? (matched / sourceCount * 100).toFixed(1) : "—";
+      if (status) status.textContent = "元画像の輪郭: " + sourceCount.toLocaleString() + "マス / 再現: " + matched.toLocaleString() + "マス (" + rate + "%) / 欠落: " + missing.toLocaleString() + "マス / 余分: " + extra.toLocaleString() + "マス";
+    }
+
+    (() => {
+      const threshold = document.getElementById("outlineThreshold");
+      if (threshold) threshold.addEventListener("input", renderOutlineCheck);
+    })();
 
     (() => {
       const canvas = document.getElementById("errorMapCanvas");

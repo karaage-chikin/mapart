@@ -2873,13 +2873,14 @@
           ["clarity",[0,12,25,38,50,62,75,88,100],[-25,-12,0,12,25]],
           ["denoise",[0,12,25,38,50,62,75,88,100],[-25,-12,0,12,25]]
         ];
+        const qualityTotal=qualityAxes.reduce((sum,axis)=>sum+axis[1].length+axis[2].length,0);
         let qualityTested=0;
         for(let axisIndex=0;axisIndex<qualityAxes.length;axisIndex++){
           if(optimizationCancelled)return;
           const [key,wideValues,localOffsets]=qualityAxes[axisIndex];
           status.textContent="追加補正 全範囲探索："+(axisIndex+1)+"/7（"+key+"）";
           const wide=await evaluateQualityAxis(source,active,best,key,wideValues,runId,
-            (n,total,label)=>progress(qualityTested+n,total,label),
+            (n,total,label)=>progress(qualityTested+n,qualityTotal,label),
             "追加補正 "+(axisIndex+1)+"/7");
           if(!wide||optimizationCancelled)return;
           qualityTested+=wide.tested;
@@ -2889,7 +2890,7 @@
           const localValues=localOffsets.map(offset=>Math.max(min,Math.min(max,center+offset)));
           status.textContent="追加補正 精密調整："+(axisIndex+1)+"/7（"+key+"）";
           const local=await evaluateQualityAxis(source,active,best,key,localValues,runId,
-            (n,total,label)=>progress(n,total,label),
+            (n,total,label)=>progress(qualityTested+n,qualityTotal,label),
             "追加補正精密 "+(axisIndex+1)+"/7");
           if(!local||optimizationCancelled)return;
           qualityTested+=local.tested;

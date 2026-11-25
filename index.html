@@ -1084,6 +1084,15 @@
       // ガラス系（初期状態では未選択）
     ];
 
+    // 色データの唯一の参照元は共有パレット。ここではUI固有の情報だけ保持する。
+    const MAPART_PALETTE_BY_ID = new Map(window.MAPART_SHARED.PALETTE.map(item => [item.id, item]));
+    for (const block of BLOCK_DATA) {
+      const canonical = MAPART_PALETTE_BY_ID.get(block.id);
+      if (!canonical) throw new Error("共有パレットに存在しないブロックID: " + block.id);
+      block.mapRgb = canonical.mapRgb.slice();
+    }
+    if (BLOCK_DATA.length !== window.MAPART_SHARED.PALETTE.length) throw new Error("メイン画面と共有パレットのブロック数が一致しません。");
+
     function clamp(v, min = 0, max = 255) {
       return v < min ? min : v > max ? max : v;
     }

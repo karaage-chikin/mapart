@@ -710,7 +710,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.11</div>
+  <div class="app-version" id="appVersion">v1.5.12</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -2109,10 +2109,29 @@
       });
     });
 
+    // スライダー操作中に重い全マス変換を連続実行しない。
+    // 数値表示は即時更新し、変換は操作が少し止まった時点で実行する。
+    let sliderConversionTimer = null;
+    function scheduleSliderConversion() {
+      if (sliderConversionTimer !== null) clearTimeout(sliderConversionTimer);
+      sliderConversionTimer = setTimeout(() => {
+        sliderConversionTimer = null;
+        runConversion();
+      }, 180);
+    }
+    function flushSliderConversion() {
+      if (sliderConversionTimer !== null) {
+        clearTimeout(sliderConversionTimer);
+        sliderConversionTimer = null;
+      }
+      runConversion();
+    }
+
     els.ditherStrength.addEventListener("input", () => {
       els.ditherStrengthVal.textContent = `${els.ditherStrength.value}%`;
-      runConversion();
+      scheduleSliderConversion();
     });
+    els.ditherStrength.addEventListener("change", flushSliderConversion);
     els.ditherMethod.addEventListener("change", runConversion);
 
     const adjustmentControls = [
@@ -2124,10 +2143,15 @@
     adjustmentControls.forEach(([control, labelId, format]) => {
       control.addEventListener("input", () => {
         document.getElementById(labelId).textContent = format(control.value);
-        runConversion();
+        scheduleSliderConversion();
       });
+      control.addEventListener("change", flushSliderConversion);
     });
     document.getElementById("resetImageAdjustments").addEventListener("click", () => {
+      if (sliderConversionTimer !== null) {
+        clearTimeout(sliderConversionTimer);
+        sliderConversionTimer = null;
+      }
       els.brightness.value = 0;
       els.contrast.value = 0;
       els.saturation.value = 100;

@@ -731,9 +731,9 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.35</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.36</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.35</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.36</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
       <li>自動補正・通常変換の色判定をテクスチャ平均色から分離し、Minecraftマップカラーだけで評価</li>
@@ -2414,17 +2414,27 @@
       }
       onmessage=e=>{
         const source=new Uint8Array(e.data.source),blocks=e.data.blocks,candidates=e.data.candidates,N=128,total=N*N;
-        const blockLabs=blocks.map(b=>b.lab),blockRgb=blocks.map(b=>b.rgb),lut=new Uint16Array(32768*16);
+        const blockLabs=blocks.map(b=>b.lab),blockRgb=blocks.map(b=>b.rgb),LUT_CANDIDATES=32,lut=new Uint16Array(32768*LUT_CANDIDATES);
         for(let r=0;r<32;r++)for(let g=0;g<32;g++)for(let b=0;b<32;b++){
-          const L=labOf(r*255/31,g*255/31,b*255/31),best=new Array(16).fill(0),dist=new Array(16).fill(Infinity);
+          const L=labOf(r*255/31,g*255/31,b*255/31),best=new Array(LUT_CANDIDATES).fill(0),dist=new Array(LUT_CANDIDATES).fill(Infinity);
           for(let k=0;k<blocks.length;k++){
             const q=blockLabs[k],dl=L[0]-q[0],da=L[1]-q[1],db=L[2]-q[2],v=dl*dl+da*da+db*db;
-            if(v<dist[15]){let z=15;while(z>0&&v<dist[z-1]){dist[z]=dist[z-1];best[z]=best[z-1];z--;}dist[z]=v;best[z]=k;}
+            if(v<dist[LUT_CANDIDATES-1]){let z=LUT_CANDIDATES-1;while(z>0&&v<dist[z-1]){dist[z]=dist[z-1];best[z]=best[z-1];z--;}dist[z]=v;best[z]=k;}
           }
-          const off=((r*32+g)*32+b)*16;for(let z=0;z<16;z++)lut[off+z]=best[z];
+          const off=((r*32+g)*32+b)*LUT_CANDIDATES;for(let z=0;z<LUT_CANDIDATES;z++)lut[off+z]=best[z];
         }
-        const originalLab=new Array(total);
+        const originalLab=new Array(total),originalBlurLab=new Array(total);
         for(let i=0;i<total;i++){const q=i*4;originalLab[i]=labOf(source[q],source[q+1],source[q+2]);}
+        // 3x3 Gaussian相当の近傍平均を元画像側で一度だけ計算。
+        // これによりディザの点単位の色差ではなく、少し離れて見たときの色の再現性も評価する。
+        for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+          let r=0,g=0,b=0,wSum=0;
+          for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+            const xx=clamp(x+dx,0,N-1),yy=clamp(y+dy,0,N-1),w=(dx===0?2:1)*(dy===0?2:1),q=(yy*N+xx)*4;
+            r+=source[q]*w;g+=source[q+1]*w;b+=source[q+2]*w;wSum+=w;
+          }
+          originalBlurLab[y*N+x]=labOf(r/wSum,g/wSum,b/wSum);
+        }
         function adjust(r,g,b,p){
           const cf=p.contrast===0?1:(259*(p.contrast+255))/(255*(259-p.contrast));
           r=cf*(r+p.brightness-128)+128;g=cf*(g+p.brightness-128)+128;b=cf*(b+p.brightness-128)+128;
@@ -2456,9 +2466,9 @@
           let pixelError=0;const strength=p.ditherStrength/100;
           for(let y=0;y<N;y++)for(let x=0;x<N;x++){
             const i=y*N+x,z=i*3;let r=clamp(work[z]),g=clamp(work[z+1]),b=clamp(work[z+2]);if(p.ditherMethod==="ordered"){const mt=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]],t=(mt[y%4][x%4]-7.5)*strength*3.2;r=clamp(r+t);g=clamp(g+t);b=clamp(b+t);}const lab=labOf(r,g,b);
-            const ri=Math.min(31,Math.round(r*31/255)),gi=Math.min(31,Math.round(g*31/255)),bi=Math.min(31,Math.round(b*31/255)),off=((ri*32+gi)*32+bi)*16;
+            const ri=Math.min(31,Math.round(r*31/255)),gi=Math.min(31,Math.round(g*31/255)),bi=Math.min(31,Math.round(b*31/255)),off=((ri*32+gi)*32+bi)*LUT_CANDIDATES;
             let chosen=lut[off],bestDist=Infinity;
-            for(let k=0;k<16;k++){const id=lut[off+k],q=blockLabs[id],dl=lab[0]-q[0],da=lab[1]-q[1],db=lab[2]-q[2],d=dl*dl+da*da+db*db;if(d<bestDist){bestDist=d;chosen=id;}}
+            for(let k=0;k<LUT_CANDIDATES;k++){const id=lut[off+k],q=blockLabs[id],dl=lab[0]-q[0],da=lab[1]-q[1],db=lab[2]-q[2],d=dl*dl+da*da+db*db;if(d<bestDist){bestDist=d;chosen=id;}}
             const rgb=blockRgb[chosen];outputRGB[z]=rgb[0];outputRGB[z+1]=rgb[1];outputRGB[z+2]=rgb[2];
             const o=originalLab[i],q=blockLabs[chosen],dl=o[0]-q[0],da=o[1]-q[1],db=o[2]-q[2];
             pixelError+=dl*dl+da*da+db*db;
@@ -2469,8 +2479,19 @@
               else{add(x+1,y,7/16);add(x-1,y+1,3/16);add(x,y+1,5/16);add(x+1,y+1,1/16);}
             }
           }
-          // 最終的なマップ出力色の平均色差だけで評価する。テクスチャや輪郭評価は混ぜない。
-          return pixelError/total;
+          // マップに実際に出るmapRgb同士で評価。テクスチャ情報は一切使用しない。
+          // 点単位25% + 3x3近傍平均75%。ディザの粒を過剰に罰せず、顔や背景の色面を重視する。
+          let blurError=0;
+          for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+            let r=0,g=0,b=0,wSum=0;
+            for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+              const xx=clamp(x+dx,0,N-1),yy=clamp(y+dy,0,N-1),w=(dx===0?2:1)*(dy===0?2:1),q=(yy*N+xx)*3;
+              r+=outputRGB[q]*w;g+=outputRGB[q+1]*w;b+=outputRGB[q+2]*w;wSum+=w;
+            }
+            const actual=labOf(r/wSum,g/wSum,b/wSum),target=originalBlurLab[y*N+x],dl=target[0]-actual[0],da=target[1]-actual[1],db=target[2]-actual[2];
+            blurError+=dl*dl+da*da+db*db;
+          }
+          return (pixelError*.25+blurError*.75)/total;
         }
         let index=0,best=null,bestScore=Infinity;const top=[];
         function batch(){const end=Math.min(candidates.length,index+3);
@@ -2513,7 +2534,15 @@
     }
 
     function evaluateOptimizationCandidateFallback(source,blocks,p){
-      const N=128,total=N*N,work=new Float32Array(total*3),sourceL=new Float32Array(total);let error=0;
+      const N=128,total=N*N,work=new Float32Array(total*3),sourceL=new Float32Array(total),outputRGB=new Uint8Array(total*3),originalBlurLab=new Array(total);let error=0,blurError=0;
+      for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+        let r=0,g=0,b=0,wSum=0;
+        for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+          const xx=Math.max(0,Math.min(N-1,x+dx)),yy=Math.max(0,Math.min(N-1,y+dy)),w=(dx===0?2:1)*(dy===0?2:1),q=(yy*N+xx)*4;
+          r+=source[q]*w;g+=source[q+1]*w;b+=source[q+2]*w;wSum+=w;
+        }
+        originalBlurLab[y*N+x]=rgbToLab(r/wSum,g/wSum,b/wSum);
+      }
       for(let i=0;i<total;i++){const q=i*4,z=i*3,v=adjustRgbForCandidate(source[q],source[q+1],source[q+2],p);work[z]=v[0];work[z+1]=v[1];work[z+2]=v[2];sourceL[i]=.2126*source[q]+.7152*source[q+1]+.0722*source[q+2];}
       if(p.sharpness>0){
         const original=new Float32Array(work),amount=p.sharpness/100*1.15;
@@ -2529,6 +2558,7 @@
       for(let i=0;i<total;i++){const z=i*3;sourceL[i]=.2126*work[z]+.7152*work[z+1]+.0722*work[z+2];}
       const strength=p.ditherStrength/100;
       for(let y=0;y<N;y++)for(let x=0;x<N;x++){const i=y*N+x,z=i*3;let r=clamp(work[z]),g=clamp(work[z+1]),b=clamp(work[z+2]);if(p.ditherMethod==="ordered"){const mt=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]],t=(mt[y%4][x%4]-7.5)*strength*3.2;r=clamp(r+t);g=clamp(g+t);b=clamp(b+t);}const m=findClosestBlockLab(r,g,b,blocks);
+        outputRGB[z]=m.mapRgb[0];outputRGB[z+1]=m.mapRgb[1];outputRGB[z+2]=m.mapRgb[2];
         const L=rgbToLab(source[i*4],source[i*4+1],source[i*4+2]),dl=L[0]-m.lab[0],da=L[1]-m.lab[1],db=L[2]-m.lab[2];error+=dl*dl+da*da+db*db;
         if(strength&&p.ditherMethod!=="none"){const er=(r-m.mapRgb[0])*strength,eg=(g-m.mapRgb[1])*strength,eb=(b-m.mapRgb[2])*strength;
           const add=(xx,yy,w)=>{if(xx<0||xx>=N||yy<0||yy>=N)return;const j=yy*N+xx,q=j*3,f=1-.8*Math.min(1,Math.abs(sourceL[i]-sourceL[j])/64);work[q]+=er*w*f;work[q+1]+=eg*w*f;work[q+2]+=eb*w*f;};
@@ -2538,7 +2568,16 @@
           else{add(x+1,y,7/16);add(x-1,y+1,3/16);add(x,y+1,5/16);add(x+1,y+1,1/16);}
         }
       }
-      return error/total;
+      for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+        let r=0,g=0,b=0,wSum=0;
+        for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+          const xx=Math.max(0,Math.min(N-1,x+dx)),yy=Math.max(0,Math.min(N-1,y+dy)),w=(dx===0?2:1)*(dy===0?2:1),q=(yy*N+xx)*3;
+          r+=outputRGB[q]*w;g+=outputRGB[q+1]*w;b+=outputRGB[q+2]*w;wSum+=w;
+        }
+        const actual=rgbToLab(r/wSum,g/wSum,b/wSum),target=originalBlurLab[y*N+x],dl=target[0]-actual[0],da=target[1]-actual[1],db=target[2]-actual[2];
+        blurError+=dl*dl+da*da+db*db;
+      }
+      return (error*.25+blurError*.75)/total;
     }
     [[els.temperature,"temperatureVal",v=>String(v)],[els.vibrance,"vibranceVal",v=>v+"%"]].forEach(([c,id,f])=>{c.addEventListener("input",()=>{document.getElementById(id).textContent=f(c.value);scheduleSliderConversion();});c.addEventListener("change",flushSliderConversion);});
     document.getElementById("resetQualityAdjustments").addEventListener("click",()=>{els.temperature.value=0;els.vibrance.value=100;document.getElementById("temperatureVal").textContent="0";document.getElementById("vibranceVal").textContent="100%";runConversion();});

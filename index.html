@@ -76,7 +76,7 @@
       .grid-main > div:nth-child(2) > .box:nth-child(2) { grid-row: 4; }
     }
     @media (max-width: 560px) {
-      .block-list { grid-template-columns: 1fr; max-height: 560px; }
+      .block-list { grid-template-columns: 1fr; max-height: min(56dvh, 560px); }
     }
     .workspace-shell {
       display: grid; grid-template-columns: 126px minmax(280px, 1fr) minmax(300px, .95fr); gap: 10px;
@@ -742,6 +742,7 @@
     <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.39</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
+      <li>画像読み込み・変換結果のリセット・統計表示・履歴管理・設置手順URLを改善</li>
       <li>輪郭確認モードを追加し、元画像とマップアートの輪郭の一致・欠落・余分な線を可視化</li>
       <li>色の誤差ヒートマップを追加し、元画像と実際のマップカラーの差を可視化</li>
       <li>誤差ヒートマップに単独表示・元画像重ね表示・マスごとの色差確認を追加</li>
@@ -1286,8 +1287,10 @@
     let patternCache = new Map();
 
     let patternPixelCache = new Map();
+    let patternCacheScale = 0;
 
     function rebuildPatternCache(tilePx) {
+      patternCacheScale = tilePx;
       patternCache.clear();
       patternPixelCache.clear();
       BLOCK_DATA.forEach(b => {
@@ -1856,8 +1859,7 @@
         els.resultCanvas.height = outPx;
         els.resultTitle.textContent = `2D マップアート結果（ブロック模様 / ${tilePx}×${tilePx}px）`;
 
-        const firstTile = patternCache.values().next().value;
-        if (patternPixelCache.size === 0 || !firstTile || firstTile.width !== tilePx) {
+        if (patternPixelCache.size === 0 || patternCacheScale !== tilePx) {
           rebuildPatternCache(tilePx);
         }
 
@@ -2002,6 +2004,18 @@
         if (openBuildStepBtn) openBuildStepBtn.disabled = true;
         if (conversionStatus) conversionStatus.textContent = "使用するブロックを1種類以上選択してください。";
         resCtx.clearRect(0, 0, els.resultCanvas.width, els.resultCanvas.height);
+        els.resultTitle.textContent = "2D マップアート結果";
+        els.blueprintPreviewCanvas.width = MAP_SIZE;
+        els.blueprintPreviewCanvas.height = MAP_SIZE;
+        els.blueprintPreviewCanvas.getContext("2d")?.clearRect(0, 0, MAP_SIZE, MAP_SIZE);
+        ["errorMapCanvas", "outlineCheckCanvas"].forEach(id => {
+          const canvas = document.getElementById(id);
+          if (canvas) canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+        });
+        ["errorMapStatus", "outlineCheckStatus", "errorMapPixelInfo"].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = "使用するブロックを1種類以上選択してください。";
+        });
         els.statsBody.innerHTML = '<tr><td colspan="4" class="muted">ブロックを1種類以上選択してください。</td></tr>';
         return true;
       }
@@ -2216,6 +2230,10 @@
 
       for (const [id, count] of sorted) {
         const blk = BLOCK_DATA.find(b => b.id === id);
+        if (!blk) {
+          console.warn("集計に未知のブロックIDが含まれています:", id);
+          continue;
+        }
         const stacks = Math.ceil(count / 64).toLocaleString();
         const shulkerBoxes = Math.ceil(count / 1728).toLocaleString();
 
@@ -2335,6 +2353,10 @@
     }
     function loadImageDataUrl(dataUrl, fileName, saveToHistory) {
       const requestId = ++imageLoadSequence;
+      if (typeof sliderConversionTimer !== "undefined" && sliderConversionTimer !== null) {
+        clearTimeout(sliderConversionTimer);
+        sliderConversionTimer = null;
+      }
       const errorBox = document.getElementById("imageUploadError");
       const nameBox = document.getElementById("selectedImageName");
       errorBox.hidden = false;
@@ -2347,6 +2369,11 @@
             try { await img.decode(); } catch (decodeError) { if (!img.naturalWidth) throw decodeError; }
           }
           if (requestId !== imageLoadSequence) return;
+          const imageWidth = img.naturalWidth || img.width;
+          const imageHeight = img.naturalHeight || img.height;
+          if (!imageWidth || !imageHeight || imageWidth * imageHeight > MAX_IMAGE_PIXELS) {
+            throw new Error("画像の総画素数が上限（4,000万画素）を超えています。小さい画像に縮小してから再度読み込んでください。");
+          }
           loadedImage = normalizeLoadedImage(img);
           errorBox.hidden = false;
           errorBox.textContent = "画像を読み込みました。2Dプレビューを作成中…";
@@ -2379,6 +2406,18 @@
       errorBox.hidden = true; errorBox.textContent = "";
       if (!file) return;
       const name = file.name || "選択した画像";
+      const allowedType = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp", "image/avif"].includes((file.type || "").toLowerCase());
+      const extensionAllowed = /\.(png|jpe?g|webp|gif|bmp|avif)$/i.test(name);
+      if (file.size > MAX_IMAGE_FILE_BYTES) {
+        errorBox.hidden = false;
+        errorBox.textContent = "画像ファイルが大きすぎます。上限は20MBです。";
+        return;
+      }
+      if (!allowedType && !extensionAllowed) {
+        errorBox.hidden = false;
+        errorBox.textContent = "画像ファイルを選択してください（PNG・JPEG・WebP・GIF・BMP・AVIF）。";
+        return;
+      }
       document.getElementById("selectedImageName").textContent = name;
       errorBox.hidden = false; errorBox.textContent = "画像ファイルを読み込んでいます…";
       const reader = new FileReader();
@@ -2403,8 +2442,13 @@
       uploadArea.classList.remove("drag-over");
     }));
     uploadArea.addEventListener("drop", e => {
-      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      loadSelectedImage(file);
+      const files = e.dataTransfer && e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
+      if (files.length > 1) {
+        const errorBox = document.getElementById("imageUploadError");
+        errorBox.hidden = false;
+        errorBox.textContent = "一度に読み込める画像は1枚です。先頭のファイルを読み込みます。";
+      }
+      if (files.length) loadSelectedImage(files[0]);
     });
 
     [els.fitMode, els.bgFillToggle, els.bgColorInput].forEach(el => {
@@ -3141,7 +3185,7 @@
       const col = lx - ox + 1;
       const row = lz - oz + 1;
       if (col < 1 || col > MAP_SIZE || row < 1 || row > MAP_SIZE) {
-        coordinateBlockResult.textContent = "この座標は指定した128×128の範囲外です。";
+        coordinateBlockResult.textContent = "この座標は指定した128×128の範囲外です。対象範囲：X " + ox + "～" + rightX + " / Z " + oz + "～" + bottomZ + "。";
         return;
       }
       if (!lastGrid) {

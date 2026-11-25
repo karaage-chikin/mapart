@@ -731,11 +731,17 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.25</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.26</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.24</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.26</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
+      <li>設計図データをIndexedDBで受け渡し、URLを短縮（旧URLも引き続き対応）</li>
+      <li>設置進捗を自動保存し、設置方向の変更時に進捗リセットを確認</li>
+      <li>ミニマップの色画像をキャッシュして、移動時はハイライトのみ更新</li>
+      <li>PNG保存時の全ピクセル再検証を廃止し、形式・ヘッダー検証に整理</li>
+      <li>Bedrockテクスチャ参照を固定コミットにし、取得失敗時はマップ色表示へフォールバック</li>
+      <li>パレットID表・テクスチャ解決・コメント付きJSON解析を共通ファイルに集約</li>
       <li>画像アップロード時の二重読み込みを修正</li>
       <li>2Dプレビューのピクセル描画方式を改善</li>
       <li>プレビュー表示の安定性を改善</li>
@@ -919,7 +925,8 @@
         </div></aside>
     </div>  </div>
 
-  <script>
+  <script src="mapart-shared.js"></script>
+<script>
     // バージョン表示を押したときだけ更新情報を開く。
     (() => {
       const versionElement = document.getElementById("appVersion");
@@ -958,7 +965,7 @@
 
     const MAP_SIZE = 128;
     // URL形式v2の固定ID表。過去の設置手順URLとの互換性を保つため並び順を変更しない。
-    const URL_BLOCK_IDS = ["grass_block","dirt","sand","red_sand","gravel","andesite","clay","snow","packed_ice","blue_ice","slime","stone","cobblestone","granite","diorite","deepslate","cobbled_deepslate","sandstone","red_sandstone","quartz_block","obsidian","crying_obsidian","oak_planks","birch_planks","jungle_planks","dark_oak_planks","crimson_planks","warped_planks","white_wool","orange_wool","magenta_wool","light_blue_wool","yellow_wool","lime_wool","pink_wool","gray_wool","light_gray_wool","cyan_wool","purple_wool","blue_wool","brown_wool","green_wool","red_wool","black_wool","white_concrete","orange_concrete","magenta_concrete","light_blue_concrete","yellow_concrete","lime_concrete","pink_concrete","gray_concrete","light_gray_concrete","cyan_concrete","purple_concrete","blue_concrete","brown_concrete","green_concrete","red_concrete","black_concrete","terracotta","white_terracotta","orange_terracotta","magenta_terracotta","light_blue_terracotta","yellow_terracotta","lime_terracotta","pink_terracotta","gray_terracotta","light_gray_terracotta","cyan_terracotta","purple_terracotta","blue_terracotta","brown_terracotta","green_terracotta","red_terracotta","black_terracotta","iron_block","gold_block","diamond_block","emerald_block","lapis_block","redstone_block","copper_block","netherite_block","netherrack","calcite","basalt","blackstone","hay_block","glowstone","magma","soul_sand","end_stone","amethyst_block","sculk","ancient_debris"];
+    const URL_BLOCK_IDS = window.MAPART_SHARED.URL_BLOCK_IDS;
 
     // pattern: "speckle"（砂目/石）, "wool"（羊毛の繊維）, "planks"（板材/横ライン）, "bricks"（レンガ/タイル）, "smooth"（滑らか/鉱物）
     const BLOCK_DATA = [
@@ -1263,7 +1270,7 @@
     }
 
     // Mojang公式Bedrock Samplesのバニラ定義から、各ブロックの上面テクスチャを取得する。
-    const BEDROCK_SAMPLE_BASE = "https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/";
+    const BEDROCK_SAMPLE_BASE = "https://raw.githubusercontent.com/Mojang/bedrock-samples/15701fa9c13923f12662984c32c124327e40e3d3/resource_pack/";
     const BEDROCK_ID_ALIASES = {
       grass_block: "grass",
       snow_block: "snow",
@@ -1275,21 +1282,7 @@
       return JSON.parse(text.replace(/^\s*\/\/.*$/gm, ""));
     }
 
-    function texturePathFromBlock(blockDef, terrainData) {
-      if (!blockDef || !blockDef.textures) return null;
-      let textureKey = typeof blockDef.textures === "string"
-        ? blockDef.textures
-        : (blockDef.textures.up || blockDef.textures.side || blockDef.textures.down);
-      if (!textureKey) return null;
-      const entry = terrainData[textureKey];
-      if (!entry) return null;
-      let value = entry.textures;
-      if (Array.isArray(value)) value = value[0];
-      if (value && typeof value === "object") value = value.path;
-      if (typeof value !== "string") return null;
-      const normalized = value.startsWith("textures/") ? value : "textures/blocks/" + value;
-      return normalized.endsWith(".png") ? normalized : normalized + ".png";
-    }
+    const texturePathFromBlock = window.MAPART_SHARED.texturePathFromBlock;
 
     const TEXTURE_CACHE_NAME = "mapart-bedrock-textures-v1";
     let textureCachePromise = null;
@@ -2580,7 +2573,6 @@
       const rowBytes = littleEndian ? new Uint8Array(rowPixels32.buffer) : new Uint8Array(outputWidth * 4);
       const filterByte = new Uint8Array([0]);
       let completedRows = 0;
-      let pixelVerificationMs = 0;
 
       try {
         for (let sourceY = 0; sourceY < height; sourceY++) {
@@ -2590,14 +2582,6 @@
               const pixel = sourcePixels32[sourceRowStart + x];
               rowPixels32.fill(pixel, x * scale, (x + 1) * scale);
             }
-            const verifyStart = performance.now();
-            for (let x = 0; x < width; x++) {
-              const expected = sourcePixels32[sourceRowStart + x];
-              if (rowPixels32[x * scale] !== expected || rowPixels32[(x + 1) * scale - 1] !== expected) {
-                throw new Error("拡大後のピクセル値が元画像と一致しません。");
-              }
-            }
-            pixelVerificationMs += performance.now() - verifyStart;
           } else {
             const sourceRowStart = sourceY * width * 4;
             for (let x = 0; x < width; x++) {
@@ -2666,44 +2650,8 @@
         compressedChunks,
         width: outputWidth,
         height: outputHeight,
-        pixelVerificationMs,
         sourcePixelCount: width * height
       };
-    }
-
-    async function verifyDeflateStream(compressedChunks, expectedWidth, expectedHeight) {
-      if (typeof DecompressionStream !== "function") {
-        throw new Error("このブラウザはPNG圧縮データの検証に対応していません。");
-      }
-      const compressedBlob = new Blob(compressedChunks, { type: "application/octet-stream" });
-      const decompressor = new DecompressionStream("deflate");
-      const reader = compressedBlob.stream().pipeThrough(decompressor).getReader();
-      const rowStride = 1 + expectedWidth * 4;
-      let totalBytes = 0;
-      let nextFilterOffset = 0;
-
-      // 展開結果をメモリに溜めず、PNG各行のフィルター値と総データ量を検査する。
-      while (true) {
-        const item = await reader.read();
-        if (item.done) break;
-        const chunk = item.value;
-        const endOffset = totalBytes + chunk.length;
-        while (nextFilterOffset < endOffset) {
-          const localOffset = nextFilterOffset - totalBytes;
-          if (chunk[localOffset] !== 0) {
-            throw new Error("PNG画像データの行フィルター検証に失敗しました。");
-          }
-          nextFilterOffset += rowStride;
-        }
-        totalBytes = endOffset;
-      }
-
-      const expectedBytes = rowStride * expectedHeight;
-      if (totalBytes !== expectedBytes) {
-        throw new Error("PNG画像データの展開サイズが一致しません。");
-      }
-      // DecompressionStreamはzlibチェックサムも検査する。破損時は例外になる。
-      return totalBytes;
     }
 
     async function verifyPngHeader(blob, expectedWidth, expectedHeight) {
@@ -2831,11 +2779,7 @@
         setPngStatus("設計図PNGを検証中…\\nPNG寸法・色空間・圧縮データを確認しています。", "progress");
         const verificationStart = performance.now();
         await verifyPngHeader(result.blob, outputWidth, outputHeight);
-        const verifiedRawBytes = await verifyDeflateStream(result.compressedChunks, outputWidth, outputHeight);
-        if (verifiedRawBytes !== (1 + outputWidth * 4) * outputHeight) {
-          throw new Error("PNGデータ量の検証に失敗しました。");
-        }
-        verificationMs = result.pixelVerificationMs + (performance.now() - verificationStart);
+        verificationMs = performance.now() - verificationStart;
 
         const url = URL.createObjectURL(result.blob);
         const link = document.createElement("a");
@@ -2923,10 +2867,11 @@
         return;
       }
       const block = lastGrid[(row - 1) * MAP_SIZE + (col - 1)];
-      coordinateBlockResult.innerHTML =
-        "<strong>設計図：" + col + "列目・" + row + "行目</strong><br>" +
-        "ワールド座標：X " + lx + " / Z " + lz + "<br>" +
-        "置くブロック：<strong>" + (block ? block.name : "不明") + "</strong>";
+      coordinateBlockResult.replaceChildren();
+      const heading=document.createElement("strong");heading.textContent="設計図："+col+"列目・"+row+"行目";
+      const line1=document.createElement("div");line1.textContent="ワールド座標：X "+lx+" / Z "+lz;
+      const line2=document.createElement("div");line2.append("置くブロック：");const blockName=document.createElement("strong");blockName.textContent=block?block.name:"不明";line2.append(blockName);
+      coordinateBlockResult.append(heading,line1,line2);
     }
 
     [originXInput, originZInput, lookupXInput, lookupZInput].forEach(input => {
@@ -2939,45 +2884,22 @@
     els.onlineBlueprintBtn.addEventListener("click", async () => {
       if (!lastGrid) return;
       const opened = window.open("about:blank", "_blank");
-      if (!opened) {
-        alert("新しいタブを開けませんでした。ブラウザのポップアップ設定を確認してください。");
-        return;
-      }
+      if (!opened) { setPngStatus("新しいタブを開けませんでした。ポップアップ設定を確認してください。", "error"); return; }
       try {
-        // PNG自体は変更せず、PNGバイト列を可逆のDEFLATEで外側から圧縮する。
         const dataUrl = els.blueprintPreviewCanvas.toDataURL("image/png");
         const binary = atob(dataUrl.slice("data:image/png;base64,".length));
-        const pngBytes = Uint8Array.from(binary, ch => ch.charCodeAt(0));
-        let payloadBytes = pngBytes;
-        let mode = "p";
-        if (typeof CompressionStream === "function") {
-          try {
-            const compressedStream = new Blob([pngBytes]).stream().pipeThrough(new CompressionStream("deflate"));
-            const compressedBuffer = await new Response(compressedStream).arrayBuffer();
-            const compressedBytes = new Uint8Array(compressedBuffer);
-            if (compressedBytes.length < pngBytes.length) {
-              payloadBytes = compressedBytes;
-              mode = "d";
-            }
-          } catch (compressionError) {
-            console.warn("URL用の追加圧縮を利用できないため、元のPNGを使用します。", compressionError);
-          }
-        }
-        let binaryPayload = "";
-        const chunkSize = 0x8000;
-        for (let i = 0; i < payloadBytes.length; i += chunkSize) {
-          binaryPayload += String.fromCharCode(...payloadBytes.subarray(i, i + chunkSize));
-        }
-        const encoded = btoa(binaryPayload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        const bytes = Uint8Array.from(binary, ch => ch.charCodeAt(0));
+        const id = "bp_" + crypto.randomUUID().replace(/-/g,"");
+        const request = indexedDB.open("mapart-share-v1",1);
+        const db = await new Promise((resolve,reject)=>{request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains("payloads"))request.result.createObjectStore("payloads",{keyPath:"id"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
+        await new Promise((resolve,reject)=>{const tx=db.transaction("payloads","readwrite");tx.objectStore("payloads").put({id,bytes:bytes.buffer,createdAt:Date.now(),type:"blueprint"});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
         const target = new URL("blueprint.html", window.location.href);
-        opened.location.replace(target.href + "#2" + mode + encoded);
+        opened.location.replace(target.href + "#id=" + id);
       } catch (error) {
-        opened.close();
-        console.error("オンライン設計図URLの作成に失敗:", error);
-        alert("設計図URLを作成できませんでした。画像サイズを確認してください。");
+        opened.close(); console.error("設計図の受け渡しに失敗:",error);
+        setPngStatus("設計図データを保存できませんでした。ブラウザのサイトデータ保存設定を確認してください。","error");
       }
     });
-
 
 
     // 設置手順を圧縮データにして、個別URLの別ページで開く。

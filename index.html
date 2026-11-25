@@ -1287,9 +1287,7 @@
       terracotta: "hardened_clay"
     };
 
-    function parseBedrockJson(text) {
-      return JSON.parse(text.replace(/^\s*\/\/.*$/gm, ""));
-    }
+    const parseBedrockJson = window.MAPART_SHARED.parseBedrockJson;
 
     const texturePathFromBlock = window.MAPART_SHARED.texturePathFromBlock;
 
@@ -2604,19 +2602,6 @@
                 rowBytes[offset + 3] = sourceBytes[sourceOffset + 3];
               }
             }
-            const verifyStart = performance.now();
-            for (let x = 0; x < width; x++) {
-              const sourceOffset = sourceRowStart + x * 4;
-              const first = x * scale * 4;
-              const last = ((x + 1) * scale - 1) * 4;
-              for (let channel = 0; channel < 4; channel++) {
-                if (rowBytes[first + channel] !== sourceBytes[sourceOffset + channel] ||
-                    rowBytes[last + channel] !== sourceBytes[sourceOffset + channel]) {
-                  throw new Error("拡大後のピクセル値が元画像と一致しません。");
-                }
-              }
-            }
-            pixelVerificationMs += performance.now() - verifyStart;
           }
 
           for (let repeatY = 0; repeatY < scale; repeatY++) {
@@ -2916,7 +2901,7 @@
       if (!lastGrid) return;
       const opened = window.open("about:blank", "_blank");
       if (!opened) {
-        alert("新しいタブを開けませんでした。ブラウザのポップアップ設定を確認してください。");
+        setPngStatus("新しいタブを開けませんでした。ブラウザのポップアップ設定を確認してください。", "error");
         return;
       }
       try {
@@ -2952,7 +2937,7 @@
       } catch (error) {
         opened.close();
         console.error("設置手順URLの作成に失敗:", error);
-        alert(error && error.message ? error.message : "設置手順URLを作成できませんでした。");
+        setPngStatus(error && error.message ? error.message : "設置手順URLを作成できませんでした。", "error");
       }
     });
 

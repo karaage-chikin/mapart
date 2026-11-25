@@ -111,6 +111,11 @@
       width: auto; max-width: 100%; max-height: calc(100dvh - 290px); height: auto; object-fit: contain;
     }
     .tab-panel[data-panel="stats"] > .box { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+    .error-map-canvas { width: min(100%, 640px); height: auto; image-rendering: pixelated; border: 1px solid var(--border); background: #111; display: block; }
+    .error-map-controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:10px 0; }
+    .error-map-legend { display:flex; flex-wrap:wrap; gap:12px; font-size:.82rem; color:var(--subtext); }
+    .error-map-legend span { display:inline-flex; align-items:center; gap:5px; }
+    .error-map-dot { width:12px; height:12px; border-radius:3px; display:inline-block; }
     .stats-wrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
     .stats-table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: separate; border-spacing: 0 5px; font-size: 10px; }
     .stats-table thead { display: none; }
@@ -731,11 +736,13 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.36</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.37</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.36</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.37</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
+      <li>色の誤差ヒートマップを追加し、元画像と実際のマップカラーの差を可視化</li>
+      <li>誤差ヒートマップに単独表示・元画像重ね表示・マスごとの色差確認を追加</li>
       <li>自動補正・通常変換の色判定をテクスチャ平均色から分離し、Minecraftマップカラーだけで評価</li>
       <li>自動最適化の評価を、出力される128×128マップカラーの平均色差へ統一</li>
       <li>クラウド保存の通信タイムアウトとHTTP別エラー表示を追加</li>
@@ -799,6 +806,7 @@
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="adjust">画像調整</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="quality">画質・色調補正</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="blocks">ブロック選択</button>
+        <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="error">色の誤差</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="stats">必要数一覧</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="coordinates">ワールド座標</button>
       </nav>
@@ -878,6 +886,20 @@
           </div>
           <div class="muted" id="activeCountText" style="margin-bottom:6px;">有効ブロック: 0 / 0</div>
           <div class="block-list" id="blockList"></div>
+        </div></section>
+        <section class="tab-panel" role="tabpanel" data-panel="error"><div class="box">
+          <h2>色の誤差ヒートマップ</h2>
+          <p class="muted">元画像の補正後の色と、実際に選ばれたブロックのMinecraftマップカラーをCIELAB（ΔE76）で比較します。テクスチャ画像は使用しません。自動補正の採点には影響しません。</p>
+          <div class="error-map-controls">
+            <label for="errorMapMode">表示方法</label>
+            <select id="errorMapMode"><option value="heat">ヒートマップのみ</option><option value="overlay">元画像に重ねて表示</option></select>
+            <label for="errorMapOpacity">重ねる濃さ <span id="errorMapOpacityValue">65%</span></label>
+            <input id="errorMapOpacity" type="range" min="0" max="100" value="65">
+          </div>
+          <div class="error-map-legend"><span><i class="error-map-dot" style="background:#35b86b"></i>小さい誤差</span><span><i class="error-map-dot" style="background:#f4d03f"></i>中程度</span><span><i class="error-map-dot" style="background:#e74c3c"></i>大きい誤差</span></div>
+          <canvas id="errorMapCanvas" class="error-map-canvas" width="128" height="128" aria-label="色の誤差ヒートマップ"></canvas>
+          <p id="errorMapStatus" class="muted" role="status" aria-live="polite">画像を変換すると誤差ヒートマップを表示できます。</p>
+          <div id="errorMapPixelInfo" class="coordinate-result">ヒートマップのマスをクリックすると、その位置の色差を確認できます。</div>
         </div></section>
         <section class="tab-panel" role="tabpanel" data-panel="stats"><div class="box">
           <h2>必要ブロック一覧（2D平面配置）</h2>
@@ -1238,6 +1260,7 @@
     const resCtx = els.resultCanvas.getContext("2d");
     let loadedImage = null;
     let lastGrid = null;
+    let lastSourcePixels = null;
     let conversionSequence = 0;
     let patternCache = new Map();
 
@@ -2017,14 +2040,72 @@
       }
       if (currentRun !== conversionSequence) return false;
       lastGrid = grid;
+      lastSourcePixels = new Uint8ClampedArray(srcImg.data);
       els.downloadPngBtn.disabled = false;
       els.onlineBlueprintBtn.disabled = false;
       if (openBuildStepBtn) openBuildStepBtn.disabled = false;
       renderResultPreview();
       renderStats(counts);
+      renderErrorHeatmap();
       if (conversionStatus) conversionStatus.textContent = "画像変換完了：128×128・16,384マスを処理しました。";
       return true;
     }
+
+    function renderErrorHeatmap() {
+      const canvas = document.getElementById("errorMapCanvas");
+      const status = document.getElementById("errorMapStatus");
+      if (!canvas || !lastGrid || !lastSourcePixels) {
+        if (status) status.textContent = "画像をアップロードして変換してください。";
+        return;
+      }
+      const ctx = canvas.getContext("2d");
+      const image = ctx.createImageData(MAP_SIZE, MAP_SIZE);
+      const mode = document.getElementById("errorMapMode")?.value || "heat";
+      const opacity = Number(document.getElementById("errorMapOpacity")?.value ?? 65) / 100;
+      let total = 0, max = 0, severe = 0;
+      for (let i = 0; i < lastGrid.length; i++) {
+        const p = i * 4, block = lastGrid[i];
+        const target = rgbToLab(lastSourcePixels[p], lastSourcePixels[p+1], lastSourcePixels[p+2]);
+        const mapped = rgbToLab(block.mapRgb[0], block.mapRgb[1], block.mapRgb[2]);
+        const dl = target[0]-mapped[0], da = target[1]-mapped[1], db = target[2]-mapped[2];
+        const delta = Math.sqrt(dl*dl + da*da + db*db);
+        total += delta; max = Math.max(max, delta); if (delta >= 20) severe++;
+        const t = Math.min(1, delta / 35);
+        let r, g, b;
+        if (t < .5) { const q=t*2; r=Math.round(53+(244-53)*q); g=Math.round(184+(208-184)*q); b=Math.round(107+(63-107)*q); }
+        else { const q=(t-.5)*2; r=Math.round(244+(231-244)*q); g=Math.round(208+(76-208)*q); b=Math.round(63+(60-63)*q); }
+        if (mode === "overlay") {
+          image.data[p]=Math.round(lastSourcePixels[p]*(1-opacity)+r*opacity);
+          image.data[p+1]=Math.round(lastSourcePixels[p+1]*(1-opacity)+g*opacity);
+          image.data[p+2]=Math.round(lastSourcePixels[p+2]*(1-opacity)+b*opacity);
+        } else { image.data[p]=r; image.data[p+1]=g; image.data[p+2]=b; }
+        image.data[p+3]=255;
+      }
+      ctx.putImageData(image,0,0);
+      if (status) status.textContent = "平均色差 ΔE76: " + (total/lastGrid.length).toFixed(2) + " / 最大: " + max.toFixed(2) + " / 大きな誤差（ΔE 20以上）: " + severe.toLocaleString() + "マス";
+    }
+
+    (() => {
+      const canvas = document.getElementById("errorMapCanvas");
+      const mode = document.getElementById("errorMapMode");
+      const opacity = document.getElementById("errorMapOpacity");
+      const opacityValue = document.getElementById("errorMapOpacityValue");
+      if (mode) mode.addEventListener("change", renderErrorHeatmap);
+      if (opacity) opacity.addEventListener("input", () => {
+        if (opacityValue) opacityValue.textContent = opacity.value + "%";
+        renderErrorHeatmap();
+      });
+      if (canvas) canvas.addEventListener("click", event => {
+        if (!lastGrid || !lastSourcePixels) return;
+        const rect=canvas.getBoundingClientRect();
+        const x=Math.max(0,Math.min(127,Math.floor((event.clientX-rect.left)/rect.width*128)));
+        const y=Math.max(0,Math.min(127,Math.floor((event.clientY-rect.top)/rect.height*128)));
+        const i=y*128+x,p=i*4,block=lastGrid[i],src=[lastSourcePixels[p],lastSourcePixels[p+1],lastSourcePixels[p+2]],map=block.mapRgb;
+        const a=rgbToLab(...src),b=rgbToLab(...map),d=Math.sqrt((a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2);
+        const info=document.getElementById("errorMapPixelInfo");
+        if(info) info.textContent="位置: X "+(x+1)+" / Y "+(y+1)+" ｜ 元画像 RGB("+src.join(", ")+") ｜ ブロック: "+block.name+" ｜ マップ色 RGB("+map.join(", ")+") ｜ ΔE76: "+d.toFixed(2);
+      });
+    })();
 
     function renderStats(counts) {
       const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);

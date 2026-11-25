@@ -2814,7 +2814,7 @@
     function stopOptimizationWorkers(){optimizationWorkerInstances.forEach(w=>w.terminate());optimizationWorkerInstances=[];}
     async function runWorkerBatch(source,blocks,candidates,runId,progress){
       if(typeof Worker==="undefined"||typeof Blob==="undefined"||!URL.createObjectURL)return null;
-      const count=Math.min(4,Math.max(1,(navigator.hardwareConcurrency||2)-1),candidates.length),url=URL.createObjectURL(new Blob(["("+optimizationWorkerMain.toString()+")()"],{type:"text/javascript"}));
+      const count=candidates.length<24?1:Math.min(4,Math.max(1,(navigator.hardwareConcurrency||2)-1),candidates.length),url=URL.createObjectURL(new Blob(["("+optimizationWorkerMain.toString()+")()"],{type:"text/javascript"}));
       const jobs=Array.from({length:count},(_,k)=>candidates.filter((_,i)=>i%count===k)),progressByWorker=new Array(count).fill(0);
       try{const results=await Promise.all(jobs.map((chunk,k)=>new Promise((resolve,reject)=>{const w=new Worker(url);optimizationWorkerInstances.push(w);w.onmessage=e=>{if(optimizationCancelled||runId!==window.__mapartOptimizationRun){w.terminate();resolve(null);}else if(e.data.type==="progress"){progressByWorker[k]=e.data.tested;progress(progressByWorker.reduce((a,b)=>a+b,0));}else if(e.data.type==="done"){w.terminate();resolve(e.data);}};w.onerror=reject;const src=new Uint8Array(source);w.postMessage({source:src.buffer,blocks,candidates:chunk},[src.buffer]);})));
       return results.filter(Boolean).reduce((a,x)=>{if(x.bestScore<a.score){a.best=x.best;a.score=x.bestScore;}a.tested+=x.tested;(x.top||[]).forEach(t=>a.top.push(t));a.top.sort((u,v)=>u.score-v.score);a.top=a.top.slice(0,10);return a;},{best:null,score:Infinity,tested:0,top:[]});}

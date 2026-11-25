@@ -1753,19 +1753,22 @@
 
     const nearestBlockCache = new WeakMap();
     function findClosestBlockLab(r, g, b, activeBlocks) {
-      const rr=clamp(Math.round(r)),gg=clamp(Math.round(g)),bb=clamp(Math.round(b));
-      let cache=nearestBlockCache.get(activeBlocks);
-      if(!cache){cache=new Map();nearestBlockCache.set(activeBlocks,cache);}
-      const key=(rr<<16)|(gg<<8)|bb;
-      const cached=cache.get(key);if(cached)return cached;
+      const rr=clamp(r),gg=clamp(g),bb=clamp(b);
+      const cacheable=Number.isInteger(rr)&&Number.isInteger(gg)&&Number.isInteger(bb);
+      let cache=null,key=0;
+      if(cacheable){
+        cache=nearestBlockCache.get(activeBlocks);
+        if(!cache){cache=new Map();nearestBlockCache.set(activeBlocks,cache);}
+        key=(rr<<16)|(gg<<8)|bb;
+        const cached=cache.get(key);if(cached)return cached;
+      }
       const [L1, a1, b1] = rgbToLab(rr,gg,bb);
       let best = activeBlocks[0],bestDist = Infinity;
       for (let i = 0; i < activeBlocks.length; i++) {
         const blk = activeBlocks[i],dL = L1 - blk.lab[0],da = a1 - blk.lab[1],db = b1 - blk.lab[2],dist = dL*dL + da*da + db*db;
         if (dist < bestDist) { bestDist = dist; best = blk; }
       }
-      if(cache.size>=65536)cache.clear();
-      cache.set(key,best);
+      if(cacheable){if(cache.size>=65536)cache.clear();cache.set(key,best);}
       return best;
     }
 

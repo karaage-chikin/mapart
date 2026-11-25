@@ -710,7 +710,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.13</div>
+  <div class="app-version" id="appVersion">v1.5.14</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -1862,21 +1862,20 @@
     }
 
     async function runConversion() {
-      if (!loadedImage) return;
+      if (!loadedImage) return false;
       const currentRun = ++conversionSequence;
-
+      const openBuildStepBtn = document.getElementById("openBuildStepBtn");
       const activeBlocks = BLOCK_DATA.filter(b => b.checked && b.mapRgb);
       if (activeBlocks.length === 0) {
         lastGrid = null;
         els.downloadPngBtn.disabled = true;
         els.onlineBlueprintBtn.disabled = true;
+        if (openBuildStepBtn) openBuildStepBtn.disabled = true;
         resCtx.clearRect(0, 0, els.resultCanvas.width, els.resultCanvas.height);
         els.statsBody.innerHTML = '<tr><td colspan="4" class="muted">ブロックを1種類以上選択してください。</td></tr>';
-        return;
+        return true;
       }
-
       drawFittedImage(loadedImage);
-
       const srcImg = srcCtx.getImageData(0, 0, MAP_SIZE, MAP_SIZE);
       applyImageAdjustments(srcImg.data);
       srcCtx.putImageData(srcImg, 0, 0);
@@ -1884,24 +1883,17 @@
       const counts = new Map();
       const strength = Number(els.ditherStrength.value) / 100;
       const grid = new Array(MAP_SIZE * MAP_SIZE);
-
       for (let y = 0; y < MAP_SIZE; y++) {
-        // 数行ごとにブラウザへ処理を返し、画像変換中も画面操作を止めない。
         if (y > 0 && y % 4 === 0) {
           await new Promise(resolve => setTimeout(resolve, 0));
-          if (currentRun !== conversionSequence) return;
+          if (currentRun !== conversionSequence) return false;
         }
         for (let x = 0; x < MAP_SIZE; x++) {
           const idx = (y * MAP_SIZE + x) * 4;
-          const r = work[idx];
-          const g = work[idx + 1];
-          const b = work[idx + 2];
-
+          const r = work[idx], g = work[idx + 1], b = work[idx + 2];
           const matched = findClosestBlockLab(r, g, b, activeBlocks);
           grid[y * MAP_SIZE + x] = matched;
-
           counts.set(matched.id, (counts.get(matched.id) || 0) + 1);
-
           if (strength > 0 && els.ditherMethod.value !== "none") {
             const er = (r - matched.mapRgb[0]) * strength;
             const eg = (g - matched.mapRgb[1]) * strength;
@@ -1922,14 +1914,14 @@
           }
         }
       }
-
-      if (currentRun !== conversionSequence) return;
+      if (currentRun !== conversionSequence) return false;
       lastGrid = grid;
       els.downloadPngBtn.disabled = false;
       els.onlineBlueprintBtn.disabled = false;
-      document.getElementById("openBuildStepBtn").disabled = false;
+      if (openBuildStepBtn) openBuildStepBtn.disabled = false;
       renderResultPreview();
       renderStats(counts);
+      return true;
     }
 
     function renderStats(counts) {
@@ -2042,7 +2034,21 @@
         list.textContent = "このブラウザでは履歴を利用できません";
       }
     }
+    let imageLoadSequence = 0;
+    function normalizeLoadedImage(img) {
+      const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+      if (!iw || !ih) throw new Error("画像の縦横サイズを取得できませんでした。");
+      const scale = Math.min(1, 1024 / Math.max(iw, ih));
+      const w = Math.max(1, Math.round(iw * scale)), h = Math.max(1, Math.round(ih * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("画像処理用のCanvasを作成できませんでした。");
+      ctx.drawImage(img, 0, 0, w, h);
+      return canvas;
+    }
     function loadImageDataUrl(dataUrl, fileName, saveToHistory) {
+      const requestId = ++imageLoadSequence;
       const errorBox = document.getElementById("imageUploadError");
       const nameBox = document.getElementById("selectedImageName");
       errorBox.hidden = false;
@@ -2050,24 +2056,33 @@
       nameBox.textContent = fileName || "選択した画像";
       const img = new Image();
       img.onload = async () => {
-        loadedImage = img;
         try {
+          if (typeof img.decode === "function") {
+            try { await img.decode(); } catch (decodeError) { if (!img.naturalWidth) throw decodeError; }
+          }
+          if (requestId !== imageLoadSequence) return;
+          loadedImage = normalizeLoadedImage(img);
           errorBox.hidden = false;
           errorBox.textContent = "画像を読み込みました。2Dプレビューを作成中…";
-          await runConversion();
+          const completed = await runConversion();
+          if (requestId !== imageLoadSequence || !completed) return;
           errorBox.hidden = true;
           errorBox.textContent = "";
           if (saveToHistory) {
-            try { await saveRecentUpload(fileName || "画像", dataUrl); await renderRecentUploads(); }
-            catch (storageError) { console.warn("最近のアップロードを保存できません:", storageError); }
+            try {
+              await saveRecentUpload(fileName || "画像", dataUrl);
+              if (requestId === imageLoadSequence) await renderRecentUploads();
+            } catch (storageError) { console.warn("最近のアップロードを保存できません:", storageError); }
           }
         } catch (error) {
+          if (requestId !== imageLoadSequence) return;
           console.error("画像変換エラー:", error);
           errorBox.hidden = false;
           errorBox.textContent = "画像は読み込めましたが、変換に失敗しました: " + (error && error.message ? error.message : String(error));
         }
       };
       img.onerror = () => {
+        if (requestId !== imageLoadSequence) return;
         errorBox.hidden = false;
         errorBox.textContent = "画像形式をブラウザで読み込めませんでした。iPadの場合は写真アプリからJPEGまたはPNGとして書き出して選択してください。";
       };
@@ -2075,19 +2090,22 @@
     }
     function loadSelectedImage(file) {
       const errorBox = document.getElementById("imageUploadError");
-      errorBox.hidden = true;
-      errorBox.textContent = "";
+      errorBox.hidden = true; errorBox.textContent = "";
       if (!file) return;
       const name = file.name || "選択した画像";
       document.getElementById("selectedImageName").textContent = name;
-      errorBox.hidden = false;
-      errorBox.textContent = "画像ファイルを読み込んでいます…";
+      errorBox.hidden = false; errorBox.textContent = "画像ファイルを読み込んでいます…";
       const reader = new FileReader();
       reader.onerror = () => { errorBox.textContent = "ファイルの読み込みに失敗しました。別の画像ファイルを選択してください。"; };
       reader.onload = event => loadImageDataUrl(String(event.target.result), name, true);
       reader.readAsDataURL(file);
     }
     renderRecentUploads();
+    els.imageInput.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files.length ? e.target.files[0] : null;
+      if (file) loadSelectedImage(file);
+      e.target.value = "";
+    });
 
     els.imageInput.addEventListener("change", (e) => {
       const file = e.target.files && e.target.files.length ? e.target.files[0] : null;

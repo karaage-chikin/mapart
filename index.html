@@ -1751,22 +1751,21 @@
       }
     }
 
+    const nearestBlockCache = new WeakMap();
     function findClosestBlockLab(r, g, b, activeBlocks) {
-      const [L1, a1, b1] = rgbToLab(clamp(r), clamp(g), clamp(b));
-      let best = activeBlocks[0];
-      let bestDist = Infinity;
-
+      const rr=clamp(Math.round(r)),gg=clamp(Math.round(g)),bb=clamp(Math.round(b));
+      let cache=nearestBlockCache.get(activeBlocks);
+      if(!cache){cache=new Map();nearestBlockCache.set(activeBlocks,cache);}
+      const key=(rr<<16)|(gg<<8)|bb;
+      const cached=cache.get(key);if(cached)return cached;
+      const [L1, a1, b1] = rgbToLab(rr,gg,bb);
+      let best = activeBlocks[0],bestDist = Infinity;
       for (let i = 0; i < activeBlocks.length; i++) {
-        const blk = activeBlocks[i];
-        const dL = L1 - blk.lab[0];
-        const da = a1 - blk.lab[1];
-        const db = b1 - blk.lab[2];
-        const dist = dL * dL + da * da + db * db;
-        if (dist < bestDist) {
-          bestDist = dist;
-          best = blk;
-        }
+        const blk = activeBlocks[i],dL = L1 - blk.lab[0],da = a1 - blk.lab[1],db = b1 - blk.lab[2],dist = dL*dL + da*da + db*db;
+        if (dist < bestDist) { bestDist = dist; best = blk; }
       }
+      if(cache.size>=65536)cache.clear();
+      cache.set(key,best);
       return best;
     }
 

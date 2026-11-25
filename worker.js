@@ -133,9 +133,18 @@ export default {
         if (typeof row.data === "string") {
           return json({ data: row.data, expiresAt: row.expires_at }, 200, origin);
         }
-        const image = row.data instanceof ArrayBuffer
-          ? new Uint8Array(row.data)
-          : new Uint8Array(row.data.buffer, row.data.byteOffset, row.data.byteLength);
+        let image;
+        if (Array.isArray(row.data)) {
+          // D1 converts BLOB values to ordinary JavaScript arrays on read.
+          image = Uint8Array.from(row.data);
+        } else if (row.data instanceof ArrayBuffer) {
+          image = new Uint8Array(row.data);
+        } else if (ArrayBuffer.isView(row.data)) {
+          image = new Uint8Array(row.data.buffer, row.data.byteOffset, row.data.byteLength);
+        } else {
+          throw new Error("Unsupported D1 BLOB value type");
+        }
+        if (!validPng(image)) throw new Error("Stored blueprint is not a valid PNG");
         return new Response(image, {
           status: 200,
           headers: {

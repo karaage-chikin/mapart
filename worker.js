@@ -140,7 +140,6 @@ export default {
           status: 200,
           headers: {
             "Content-Type": "image/png",
-            "Content-Length": String(image.byteLength),
             "Cache-Control": "no-store",
             "X-Expires-At": String(row.expires_at),
             ...corsHeaders(origin)

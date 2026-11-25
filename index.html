@@ -737,12 +737,13 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.41</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.42</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
     <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.41</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
-      <li>手動補正にハイライト・シャドウ・白レベル・黒レベル・色相・明瞭度・ノイズ軽減を追加（自動最適化には不使用）</li>
+      <li>追加の画質・色調補正7項目を自動最適化の精密探索にも対応</li>
+      <li>手動補正にハイライト・シャドウ・白レベル・黒レベル・色相・明瞭度・ノイズ軽減を追加</li>
       <li>必要数一覧を「〇st + 〇〇」「〇sh + 〇st + 〇〇」の実数換算表示に変更</li>
       <li>通常変換でディザリング方式を取得する変数の自己参照を修正</li>
       <li>画像読み込み・変換結果のリセット・統計表示・履歴管理・設置手順URLを改善</li>
@@ -2762,7 +2763,7 @@
                   sum+=old[q+c]*edgeW;ws+=edgeW;local+=old[q+c]*w;lw+=w;
                 }
                 let v=old[i+c];if(amountD&&ws)v+=(sum/ws-v)*amountD;
-                if(amountC){const lum=.2126*old[i]+.7152*old[i+1]+.0722*old[i+2],blur=.2126*local/lw+.7152*local/lw+.0722*local/lw;v+=(lum-blur)*amountC;}
+                if(amountC)v+=(old[i+c]-local/lw)*amountC;
                 work[i+c]=clamp(Math.round(v));
               }
             }
@@ -2865,7 +2866,7 @@
       if(p.denoise>0||p.clarity>0){const old=new Float32Array(work),amountD=(p.denoise||0)/100*.55,amountC=(p.clarity||0)/100*.65;
         for(let y=0;y<N;y++)for(let x=0;x<N;x++){const i=(y*N+x)*3;
           for(let c=0;c<3;c++){let sum=0,ws=0,local=0,lw=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=Math.max(0,Math.min(N-1,x+dx)),yy=Math.max(0,Math.min(N-1,y+dy)),q=(yy*N+xx)*3,w=(dx===0?2:1)*(dy===0?2:1),ew=Math.max(0,1-Math.abs(old[i+c]-old[q+c])/48)*w;sum+=old[q+c]*ew;ws+=ew;local+=old[q+c]*w;lw+=w;}
-            let v=old[i+c];if(amountD&&ws)v+=(sum/ws-v)*amountD;if(amountC){const lum=.2126*old[i]+.7152*old[i+1]+.0722*old[i+2],blur=(.2126*local+.7152*local+.0722*local)/lw;v+=(lum-blur)*amountC;}work[i+c]=clamp(v);}}
+            let v=old[i+c];if(amountD&&ws)v+=(sum/ws-v)*amountD;if(amountC)v+=(old[i+c]-local/lw)*amountC;work[i+c]=clamp(v);}}
       }
       for(let i=0;i<total;i++){const z=i*3;sourceL[i]=.2126*work[z]+.7152*work[z+1]+.0722*work[z+2];}
       const strength=p.ditherStrength/100;

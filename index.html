@@ -2379,8 +2379,7 @@
           const cf=p.contrast===0?1:(259*(p.contrast+255))/(255*(259-p.contrast));
           r=cf*(r+p.brightness-128)+128;g=cf*(g+p.brightness-128)+128;b=cf*(b+p.brightness-128)+128;
           const l=.2126*r+.7152*g+.0722*b;r=l+(r-l)*(p.saturation/100);g=l+(g-l)*(p.saturation/100);b=l+(b-l)*(p.saturation/100);
-          const ex=100/p.gamma,rr=clamp(255*Math.pow(clamp(r)/255,ex)+p.temperature*.72),gg=clamp(255*Math.pow(clamp(g)/255,ex)),bb=clamp(255*Math.pow(clamp(b)/255,ex)-p.temperature*.72);
-          const chroma=Math.max(rr,gg,bb)-Math.min(rr,gg,bb),vf=1+(p.vibrance/100-1)*(1-chroma/255),vl=.2126*rr+.7152*gg+.0722*bb;
+          const chroma=Math.max(r,g,b)-Math.min(r,g,b),vf=1+(p.vibrance/100-1)*(1-chroma/255),ex=100/p.gamma,rr=clamp(Math.round(255*Math.pow(clamp(r)/255,ex))+p.temperature*.72),gg=clamp(Math.round(255*Math.pow(clamp(g)/255,ex))),bb=clamp(Math.round(255*Math.pow(clamp(b)/255,ex))-p.temperature*.72),vl=.2126*rr+.7152*gg+.0722*bb;
           return [clamp(vl+(rr-vl)*vf),clamp(vl+(gg-vl)*vf),clamp(vl+(bb-vl)*vf)];
         }
         function evaluate(p){

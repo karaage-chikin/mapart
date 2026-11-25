@@ -100,7 +100,7 @@ async function decode(){
  if(bytes.length!==SIZE*SIZE+1)throw new Error("設計図データのサイズが正しくありません。URLが切れていないか確認してください。");
  direction=bytes[0]===1?"right":"left";
  $("direction").value=direction;
- try{const saved=JSON.parse(localStorage.getItem(progressKey)||"null");if(saved&&saved.direction===direction&&Number.isFinite(saved.placed))placed=Math.max(0,Math.min(SIZE*SIZE,Math.floor(saved.placed/STEP)*STEP));}catch(_){placed=0;}
+ try{const saved=JSON.parse(localStorage.getItem(progressKey)||"null");if(saved&&["left","right"].includes(saved.direction)){direction=saved.direction;$("direction").value=direction;if(Number.isFinite(saved.placed))placed=Math.max(0,Math.min(SIZE*SIZE,Math.floor(saved.placed/STEP)*STEP));}}catch(_){placed=0;}
  const raw=bytes.slice(1);
  if(isV2){
   indices=new Uint8Array(raw.length);
@@ -188,6 +188,7 @@ function drawMiniMap(first,last){
  if(first<SIZE*SIZE){const pos=position(first);ctx.lineWidth=2;ctx.strokeStyle="#ffcf45";ctx.strokeRect(pos.x*scale+1,pos.y*scale+1,scale-2,scale-2);$("miniMapPosition").textContent="現在位置："+(pos.x+1)+"列目・"+(pos.y+1)+"行目";}
  else $("miniMapPosition").textContent="現在位置：設置完了";
 }
+function saveProgress(){try{localStorage.setItem(progressKey,JSON.stringify({placed,direction,updatedAt:Date.now()}));}catch(error){console.warn("設置進捗を保存できません:",error);status.textContent="進捗を保存できませんでした。ブラウザの保存容量を確認してください。";}}
 function setPosition(value){placed=Math.max(0,Math.min(SIZE*SIZE,Math.floor(value/STEP)*STEP));saveProgress();draw();}
 $("first").addEventListener("click",()=>{if(placed>0&&!confirm("設置済みの進捗表示を最初に戻しますか？"))return;setPosition(0);});
 $("back").addEventListener("click",()=>setPosition(placed-STEP));

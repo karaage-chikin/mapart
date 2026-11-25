@@ -680,7 +680,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.7</div>
+  <div class="app-version" id="appVersion">v1.5.8</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -869,6 +869,8 @@
     });
 
     const MAP_SIZE = 128;
+    // URL形式v2の固定ID表。過去の設置手順URLとの互換性を保つため並び順を変更しない。
+    const URL_BLOCK_IDS = ["grass_block","dirt","sand","red_sand","gravel","andesite","clay","snow","packed_ice","blue_ice","slime","stone","cobblestone","granite","diorite","deepslate","cobbled_deepslate","sandstone","red_sandstone","quartz_block","obsidian","crying_obsidian","oak_planks","birch_planks","jungle_planks","dark_oak_planks","crimson_planks","warped_planks","white_wool","orange_wool","magenta_wool","light_blue_wool","yellow_wool","lime_wool","pink_wool","gray_wool","light_gray_wool","cyan_wool","purple_wool","blue_wool","brown_wool","green_wool","red_wool","black_wool","white_concrete","orange_concrete","magenta_concrete","light_blue_concrete","yellow_concrete","lime_concrete","pink_concrete","gray_concrete","light_gray_concrete","cyan_concrete","purple_concrete","blue_concrete","brown_concrete","green_concrete","red_concrete","black_concrete","terracotta","white_terracotta","orange_terracotta","magenta_terracotta","light_blue_terracotta","yellow_terracotta","lime_terracotta","pink_terracotta","gray_terracotta","light_gray_terracotta","cyan_terracotta","purple_terracotta","blue_terracotta","brown_terracotta","green_terracotta","red_terracotta","black_terracotta","iron_block","gold_block","diamond_block","emerald_block","lapis_block","redstone_block","copper_block","netherite_block","netherrack","calcite","basalt","blackstone","hay_block","glowstone","magma","soul_sand","end_stone","amethyst_block","sculk","ancient_debris"];
 
     // pattern: "speckle"（砂目/石）, "wool"（羊毛の繊維）, "planks"（板材/横ライン）, "bricks"（レンガ/タイル）, "smooth"（滑らか/鉱物）
     const BLOCK_DATA = [
@@ -2510,7 +2512,7 @@
         }
         const encoded = btoa(binaryPayload).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
         const target = new URL("blueprint.html", window.location.href);
-        opened.location.replace(target.href + "#" + mode + encoded);
+        opened.location.replace(target.href + "#2" + mode + encoded);
       } catch (error) {
         opened.close();
         console.error("オンライン設計図URLの作成に失敗:", error);
@@ -2532,9 +2534,9 @@
         const payload = new Uint8Array(MAP_SIZE * MAP_SIZE + 1);
         payload[0] = 0; // 初期進行方向：左から右
         for (let i = 0; i < lastGrid.length; i++) {
-          const paletteIndex = BLOCK_DATA.indexOf(lastGrid[i]);
-          if (paletteIndex < 0 || paletteIndex > 255) throw new Error("設計図に未対応のブロックが含まれています。");
-          payload[i + 1] = paletteIndex;
+          const stableIndex = URL_BLOCK_IDS.indexOf(lastGrid[i].id);
+          if (stableIndex < 0 || stableIndex > 255) throw new Error("設計図に未対応のブロックが含まれています。");
+          payload[i + 1] = stableIndex;
         }
         let payloadBytes = payload;
         let mode = "p";

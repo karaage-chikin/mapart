@@ -731,7 +731,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.24</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.25</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
     <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.24</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
@@ -755,6 +755,7 @@
       <li>Jarvis–Judice–Ninke・Sierra Lite・Bayer 4×4ディザリングを追加</li>
       <li>画質・色調補正を独立タブに分離し、色温度・自然な彩度を追加</li>
       <li>追加補正と新ディザリング方式も自動最適化の比較対象に追加</li>
+      <li>Workerの色温度・自然な彩度の反映漏れを修正</li><li>粗探索140候補＋精密探索7候補に変更</li><li>最大4 Worker並列・進行表示・中止操作・階調クリッピングペナルティを追加</li>
     </ul>
     <button type="button" id="dismissUpdateNotice">確認した</button>
   </section>
@@ -811,9 +812,9 @@
         <section class="tab-panel" role="tabpanel" data-panel="adjust"><div class="box">
           <h2>2. 画像調整・最適化</h2>
           <div class="field"><h3 style="margin:0 0 8px;">自動最適化</h3>
-            <div class="action-row"><button type="button" id="autoImageOptimizeBtn">画像を自動補正</button></div>
-            <p class="muted">画像の明暗・色の偏り・細かさを解析し、色調補正とディザリングをまとめて自動調整します。実行後も各項目を手動で変更できます。</p>
-            <div id="optimizationStatus" class="muted" aria-live="polite"></div>
+            <div class="action-row"><button type="button" id="autoImageOptimizeBtn">画像を自動補正</button><button type="button" id="cancelOptimizationBtn" class="secondary" hidden>中止</button></div>
+            <progress id="optimizationProgress" max="100" value="0" hidden style="width:100%;"></progress><div id="optimizationProgressText" class="muted"></div>
+            <p class="muted">粗探索140候補＋精密探索7候補。最大4 Workerで並列評価します。</p><div id="optimizationStatus" class="muted" aria-live="polite"></div>
           </div>
           <div class="field"><h3 style="margin:0 0 8px;">ディザリング</h3>
             <label for="ditherMethod">ディザリング方式</label><select id="ditherMethod">
@@ -2325,24 +2326,19 @@
     }
     function buildOptimizationCandidates(st){
       const range=Math.max(32,st.high-st.low),factor=Math.max(.82,Math.min(1.72,238/range));
-      const raw=255*(259*factor-259)/(259*factor+255),baseContrast=Math.round(Math.max(-35,Math.min(45,raw)));
-      const baseBrightness=Math.round(Math.max(-45,Math.min(45,128-(st.low+st.high)/2)));
-      const cf=baseContrast===0?1:(259*(baseContrast+255))/(255*(259-baseContrast));
-      const mean=Math.max(1,Math.min(254,128+(st.mean+baseBrightness-128)*cf));
-      const baseGamma=Math.round(Math.max(82,Math.min(122,100/(Math.log(.5)/Math.log(mean/255)))));
-      const baseSaturation=Math.round(Math.max(85,Math.min(125,st.chroma<8?115:st.chroma>90?90:100+(42-st.chroma)*.35)));
-      const values=(v,d,min,max)=>Array.from(new Set([v-d,v,v+d].map(x=>Math.round(Math.max(min,Math.min(max,x))))));
-      const dithers=[{ditherMethod:"none",ditherStrength:0}];
-      ["floyd","atkinson","jarvis","sierra","ordered"].forEach(method=>[20,40,65].forEach(strength=>dithers.push({ditherMethod:method,ditherStrength:strength})));
-      const candidates=[];
-      for(const brightness of values(baseBrightness,9,-100,100))
-      for(const contrast of values(baseContrast,9,-100,100))
-      for(const saturation of values(baseSaturation,10,0,200))
-      for(const gamma of values(baseGamma,7,50,200))
-      for(const sharpness of [0,25,50])
-      for(const tune of [{temperature:-18,vibrance:90},{temperature:0,vibrance:100},{temperature:18,vibrance:110}])
-      for(const dither of dithers)candidates.push({brightness,contrast,saturation,gamma,sharpness,...tune,...dither});
-      return candidates;
+      const contrast=Math.round(Math.max(-35,Math.min(45,255*(259*factor-259)/(259*factor+255))));
+      const brightness=Math.round(Math.max(-45,Math.min(45,128-(st.low+st.high)/2)));
+      const saturation=Math.round(Math.max(85,Math.min(125,st.chroma<8?115:st.chroma>90?90:100+(42-st.chroma)*.35)));
+      const gamma=Math.round(Math.max(82,Math.min(122,100/(Math.log(.5)/Math.log(Math.max(1,Math.min(254,st.mean))/255)))));
+      const bases=[];
+      for(let i=0;i<10;i++)bases.push({brightness:brightness+[-16,-8,0,8,16,0,-12,12,-4,4][i],contrast:contrast+[-12,0,12,-8,8,16,-16,4,-4,0][i],saturation:saturation+[-10,0,10,0,0,12,-8,8,-5,5][i],gamma:gamma+[-8,-4,0,4,8,0,-4,4,-2,2][i],sharpness:[0,25,50][i%3],temperature:[-18,0,18][i%3],vibrance:[90,100,110][i%3]});
+      const ds=[["none",0],["floyd",25],["floyd",50],["atkinson",35],["sierra",35],["ordered",35],["jarvis",40],["atkinson",65],["sierra",65],["ordered",65],["floyd",75],["jarvis",65],["none",0],["floyd",40]];
+      return bases.flatMap(v=>ds.map(([ditherMethod,ditherStrength])=>({...v,ditherMethod,ditherStrength})));
+    }
+    function buildFineOptimizationCandidates(base){
+      const out=[];for(const [b,c,g] of [[0,0,0],[-4,0,0],[4,0,0],[0,-4,0],[0,4,0],[0,0,-4],[0,0,4]]){
+        out.push({...base,brightness:Math.max(-100,Math.min(100,base.brightness+b)),contrast:Math.max(-100,Math.min(100,base.contrast+c)),gamma:Math.max(50,Math.min(200,base.gamma+g)),ditherStrength:Math.max(0,Math.min(100,base.ditherStrength+(out.length%2?4:-4)))});
+      }return out;
     }
 
     function optimizationWorkerMain(){
@@ -2382,9 +2378,10 @@
         function adjust(r,g,b,p){
           const cf=p.contrast===0?1:(259*(p.contrast+255))/(255*(259-p.contrast));
           r=cf*(r+p.brightness-128)+128;g=cf*(g+p.brightness-128)+128;b=cf*(b+p.brightness-128)+128;
-          const l=.2126*r+.7152*g+.0722*b;
-          r=l+(r-l)*(p.saturation/100);g=l+(g-l)*(p.saturation/100);b=l+(b-l)*(p.saturation/100);
-          const ex=100/p.gamma;return [255*Math.pow(clamp(r)/255,ex),255*Math.pow(clamp(g)/255,ex),255*Math.pow(clamp(b)/255,ex)];
+          const l=.2126*r+.7152*g+.0722*b;r=l+(r-l)*(p.saturation/100);g=l+(g-l)*(p.saturation/100);b=l+(b-l)*(p.saturation/100);
+          const ex=100/p.gamma,rr=clamp(255*Math.pow(clamp(r)/255,ex)+p.temperature*.72),gg=clamp(255*Math.pow(clamp(g)/255,ex)),bb=clamp(255*Math.pow(clamp(b)/255,ex)-p.temperature*.72);
+          const chroma=Math.max(rr,gg,bb)-Math.min(rr,gg,bb),vf=1+(p.vibrance/100-1)*(1-chroma/255),vl=.2126*rr+.7152*gg+.0722*bb;
+          return [clamp(vl+(rr-vl)*vf),clamp(vl+(gg-vl)*vf),clamp(vl+(bb-vl)*vf)];
         }
         function evaluate(p){
           const work=new Float32Array(total*3);
@@ -2427,7 +2424,7 @@
             for(let yy=y;yy<y+2;yy++)for(let xx=x;xx<x+2;xx++){const i=yy*N+xx,q=i*4,z=i*3;ar+=source[q];ag+=source[q+1];ab+=source[q+2];br+=outputRGB[z];bg+=outputRGB[z+1];bb+=outputRGB[z+2];}
             const A=labOf(ar/4,ag/4,ab/4),B=labOf(br/4,bg/4,bb/4),dl=A[0]-B[0],da=A[1]-B[1],db=A[2]-B[2];region+=dl*dl+da*da+db*db;regions++;
           }
-          return .35*(grad/Math.max(1,gradWeight))+.25*(edgeColor/Math.max(1,edgeWeight))+.25*(pixelError/total)+.15*(region/Math.max(1,regions));
+          let clipped=0;for(let i=0;i<total;i++){const z=i*3;if(outputRGB[z]<2||outputRGB[z]>253||outputRGB[z+1]<2||outputRGB[z+1]>253||outputRGB[z+2]<2||outputRGB[z+2]>253)clipped++;}return .35*(grad/Math.max(1,gradWeight))+.25*(edgeColor/Math.max(1,edgeWeight))+.25*(pixelError/total)+.15*(region/Math.max(1,regions))+(clipped/total)*180;
         }
         let index=0,best=null,bestScore=Infinity;
         function batch(){const end=Math.min(candidates.length,index+3);
@@ -2438,56 +2435,32 @@
       };
     }
 
-    let optimizationWorkerInstance=null;
-    let optimizationWorkerUrl=null;
+    let optimizationWorkerInstances=[],optimizationCancelled=false;
+    function stopOptimizationWorkers(){optimizationWorkerInstances.forEach(w=>w.terminate());optimizationWorkerInstances=[];}
+    async function runWorkerBatch(source,blocks,candidates,runId,progress){
+      const count=Math.min(4,Math.max(1,(navigator.hardwareConcurrency||2)-1),candidates.length),url=URL.createObjectURL(new Blob(["("+optimizationWorkerMain.toString()+")()"],{type:"text/javascript"}));
+      const jobs=Array.from({length:count},(_,k)=>candidates.filter((_,i)=>i%count===k));
+      try{const results=await Promise.all(jobs.map(chunk=>new Promise((resolve,reject)=>{const w=new Worker(url);optimizationWorkerInstances.push(w);w.onmessage=e=>{if(optimizationCancelled||runId!==window.__mapartOptimizationRun){w.terminate();resolve(null);}else if(e.data.type==="progress")progress(e.data.tested);else if(e.data.type==="done"){w.terminate();resolve(e.data);}};w.onerror=reject;const src=new Uint8Array(source);w.postMessage({source:src.buffer,blocks,candidates:chunk},[src.buffer]);})));
+      return results.filter(Boolean).reduce((a,x)=>{if(x.bestScore<a.score){a.best=x.best;a.score=x.bestScore;}a.tested+=x.tested;return a;},{best:null,score:Infinity,tested:0});}
+      finally{stopOptimizationWorkers();URL.revokeObjectURL(url);}
+    }
     async function optimizeImageAutomatically(){
-      const status=document.getElementById("optimizationStatus"),stats=analyzeImageForAutoCorrection();
-      if(!stats){status.textContent="先に画像をアップロードしてください。";return;}
-      const active=BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab);
-      if(!active.length){status.textContent="使用ブロックを1種類以上選択してください。";return;}
-      const selectedIds=active.map(b=>b.id).sort().join("|");
-      const imageAtStart=loadedImage;
-      const runId=(window.__mapartOptimizationRun=(window.__mapartOptimizationRun||0)+1);
-      if(optimizationWorkerInstance){optimizationWorkerInstance.terminate();optimizationWorkerInstance=null;}
-      if(optimizationWorkerUrl){URL.revokeObjectURL(optimizationWorkerUrl);optimizationWorkerUrl=null;}
-      status.textContent="選択中のブロックを使い、128×128フル解像度で輪郭・色・領域を評価しています…";
-      await new Promise(resolve=>setTimeout(resolve,20));drawFittedImage(loadedImage);
-      const source=srcCtx.getImageData(0,0,MAP_SIZE,MAP_SIZE).data,candidates=buildOptimizationCandidates(stats);
-      const blocks=active.map(b=>({rgb:b.mapRgb,lab:b.lab}));
-      const finish=(best,score,tested)=>{
-        if(runId!==window.__mapartOptimizationRun)return;
-        if(loadedImage!==imageAtStart){status.textContent="最適化中に画像が変更されたため、結果を適用しませんでした。";return;}
-        const current=BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab).map(b=>b.id).sort().join("|");
-        if(current!==selectedIds){status.textContent="最適化中に使用ブロックが変更されたため、結果を適用しませんでした。";return;}
-        if(!best){status.textContent="最適な設定を決定できませんでした。";return;}
-        setOptimizationControls(best);
-        const method=({none:"なし",atkinson:"Atkinson",floyd:"Floyd–Steinberg",jarvis:"Jarvis–Judice–Ninke",sierra:"Sierra Lite",ordered:"Bayer 4×4"})[best.ditherMethod]||best.ditherMethod;
-        status.textContent="最適化完了：100%（"+tested+"候補を128×128で比較）。色温度"+best.temperature+"／自然な彩度"+best.vibrance+"%／シャープネス"+best.sharpness+"%／"+method+" "+best.ditherStrength+"%／総合スコア "+score.toFixed(2)+"（低いほど元画像に近い）";
-        runConversion();
-      };
-      if(typeof Worker!=="undefined"&&typeof Blob!=="undefined"&&URL.createObjectURL){
-        let url=null,worker=null;
-        try{
-          const blob=new Blob(["("+optimizationWorkerMain.toString()+")()"],{type:"text/javascript"});
-          url=URL.createObjectURL(blob);optimizationWorkerUrl=url;worker=new Worker(url);optimizationWorkerInstance=worker;
-          worker.onmessage=e=>{
-            if(runId!==window.__mapartOptimizationRun)return;
-            if(e.data.type==="progress"){const percent=Math.min(100,Math.round(e.data.tested/e.data.total*100));status.textContent="最適化中… "+percent+"%（"+e.data.tested+" / "+e.data.total+"候補）";}
-            if(e.data.type==="done"){worker.terminate();URL.revokeObjectURL(url);optimizationWorkerInstance=null;optimizationWorkerUrl=null;finish(e.data.best,e.data.bestScore,e.data.tested);}
-          };
-          worker.onerror=()=>{worker.terminate();URL.revokeObjectURL(url);optimizationWorkerInstance=null;optimizationWorkerUrl=null;if(runId===window.__mapartOptimizationRun)status.textContent="画像評価Workerでエラーが発生しました。ページを再読み込みして再試行してください。";};
-          const copy=new Uint8Array(source);worker.postMessage({source:copy.buffer,blocks,candidates},[copy.buffer]);return;
-        }catch(error){if(worker)worker.terminate();if(url)URL.revokeObjectURL(url);optimizationWorkerInstance=null;optimizationWorkerUrl=null;}
-      }
-      status.textContent="Worker非対応のため、メインスレッドで代替評価を実行しています…";
-      let best=null,bestScore=Infinity;
-      for(let i=0;i<candidates.length;i++){
-        const p=candidates[i],score=evaluateOptimizationCandidateFallback(source,active,p);
-        if(score<bestScore){bestScore=score;best=p;}
-        if(i%2===0){const percent=Math.min(100,Math.round((i+1)/candidates.length*100));status.textContent="最適化中… "+percent+"%（"+(i+1)+" / "+candidates.length+"候補・代替評価）";await new Promise(resolve=>setTimeout(resolve,0));}
-        if(runId!==window.__mapartOptimizationRun)return;
-      }
-      finish(best,bestScore,candidates.length);
+      const status=document.getElementById("optimizationStatus"),btn=document.getElementById("autoImageOptimizeBtn"),cancel=document.getElementById("cancelOptimizationBtn"),bar=document.getElementById("optimizationProgress"),pt=document.getElementById("optimizationProgressText"),stats=analyzeImageForAutoCorrection();
+      if(!stats){status.textContent="先に画像をアップロードしてください。";return;}const active=BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab);if(!active.length||btn.disabled)return;
+      btn.disabled=true;cancel.hidden=false;bar.hidden=false;bar.value=0;optimizationCancelled=false;const runId=(window.__mapartOptimizationRun=(window.__mapartOptimizationRun||0)+1),started=performance.now(),imageAtStart=loadedImage,ids=active.map(b=>b.id).sort().join("|");
+      const progress=(n,total,label)=>{bar.value=Math.min(100,n/total*100);pt.textContent=label+" "+Math.round(bar.value)+"%・"+optimizationWorkerInstances.length+" Worker・"+((performance.now()-started)/1000).toFixed(1)+"秒";};
+      cancel.onclick=()=>{optimizationCancelled=true;window.__mapartOptimizationRun++;stopOptimizationWorkers();btn.disabled=false;cancel.hidden=true;bar.hidden=true;status.textContent="最適化を中止しました。";};
+      try{
+        drawFittedImage(loadedImage);const source=srcCtx.getImageData(0,0,MAP_SIZE,MAP_SIZE).data,blocks=active.map(b=>({rgb:b.mapRgb,lab:b.lab})),coarseCandidates=buildOptimizationCandidates(stats);
+        status.textContent="第1段階：粗探索";let coarse=await runWorkerBatch(source,blocks,coarseCandidates,runId,n=>progress(n,140,"粗探索"));
+        if(!coarse||optimizationCancelled)return;
+        const fineCandidates=buildFineOptimizationCandidates(coarse.best);status.textContent="第2段階：精密探索";let fine=await runWorkerBatch(source,blocks,fineCandidates,runId,n=>progress(140+n,147,"精密探索"));
+        if(!fine||optimizationCancelled)return;const best=fine.score<coarse.score?fine.best:coarse.best,score=Math.min(fine.score,coarse.score);
+        if(loadedImage!==imageAtStart||BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab).map(b=>b.id).sort().join("|")!==ids){status.textContent="画像または使用ブロックが変更されたため、結果を適用しませんでした。";return;}
+        setOptimizationControls(best);const name=({none:"なし",atkinson:"Atkinson",floyd:"Floyd–Steinberg",jarvis:"Jarvis–Judice–Ninke",sierra:"Sierra Lite",ordered:"Bayer 4×4"})[best.ditherMethod]||best.ditherMethod;
+        status.textContent="最適化完了："+(coarse.tested+fine.tested)+"候補（粗探索140＋精密探索7）。色温度"+best.temperature+"／自然な彩度"+best.vibrance+"%／"+name+" "+best.ditherStrength+"%／スコア "+score.toFixed(2)+"・"+((performance.now()-started)/1000).toFixed(1)+"秒";runConversion();
+      }catch(err){status.textContent="最適化エラー："+(err.message||"Worker error");}
+      finally{if(runId===window.__mapartOptimizationRun){btn.disabled=false;cancel.hidden=true;bar.hidden=true;}}
     }
 
     function evaluateOptimizationCandidateFallback(source,blocks,p){

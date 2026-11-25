@@ -731,9 +731,9 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.34</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.35</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.34</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.35</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
       <li>自動補正・通常変換の色判定をテクスチャ平均色から分離し、Minecraftマップカラーだけで評価</li>
@@ -1735,29 +1735,25 @@
     }
 
     function applyImageAdjustments(pixels) {
-      const brightness=Number(els.brightness.value),contrast=Number(els.contrast.value);
-      const saturation=Number(els.saturation.value)/100,gamma=100/Number(els.gamma.value);
-      const sharpness=Number(els.sharpness.value)/100,temperature=Number(els.temperature.value),vibrance=Number(els.vibrance.value)/100;
-      const contrastFactor=contrast===0?1:(259*(contrast+255))/(255*(259-contrast));
+      // 通常変換と自動最適化で同じ色補正関数を使い、評価結果と実出力の差をなくす。
+      const p={brightness:Number(els.brightness.value),contrast:Number(els.contrast.value),
+        saturation:Number(els.saturation.value),gamma:Number(els.gamma.value),
+        sharpness:Number(els.sharpness.value),temperature:Number(els.temperature.value),
+        vibrance:Number(els.vibrance.value)};
       for(let i=0;i<pixels.length;i+=4){
-        let r=pixels[i]+brightness,g=pixels[i+1]+brightness,b=pixels[i+2]+brightness;
-        r=contrastFactor*(r-128)+128;g=contrastFactor*(g-128)+128;b=contrastFactor*(b-128)+128;
-        const luma=.2126*r+.7152*g+.0722*b;
-        r=luma+(r-luma)*saturation;g=luma+(g-luma)*saturation;b=luma+(b-luma)*saturation;
-        pixels[i]=Math.round(255*Math.pow(Math.max(0,Math.min(255,r))/255,gamma));
-        pixels[i+1]=Math.round(255*Math.pow(Math.max(0,Math.min(255,g))/255,gamma));
-        pixels[i+2]=Math.round(255*Math.pow(Math.max(0,Math.min(255,b))/255,gamma));
-        const ch=Math.max(r,g,b)-Math.min(r,g,b),vf=1+(vibrance-1)*(1-ch/255);pixels[i]=clamp(pixels[i]+temperature*.72);pixels[i+2]=clamp(pixels[i+2]-temperature*.72);const vl=.2126*pixels[i]+.7152*pixels[i+1]+.0722*pixels[i+2];for(let c=0;c<3;c++)pixels[i+c]=clamp(Math.round(vl+(pixels[i+c]-vl)*vf));
+        const rgb=adjustRgbForCandidate(pixels[i],pixels[i+1],pixels[i+2],p);
+        pixels[i]=rgb[0];pixels[i+1]=rgb[1];pixels[i+2]=rgb[2];
       }
+      const sharpness=p.sharpness/100;
       if(sharpness>0){
         const source=new Uint8ClampedArray(pixels),amount=sharpness*1.15,w=MAP_SIZE;
         for(let y=0;y<w;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;
-          for(let c=0;c<3;c++){let blur=0,weight=0;
+          for(let channel=0;channel<3;channel++){let blur=0,weight=0;
             for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
               const xx=Math.max(0,Math.min(w-1,x+dx)),yy=Math.max(0,Math.min(w-1,y+dy));
-              const k=(dx===0?2:1)*(dy===0?2:1);blur+=source[(yy*w+xx)*4+c]*k;weight+=k;
+              const k=(dx===0?2:1)*(dy===0?2:1);blur+=source[(yy*w+xx)*4+channel]*k;weight+=k;
             }
-            pixels[i+c]=Math.max(0,Math.min(255,Math.round(source[i+c]+(source[i+c]-blur/weight)*amount)));
+            pixels[i+channel]=clamp(Math.round(source[i+channel]+(source[i+channel]-blur/weight)*amount));
           }
         }
       }
@@ -2349,17 +2345,58 @@
       const range=Math.max(32,st.high-st.low),factor=Math.max(.82,Math.min(1.72,238/range));
       const contrast=Math.round(Math.max(-35,Math.min(45,255*(259*factor-259)/(259*factor+255))));
       const brightness=Math.round(Math.max(-45,Math.min(45,128-(st.low+st.high)/2)));
-      const saturation=Math.round(Math.max(85,Math.min(125,st.chroma<8?115:st.chroma>90?90:100+(42-st.chroma)*.35)));
+      const saturation=Math.round(Math.max(85,Math.min(125,st.chroma<8?100:st.chroma>90?90:100+(42-st.chroma)*.35)));
       const gamma=Math.round(Math.max(82,Math.min(122,100/(Math.log(.5)/Math.log(Math.max(1,Math.min(254,st.mean))/255)))));
-      const bases=[];
-      for(let i=0;i<10;i++)bases.push({brightness:brightness+[-16,-8,0,8,16,0,-12,12,-4,4][i],contrast:contrast+[-12,0,12,-8,8,16,-16,4,-4,0][i],saturation:saturation+[-10,0,10,0,0,12,-8,8,-5,5][i],gamma:gamma+[-8,-4,0,4,8,0,-4,4,-2,2][i],sharpness:[0,25,50][i%3],temperature:[-18,0,18][i%3],vibrance:[90,100,110][i%3]});
-      const ds=[["none",0],["floyd",25],["floyd",50],["atkinson",35],["sierra",35],["ordered",35],["jarvis",40],["atkinson",65],["sierra",65],["ordered",65],["floyd",75],["jarvis",65],["none",0],["floyd",40]];
-      return bases.flatMap(v=>ds.map(([ditherMethod,ditherStrength])=>({...v,ditherMethod,ditherStrength})));
+      const bases=[
+        {brightness,contrast,saturation,gamma,sharpness:0,temperature:0,vibrance:100},
+        {brightness:brightness-12,contrast:contrast+8,saturation,gamma:gamma+4,sharpness:20,temperature:0,vibrance:100},
+        {brightness:brightness+12,contrast:contrast-8,saturation:saturation+5,gamma:gamma-4,sharpness:35,temperature:0,vibrance:105},
+        {brightness:brightness-6,contrast:contrast+16,saturation:saturation-5,gamma,sharpness:50,temperature:-12,vibrance:95},
+        {brightness:brightness+6,contrast:contrast-16,saturation:saturation+10,gamma:gamma+8,sharpness:15,temperature:12,vibrance:110},
+        {brightness:brightness-18,contrast:contrast+4,saturation:saturation+5,gamma:gamma-8,sharpness:40,temperature:18,vibrance:105},
+        {brightness:brightness+18,contrast:contrast-4,saturation:saturation-10,gamma:gamma+8,sharpness:25,temperature:-18,vibrance:90},
+        {brightness:brightness-4,contrast:contrast-12,saturation:saturation+12,gamma:gamma-2,sharpness:60,temperature:6,vibrance:115},
+        {brightness:brightness+4,contrast:contrast+12,saturation:saturation-8,gamma:gamma+2,sharpness:10,temperature:-6,vibrance:95},
+        {brightness:0,contrast:0,saturation:100,gamma:100,sharpness:20,temperature:0,vibrance:100}
+      ];
+      bases.push({brightness:Number(els.brightness.value),contrast:Number(els.contrast.value),
+        saturation:Number(els.saturation.value),gamma:Number(els.gamma.value),sharpness:Number(els.sharpness.value),
+        temperature:Number(els.temperature.value),vibrance:Number(els.vibrance.value)});
+      const ds=[["none",0],["floyd",25],["floyd",50],["floyd",75],["floyd",40],
+        ["atkinson",25],["atkinson",50],["atkinson",70],["sierra",35],["sierra",65],
+        ["ordered",35],["ordered",65],["jarvis",40],["jarvis",65]];
+      const out=[],seen=new Set();
+      for(const base of bases)for(const [ditherMethod,ditherStrength] of ds){
+        const p={...base,ditherMethod,ditherStrength:ditherMethod==="none"?0:ditherStrength};
+        const key=[p.brightness,p.contrast,p.saturation,p.gamma,p.sharpness,p.temperature,p.vibrance,p.ditherMethod,p.ditherStrength].join("|");
+        if(!seen.has(key)){seen.add(key);out.push(p);}
+      }
+      return out;
     }
     function buildFineOptimizationCandidates(top){
-      const out=[],seen=new Set(),steps=[[0,0,0],[-4,0,0],[4,0,0],[0,-4,0],[0,4,0],[0,0,-4],[0,0,4]];
-      for(const item of top.slice(0,10))for(const [b,c,g] of steps){const base=item.candidate||item,p={...base,brightness:Math.max(-100,Math.min(100,base.brightness+b)),contrast:Math.max(-100,Math.min(100,base.contrast+c)),gamma:Math.max(50,Math.min(200,base.gamma+g)),ditherStrength:Math.max(0,Math.min(100,base.ditherStrength+(out.length%2?4:-4)))};const key=Object.values(p).join("|");if(!seen.has(key)){seen.add(key);out.push(p);}}
-      return out.slice(0,70);
+      const out=[],seen=new Set();
+      const axes=[["brightness",[-4,4]],["contrast",[-4,4]],["gamma",[-4,4]],
+        ["saturation",[-5,5]],["sharpness",[-10,10]],["temperature",[-6,6]],
+        ["vibrance",[-5,5]],["ditherStrength",[-10,10]]];
+      for(const item of top.slice(0,8)){
+        const base=item.candidate||item,variants=[{...base}];
+        for(const [key,deltas] of axes)for(const delta of deltas){
+          const p={...base,[key]:base[key]+delta};
+          if(key==="brightness"||key==="contrast")p[key]=Math.max(-100,Math.min(100,p[key]));
+          if(key==="gamma")p[key]=Math.max(50,Math.min(200,p[key]));
+          if(key==="saturation"||key==="vibrance")p[key]=Math.max(0,Math.min(200,p[key]));
+          if(key==="sharpness")p[key]=Math.max(0,Math.min(100,p[key]));
+          if(key==="temperature")p[key]=Math.max(-100,Math.min(100,p[key]));
+          if(key==="ditherStrength")p[key]=Math.max(0,Math.min(100,p[key]));
+          variants.push(p);
+        }
+        for(const p of variants){
+          if(p.ditherMethod==="none")p.ditherStrength=0;
+          const key=[p.brightness,p.contrast,p.saturation,p.gamma,p.sharpness,p.temperature,p.vibrance,p.ditherMethod,p.ditherStrength].join("|");
+          if(!seen.has(key)){seen.add(key);out.push(p);}
+        }
+      }
+      return out;
     }
 
     function optimizationWorkerMain(){
@@ -2462,15 +2499,15 @@
       cancel.onclick=()=>{optimizationCancelled=true;window.__mapartOptimizationRun++;stopOptimizationWorkers();btn.disabled=false;cancel.hidden=true;bar.hidden=true;status.textContent="最適化を中止しました。";};
       try{
         drawFittedImage(loadedImage);const source=srcCtx.getImageData(0,0,MAP_SIZE,MAP_SIZE).data,blocks=active.map(b=>({rgb:b.mapRgb,lab:b.lab})),coarseCandidates=buildOptimizationCandidates(stats);
-        status.textContent="第1段階：粗探索";let coarse=await runWorkerBatch(source,blocks,coarseCandidates,runId,n=>progress(n,140,"粗探索"));
-        if(!coarse&&!optimizationCancelled){const top=[];let best=null,score=Infinity;for(let i=0;i<coarseCandidates.length;i++){const v=evaluateOptimizationCandidateFallback(source,active,coarseCandidates[i]);if(v<score){score=v;best=coarseCandidates[i];}top.push({candidate:coarseCandidates[i],score:v});if(i%4===0){progress(i+1,140,"粗探索（代替）");await new Promise(r=>setTimeout(r,0));}if(optimizationCancelled)return;}top.sort((a,b)=>a.score-b.score);coarse={best,bestScore:score,score,tested:140,top:top.slice(0,10)};}
+        status.textContent="第1段階：粗探索";let coarse=await runWorkerBatch(source,blocks,coarseCandidates,runId,n=>progress(n,coarseCandidates.length,"粗探索"));
+        if(!coarse&&!optimizationCancelled){const top=[];let best=null,score=Infinity;for(let i=0;i<coarseCandidates.length;i++){const v=evaluateOptimizationCandidateFallback(source,active,coarseCandidates[i]);if(v<score){score=v;best=coarseCandidates[i];}top.push({candidate:coarseCandidates[i],score:v});if(i%4===0){progress(i+1,coarseCandidates.length,"粗探索（代替）");await new Promise(r=>setTimeout(r,0));}if(optimizationCancelled)return;}top.sort((a,b)=>a.score-b.score);coarse={best,bestScore:score,score,tested:coarseCandidates.length,top:top.slice(0,10)};}
         if(!coarse||optimizationCancelled)return;
-        const fineCandidates=buildFineOptimizationCandidates(coarse.top);status.textContent="第2段階：精密探索";let fine=await runWorkerBatch(source,blocks,fineCandidates,runId,n=>progress(140+n,210,"精密探索"));
-        if(!fine&&!optimizationCancelled){let best=coarse.best,score=coarse.score;for(let i=0;i<fineCandidates.length;i++){const v=evaluateOptimizationCandidateFallback(source,active,fineCandidates[i]);if(v<score){score=v;best=fineCandidates[i];}if(i%2===0){progress(140+i+1,210,"精密探索（代替）");await new Promise(r=>setTimeout(r,0));}if(optimizationCancelled)return;}fine={best,score,bestScore:score,tested:fineCandidates.length};}
+        const fineCandidates=buildFineOptimizationCandidates(coarse.top);status.textContent="第2段階：精密探索";let fine=await runWorkerBatch(source,blocks,fineCandidates,runId,n=>progress(coarseCandidates.length+n,coarseCandidates.length+fineCandidates.length,"精密探索"));
+        if(!fine&&!optimizationCancelled){let best=coarse.best,score=coarse.score;for(let i=0;i<fineCandidates.length;i++){const v=evaluateOptimizationCandidateFallback(source,active,fineCandidates[i]);if(v<score){score=v;best=fineCandidates[i];}if(i%2===0){progress(coarseCandidates.length+i+1,coarseCandidates.length+fineCandidates.length,"精密探索（代替）");await new Promise(r=>setTimeout(r,0));}if(optimizationCancelled)return;}fine={best,score,bestScore:score,tested:fineCandidates.length};}
         if(!fine||optimizationCancelled)return;const best=fine.score<coarse.score?fine.best:coarse.best,score=Math.min(fine.score,coarse.score);
         if(loadedImage!==imageAtStart||BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab).map(b=>b.id).sort().join("|")!==ids){status.textContent="画像または使用ブロックが変更されたため、結果を適用しませんでした。";return;}
         setOptimizationControls(best);const name=({none:"なし",atkinson:"Atkinson",floyd:"Floyd–Steinberg",jarvis:"Jarvis–Judice–Ninke",sierra:"Sierra Lite",ordered:"Bayer 4×4"})[best.ditherMethod]||best.ditherMethod;
-        status.textContent="最適化完了："+(coarse.tested+fine.tested)+"候補（粗探索140＋精密探索最大70）。色温度"+best.temperature+"／自然な彩度"+best.vibrance+"%／"+name+" "+best.ditherStrength+"%／スコア "+score.toFixed(2)+"・"+((performance.now()-started)/1000).toFixed(1)+"秒";runConversion();
+        status.textContent="最適化完了："+(coarse.tested+fine.tested)+"候補（粗探索"+coarse.tested+"＋精密探索"+fine.tested+"）。色温度"+best.temperature+"／自然な彩度"+best.vibrance+"%／"+name+" "+best.ditherStrength+"%／スコア "+score.toFixed(2)+"・"+((performance.now()-started)/1000).toFixed(1)+"秒";runConversion();
       }catch(err){status.textContent="最適化エラー："+(err.message||"Worker error");}
       finally{if(runId===window.__mapartOptimizationRun){btn.disabled=false;cancel.hidden=true;bar.hidden=true;}}
     }

@@ -727,9 +727,9 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.18</div>
+  <div class="app-version" id="appVersion">v1.5.19</div>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.18</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.19</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
       <li>画像アップロード時の二重読み込みを修正</li>
@@ -737,7 +737,8 @@
       <li>プレビュー表示の安定性を改善</li>
       <li>ガンマ補正の計算ミスを修正し、明るさ・色調補正を正常化</li>
       <li>アップロードと画像調整を別カテゴリに整理</li>
-      <li>画像の自動補正を強化し、ディザリングも画像内容に合わせて自動調整</li>
+      <li>自動最適化を複数パターン比較方式に変更し、ブロック色差と輪郭保持を評価</li>
+      <li>明るさ・コントラスト・彩度・ガンマ・ディザリングを組み合わせて自動選択</li>
       <li>2つ目の最適化機能を削除</li>
     </ul>
     <button type="button" id="dismissUpdateNotice">確認した</button>
@@ -2259,27 +2260,99 @@
       return {mean,std:Math.sqrt(Math.max(0,sumSq/count-mean*mean)),low:percentile(.02),high:percentile(.98),
         chroma:chroma/count,edge:edgeCount?edge/edgeCount:0};
     }
-    function optimizeImageAutomatically() {
-      const st=analyzeImageForAutoCorrection(),status=document.getElementById("optimizationStatus");
+    function adjustRgbForCandidate(r,g,b,p){
+      const contrastFactor=p.contrast===0?1:(259*(p.contrast+255))/(255*(259-p.contrast));
+      r=contrastFactor*(r+p.brightness-128)+128;
+      g=contrastFactor*(g+p.brightness-128)+128;
+      b=contrastFactor*(b+p.brightness-128)+128;
+      const luma=.2126*r+.7152*g+.0722*b;
+      r=luma+(r-luma)*(p.saturation/100);
+      g=luma+(g-luma)*(p.saturation/100);
+      b=luma+(b-luma)*(p.saturation/100);
+      const exponent=100/p.gamma;
+      return [255*Math.pow(clamp(r)/255,exponent),255*Math.pow(clamp(g)/255,exponent),255*Math.pow(clamp(b)/255,exponent)];
+    }
+    function evaluateOptimizationCandidate(source,activeBlocks,p){
+      const size=64,step=MAP_SIZE/size,total=size*size;
+      const work=new Float32Array(total*4),targetLabs=new Array(total),chosenLabs=new Float32Array(total);
+      for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+        const si=(Math.floor(y*step)*MAP_SIZE+Math.floor(x*step))*4,di=(y*size+x)*4;
+        const rgb=adjustRgbForCandidate(source[si],source[si+1],source[si+2],p);
+        work[di]=rgb[0];work[di+1]=rgb[1];work[di+2]=rgb[2];work[di+3]=255;
+        targetLabs[y*size+x]=rgbToLab(rgb[0],rgb[1],rgb[2]);
+      }
+      let colorError=0;
+      for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+        const i=y*size+x,di=i*4,r=clamp(work[di]),g=clamp(work[di+1]),b=clamp(work[di+2]);
+        const lab=rgbToLab(r,g,b);
+        let best=null,bestDist=Infinity;
+        for(let k=0;k<activeBlocks.length;k++){
+          const block=activeBlocks[k],bl=block.lab;
+          const dl=lab[0]-bl[0],da=lab[1]-bl[1],db=lab[2]-bl[2],dist=dl*dl+da*da+db*db;
+          if(dist<bestDist){bestDist=dist;best=block;}
+        }
+        chosenLabs[i]=best.lab[0];
+        const target=targetLabs[i],cl=best.lab;
+        const dl=target[0]-cl[0],da=target[1]-cl[1],db=target[2]-cl[2];
+        colorError+=dl*dl+da*da+db*db;
+        if(p.ditherStrength>0&&p.ditherMethod!=="none"){
+          const er=(r-best.mapRgb[0])*p.ditherStrength/100,eg=(g-best.mapRgb[1])*p.ditherStrength/100,eb=(b-best.mapRgb[2])*p.ditherStrength/100;
+          const add=(xx,yy,w)=>{if(xx<0||xx>=size||yy<0||yy>=size)return;const q=(yy*size+xx)*4;work[q]+=er*w;work[q+1]+=eg*w;work[q+2]+=eb*w;};
+          if(p.ditherMethod==="atkinson"){
+            add(x+1,y,1/8);add(x+2,y,1/8);add(x-1,y+1,1/8);add(x,y+1,1/8);add(x+1,y+1,1/8);add(x,y+2,1/8);
+          }else{
+            add(x+1,y,7/16);add(x-1,y+1,3/16);add(x,y+1,5/16);add(x+1,y+1,1/16);
+          }
+        }
+      }
+      let edgeError=0,edgeCount=0;
+      for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+        const i=y*size+x,src=targetLabs[i][0],out=chosenLabs[i];
+        if(x+1<size){const j=i+1,ds=src-targetLabs[j][0],doo=out-chosenLabs[j];edgeError+=(Math.abs(ds)-Math.abs(doo))**2;edgeCount++;}
+        if(y+1<size){const j=i+size,ds=src-targetLabs[j][0],doo=out-chosenLabs[j];edgeError+=(Math.abs(ds)-Math.abs(doo))**2;edgeCount++;}
+      }
+      return colorError/total+(edgeCount?edgeError/edgeCount*.32:0);
+    }
+    async function optimizeImageAutomatically(){
+      const status=document.getElementById("optimizationStatus"),st=analyzeImageForAutoCorrection();
       if(!st){status.textContent="先に画像をアップロードしてください。";return;}
+      const activeBlocks=BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab);
+      if(!activeBlocks.length){status.textContent="使用ブロックを1種類以上選択してください。";return;}
+      status.textContent="画像を分析し、ブロック色・輪郭・ディザリングの組み合わせを比較しています…";
+      await new Promise(resolve=>setTimeout(resolve,30));
+      drawFittedImage(loadedImage);
+      const source=srcCtx.getImageData(0,0,MAP_SIZE,MAP_SIZE).data;
       const range=Math.max(32,st.high-st.low),factor=Math.max(.82,Math.min(1.72,238/range));
       const rawContrast=255*(259*factor-259)/(259*factor+255);
-      const contrast=Math.round(Math.max(-35,Math.min(45,rawContrast)));
-      const actualFactor=contrast===0?1:(259*(contrast+255))/(255*(259-contrast));
-      const midpoint=(st.low+st.high)/2;
-      const brightness=Math.round(Math.max(-45,Math.min(45,128-midpoint)));
-      const adjustedMean=Math.max(1,Math.min(254,128+(st.mean+brightness-128)*actualFactor));
+      const baseContrast=Math.round(Math.max(-35,Math.min(45,rawContrast)));
+      const baseBrightness=Math.round(Math.max(-45,Math.min(45,128-(st.low+st.high)/2)));
+      const actualFactor=baseContrast===0?1:(259*(baseContrast+255))/(255*(259-baseContrast));
+      const adjustedMean=Math.max(1,Math.min(254,128+(st.mean+baseBrightness-128)*actualFactor));
       const gammaExponent=Math.log(.5)/Math.log(adjustedMean/255);
-      const gamma=Math.round(Math.max(82,Math.min(122,100/gammaExponent)));
-      const saturation=Math.round(Math.max(85,Math.min(125,st.chroma<8?115:st.chroma>90?90:100+(42-st.chroma)*.35)));
-      let ditherMethod="floyd",ditherStrength=58;
-      if(st.edge<3.5&&st.chroma<18){ditherMethod="none";ditherStrength=0;}
-      else if(st.edge>24||st.chroma>72){ditherMethod="atkinson";ditherStrength=48;}
-      else if(st.edge<7){ditherMethod="floyd";ditherStrength=38;}
-      else {ditherMethod="floyd";ditherStrength=62;}
-      setOptimizationControls({brightness,contrast,saturation,gamma,ditherMethod,ditherStrength});
-      status.textContent="画像の明暗分布・色の強さ・細部を解析し、色調補正とディザリングを自動設定しました。必要に応じてスライダーで微調整できます。";
-      runConversion();
+      const baseGamma=Math.round(Math.max(82,Math.min(122,100/gammaExponent)));
+      const baseSaturation=Math.round(Math.max(85,Math.min(125,st.chroma<8?115:st.chroma>90?90:100+(42-st.chroma)*.35)));
+      const values=(base,delta,min,max)=>Array.from(new Set([base-delta,base,base+delta].map(v=>Math.round(Math.max(min,Math.min(max,v))))));
+      const brightnesses=values(baseBrightness,9,-100,100),contrasts=values(baseContrast,9,-100,100);
+      const saturations=values(baseSaturation,10,0,200),gammas=values(baseGamma,7,50,200);
+      const ditherOptions=[
+        {ditherMethod:"none",ditherStrength:0},
+        {ditherMethod:"floyd",ditherStrength:38},
+        {ditherMethod:"floyd",ditherStrength:65},
+        {ditherMethod:"atkinson",ditherStrength:42}
+      ];
+      let best=null,bestScore=Infinity,tested=0;
+      const total=brightnesses.length*contrasts.length*saturations.length*gammas.length*ditherOptions.length;
+      for(const brightness of brightnesses)for(const contrast of contrasts)for(const saturation of saturations)for(const gamma of gammas)for(const dither of ditherOptions){
+        const candidate={brightness,contrast,saturation,gamma,...dither},score=evaluateOptimizationCandidate(source,activeBlocks,candidate);
+        tested++;
+        if(score<bestScore){bestScore=score;best=candidate;}
+        if(tested%12===0){status.textContent="自動最適化中… "+tested+" / "+total+" パターンを比較";await new Promise(resolve=>setTimeout(resolve,0));}
+      }
+      if(!best){status.textContent="最適な設定を決定できませんでした。";return;}
+      setOptimizationControls(best);
+      const methodName=best.ditherMethod==="none"?"なし":best.ditherMethod==="atkinson"?"Atkinson":"Floyd–Steinberg";
+      status.textContent="最適化完了："+tested+"パターンを比較。色差と輪郭の残り方を評価し、"+methodName+"（"+best.ditherStrength+"%）を採用しました。";
+      await runConversion();
     }
     document.getElementById("autoImageOptimizeBtn").addEventListener("click",optimizeImageAutomatically);
 

@@ -2895,7 +2895,7 @@
         const blob = await new Promise((resolve, reject) => {
           els.blueprintPreviewCanvas.toBlob(value => value ? resolve(value) : reject(new Error("PNG画像を作成できませんでした。")), "image/png");
         });
-        if (blob.size > 1100000) throw new Error("設計図画像が大きすぎます（上限約1.1MB）。画像を再変換してお試しください。");
+        if (blob.size > 1400000) throw new Error("設計図画像が大きすぎます（上限約1.4MB）。設計図を少し小さくしてお試しください。");
         const buffer = new Uint8Array(await blob.arrayBuffer());
         let binary = "";
         for (let offset = 0; offset < buffer.length; offset += 0x8000) binary += String.fromCharCode(...buffer.subarray(offset, offset + 0x8000));

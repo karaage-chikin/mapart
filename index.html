@@ -731,11 +731,12 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.27</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.28</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.27</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.28</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">\n      <li>クラウド保存をPNGバイナリ方式に変更し、Base64変換による容量増加を解消</li>
+      <li>クラウド読み込み時のD1 BLOB配列変換に対応し、共有PNGが空になる問題を修正</li>
       <li>設計図データをIndexedDBで受け渡し、URLを短縮（旧URLも引き続き対応）</li>
       <li>設置進捗を自動保存し、設置方向の変更時に進捗リセットを確認</li>
       <li>ミニマップの色画像をキャッシュして、移動時はハイライトのみ更新</li>

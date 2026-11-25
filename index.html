@@ -2621,7 +2621,11 @@
       r=luma+(r-luma)*(p.saturation/100);
       g=luma+(g-luma)*(p.saturation/100);
       b=luma+(b-luma)*(p.saturation/100);
-      const exponent=100/p.gamma;let rr=255*Math.pow(clamp(r)/255,exponent),gg=255*Math.pow(clamp(g)/255,exponent),bb=255*Math.pow(clamp(b)/255,exponent);rr=clamp(rr+p.temperature*.72);bb=clamp(bb-p.temperature*.72);const ch=Math.max(rr,gg,bb)-Math.min(rr,gg,bb),vf=1+(p.vibrance/100-1)*(1-ch/255),vl=.2126*rr+.7152*gg+.0722*bb;return [Math.round(clamp(vl+(rr-vl)*vf)),Math.round(clamp(vl+(gg-vl)*vf)),Math.round(clamp(vl+(bb-vl)*vf))];
+      const exponent=100/p.gamma;let rr=255*Math.pow(clamp(r)/255,exponent),gg=255*Math.pow(clamp(g)/255,exponent),bb=255*Math.pow(clamp(b)/255,exponent);rr=clamp(rr+p.temperature*.72);bb=clamp(bb-p.temperature*.72);const ch=Math.max(rr,gg,bb)-Math.min(rr,gg,bb),vf=1+(p.vibrance/100-1)*(1-ch/255),vl=.2126*rr+.7152*gg+.0722*bb;
+          const y=vl/255,u=v=>Math.max(0,Math.min(1,v)),d=(p.shadows||0)/100*(1-u(y*1.7))*(1-y)*105+(p.highlights||0)/100*u((y-.3)/.7)*y*105+(p.blacks||0)/100*(1-y)*75+(p.whites||0)/100*y*75;
+          rr=clamp(rr+d);gg=clamp(gg+d);bb=clamp(bb+d);
+          if(p.hue){const mx=Math.max(rr,gg,bb),mn=Math.min(rr,gg,bb),df=mx-mn,s=mx?df/mx:0;let h=0;if(df){if(mx===rr)h=((gg-bb)/df)%6;else if(mx===gg)h=(bb-rr)/df+2;else h=(rr-gg)/df+4;h=(h*60+360)%360;}h=(h+p.hue+360)%360;const c=mx*s,x=c*(1-Math.abs((h/60)%2-1)),m=mx-c;let a=0,b=0,c2=0;if(h<60){a=c;b=x;}else if(h<120){a=x;b=c;}else if(h<180){b=c;c2=x;}else if(h<240){b=x;c2=c;}else if(h<300){a=x;c2=c;}else{a=c;c2=x;}rr=a+m;gg=b+m;bb=c2+m;}
+          return [Math.round(clamp(rr)),Math.round(clamp(gg)),Math.round(clamp(bb))];
     }
     function buildOptimizationCandidates(st){
       const range=Math.max(32,st.high-st.low),factor=Math.max(.82,Math.min(1.72,238/range));
@@ -2650,16 +2654,16 @@
       const out=[],seen=new Set();
       for(const base of bases)for(const [ditherMethod,ditherStrength] of ds){
         const p={...base,ditherMethod,ditherStrength:ditherMethod==="none"?0:ditherStrength};
-        const key=[p.brightness,p.contrast,p.saturation,p.gamma,p.sharpness,p.temperature,p.vibrance,p.ditherMethod,p.ditherStrength].join("|");
+        const key=[p.brightness,p.contrast,p.saturation,p.gamma,p.sharpness,p.temperature,p.vibrance,p.highlights,p.shadows,p.whites,p.blacks,p.hue,p.clarity,p.denoise,p.ditherMethod,p.ditherStrength].join("|");
         if(!seen.has(key)){seen.add(key);out.push(p);}
       }
-      return out;
+      return out.map(p=>({...p,highlights:0,shadows:0,whites:0,blacks:0,hue:0,clarity:0,denoise:0}));
     }
     function buildFineOptimizationCandidates(top){
       const out=[],seen=new Set();
       const axes=[["brightness",[-4,4]],["contrast",[-4,4]],["gamma",[-4,4]],
         ["saturation",[-5,5]],["sharpness",[-10,10]],["temperature",[-6,6]],
-        ["vibrance",[-5,5]],["ditherStrength",[-10,10]]];
+        ["vibrance",[-5,5]],["ditherStrength",[-10,10]],["highlights",[-20,20]],["shadows",[-20,20]],["whites",[-15,15]],["blacks",[-15,15]],["hue",[-15,15]],["clarity",[20]],["denoise",[20]]];
       for(const item of top.slice(0,8)){
         const base=item.candidate||item,variants=[{...base}];
         for(const [key,deltas] of axes)for(const delta of deltas){
@@ -2670,6 +2674,9 @@
           if(key==="sharpness")p[key]=Math.max(0,Math.min(100,p[key]));
           if(key==="temperature")p[key]=Math.max(-100,Math.min(100,p[key]));
           if(key==="ditherStrength")p[key]=Math.max(0,Math.min(100,p[key]));
+          if(["highlights","shadows","whites","blacks"].includes(key))p[key]=Math.max(-100,Math.min(100,p[key]));
+          if(key==="hue")p[key]=Math.max(-180,Math.min(180,p[key]));
+          if(key==="clarity"||key==="denoise")p[key]=Math.max(0,Math.min(100,p[key]));
           variants.push(p);
         }
         for(const p of variants){
@@ -2726,7 +2733,10 @@
           let gg=clamp(255*Math.pow(clamp(g)/255,ex));
           let bb=clamp(255*Math.pow(clamp(b)/255,ex)-p.temperature*.72);
           const chroma=Math.max(rr,gg,bb)-Math.min(rr,gg,bb),vf=1+(p.vibrance/100-1)*(1-chroma/255),vl=.2126*rr+.7152*gg+.0722*bb;
-          return [Math.round(clamp(vl+(rr-vl)*vf)),Math.round(clamp(vl+(gg-vl)*vf)),Math.round(clamp(vl+(bb-vl)*vf))];
+          const y=vl/255,u=v=>Math.max(0,Math.min(1,v)),d=(p.shadows||0)/100*(1-u(y*1.7))*(1-y)*105+(p.highlights||0)/100*u((y-.3)/.7)*y*105+(p.blacks||0)/100*(1-y)*75+(p.whites||0)/100*y*75;
+          rr=clamp(rr+d);gg=clamp(gg+d);bb=clamp(bb+d);
+          if(p.hue){const mx=Math.max(rr,gg,bb),mn=Math.min(rr,gg,bb),df=mx-mn,s=mx?df/mx:0;let h=0;if(df){if(mx===rr)h=((gg-bb)/df)%6;else if(mx===gg)h=(bb-rr)/df+2;else h=(rr-gg)/df+4;h=(h*60+360)%360;}h=(h+p.hue+360)%360;const c=mx*s,x=c*(1-Math.abs((h/60)%2-1)),m=mx-c;let a=0,b=0,c2=0;if(h<60){a=c;b=x;}else if(h<120){a=x;b=c;}else if(h<180){b=c;c2=x;}else if(h<240){b=x;c2=c;}else if(h<300){a=x;c2=c;}else{a=c;c2=x;}rr=a+m;gg=b+m;bb=c2+m;}
+          return [Math.round(clamp(rr)),Math.round(clamp(gg)),Math.round(clamp(bb))];
         }
         function evaluate(p){
           const work=new Float32Array(total*3);

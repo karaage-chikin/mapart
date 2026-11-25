@@ -1,6 +1,6 @@
 const ALLOWED_ORIGIN = "https://karaage-chikin.github.io";
 const MAX_DATA_CHARS = 1500000;
-const MAX_BODY_BYTES = 1200000;
+const MAX_BODY_BYTES = 1600000;
 const TTL_SECONDS = 30 * 24 * 60 * 60;
 
 function corsHeaders(origin) {

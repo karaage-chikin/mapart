@@ -707,10 +707,37 @@
       min-height: 0;
       overflow: visible;
     }
+    .update-notice {
+      position: fixed; z-index: 1200; top: 18px; right: 18px;
+      width: min(380px, calc(100vw - 36px)); padding: 16px;
+      color: var(--text); background: #242438; border: 1px solid var(--accent);
+      border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,.38);
+    }
+    .update-notice[hidden] { display: none !important; }
+    .update-notice h2 { margin: 0 0 8px; font-size: 1rem; color: var(--accent); }
+    .update-notice p { margin: 6px 0; line-height: 1.55; }
+    .update-notice ul { margin: 8px 0 14px; padding-left: 20px; line-height: 1.6; }
+    .update-notice button {
+      display: block; width: 100%; padding: 9px 12px; border: 0; border-radius: 7px;
+      color: #111827; background: var(--accent); font-weight: 700; cursor: pointer;
+    }
+    @media (max-width: 600px) {
+      .update-notice { top: 10px; right: 10px; width: calc(100vw - 20px); }
+    }
   </style>
 </head>
 <body class="is-loading">
   <div class="app-version" id="appVersion">v1.5.15</div>
+  <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.15</span></h2>
+    <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
+    <ul id="updateNoticeChanges">
+      <li>画像アップロード時の二重読み込みを修正</li>
+      <li>2Dプレビューのピクセル描画方式を改善</li>
+      <li>プレビュー表示の安定性を改善</li>
+    </ul>
+    <button type="button" id="dismissUpdateNotice">確認した</button>
+  </section>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -899,6 +926,27 @@
     </div>  </div>
 
   <script>
+    // バージョンが変わったときだけ、更新内容を一度表示する。
+    (() => {
+      const versionElement = document.getElementById("appVersion");
+      const notice = document.getElementById("updateNotice");
+      const dismissButton = document.getElementById("dismissUpdateNotice");
+      if (!versionElement || !notice || !dismissButton) return;
+      const currentVersion = versionElement.textContent.trim();
+      const storageKey = "mapart_last_seen_version";
+      let previousVersion = "";
+      try { previousVersion = localStorage.getItem(storageKey) || ""; } catch (error) {}
+      if (previousVersion !== currentVersion) {
+        notice.hidden = false;
+        const versionLabel = document.getElementById("updateNoticeVersion");
+        if (versionLabel) versionLabel.textContent = currentVersion;
+      }
+      dismissButton.addEventListener("click", () => {
+        notice.hidden = true;
+        try { localStorage.setItem(storageKey, currentVersion); } catch (error) {}
+      });
+    })();
+
     document.querySelectorAll(".vertical-tab").forEach(tab => {
       tab.addEventListener("click", () => {
         const target = tab.dataset.tab;

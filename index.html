@@ -731,9 +731,9 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.30</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.31</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.30</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.31</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">\n      <li>クラウド保存の通信タイムアウトとHTTP別エラー表示を追加</li>\n      <li>クラウド保存領域に件数・総容量の上限を追加</li>\n      <li>Safariで新しいタブを先に確保し、保存中・失敗時の案内を改善</li>\n      <li>クラウド共有機能を空の状態から再スタート</li>\n      <li>クラウド保存をPNGバイナリ方式に変更し、Base64変換による容量増加を解消</li>
       <li>クラウド読み込み時のD1 BLOB配列変換に対応し、共有PNGが空になる問題を修正</li>
@@ -2916,8 +2916,14 @@
       opened.document.body.textContent = "設計図をクラウドに保存しています…";
       button.disabled = true;
       button.textContent = "クラウド保存中…";
-      setPngStatus("クラウドに設計図を保存しています…", "info");
+      setPngStatus("クラウド接続を確認しています…", "progress");
       try {
+        const healthResponse = await fetchWithTimeout("https://mapart-api.karaage-chikin-029.workers.dev/api/health", { method: "GET", cache: "no-store" }, 12000);
+        const health = await healthResponse.json().catch(() => ({}));
+        if (!healthResponse.ok || health.ok !== true || health.database !== "connected") {
+          throw new Error(health.error || "クラウドサーバーまたはデータベースに接続できません（HTTP " + healthResponse.status + "）。");
+        }
+        setPngStatus("クラウドサーバー・D1接続を確認しました。PNGを作成しています…", "progress");
         const blob = await new Promise((resolve, reject) => {
           els.blueprintPreviewCanvas.toBlob(value => value ? resolve(value) : reject(new Error("PNG画像を作成できませんでした。")), "image/png");
         });

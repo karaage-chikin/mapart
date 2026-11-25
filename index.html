@@ -737,11 +737,12 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.40</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.41</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.40</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.41</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
+      <li>手動補正にハイライト・シャドウ・白レベル・黒レベル・色相・明瞭度・ノイズ軽減を追加（自動最適化には不使用）</li>
       <li>必要数一覧を「〇st + 〇〇」「〇sh + 〇st + 〇〇」の実数換算表示に変更</li>
       <li>通常変換でディザリング方式を取得する変数の自己参照を修正</li>
       <li>画像読み込み・変換結果のリセット・統計表示・履歴管理・設置手順URLを改善</li>
@@ -867,10 +868,11 @@
           </div>
         </div></section>
         <section class="tab-panel" role="tabpanel" data-panel="quality"><div class="box">
-          <h2>追加の画質・色調補正</h2><p class="muted">色温度と自然な彩度を調整します。自動最適化でも組み合わせを比較します。</p>
-          <div class="field"><label><span>色温度（寒色 ↔ 暖色）</span><span id="temperatureVal">0</span></label><input type="range" id="temperature" min="-50" max="50" value="0"></div>
-          <div class="field"><label><span>自然な彩度</span><span id="vibranceVal">100%</span></label><input type="range" id="vibrance" min="0" max="200" value="100"></div>
-          <button type="button" class="secondary" id="resetQualityAdjustments">追加補正をリセット</button>
+          <h2>追加の画質・色調補正</h2><p class="muted">追加補正は手動変換専用です。自動最適化の候補・評価・スコアには使用しません。</p>
+<div class="field"><h3>色温度・彩度</h3><label><span>色温度（寒色 ↔ 暖色）</span><span id="temperatureVal">0</span></label><input type="range" id="temperature" min="-50" max="50" value="0"><label><span>自然な彩度</span><span id="vibranceVal">100%</span></label><input type="range" id="vibrance" min="0" max="200" value="100"></div>
+<div class="field"><h3>明暗・色相</h3><label><span>ハイライト</span><span id="highlightsVal">0</span></label><input type="range" id="highlights" min="-100" max="100" value="0"><label><span>シャドウ</span><span id="shadowsVal">0</span></label><input type="range" id="shadows" min="-100" max="100" value="0"><label><span>白レベル</span><span id="whitesVal">0</span></label><input type="range" id="whites" min="-100" max="100" value="0"><label><span>黒レベル</span><span id="blacksVal">0</span></label><input type="range" id="blacks" min="-100" max="100" value="0"><label><span>色相</span><span id="hueVal">0°</span></label><input type="range" id="hue" min="-180" max="180" value="0"></div>
+<div class="field"><h3>ディテール</h3><label><span>明瞭度（中間調コントラスト）</span><span id="clarityVal">0%</span></label><input type="range" id="clarity" min="0" max="100" value="0"><label><span>ノイズ軽減</span><span id="denoiseVal">0%</span></label><input type="range" id="denoise" min="0" max="100" value="0"></div>
+<button type="button" class="secondary" id="resetQualityAdjustments">追加補正をリセット</button>
         </div></section>
         <section class="tab-panel" role="tabpanel" data-panel="blocks"><div class="box">
           <h2>2. 使用ブロック選択（統合版バニラパレット）</h2>
@@ -1258,6 +1260,7 @@
       ditherStrength: document.getElementById("ditherStrength"),
       ditherMethod: document.getElementById("ditherMethod"),
       temperature: document.getElementById("temperature"), vibrance: document.getElementById("vibrance"),
+      highlights:document.getElementById("highlights"),shadows:document.getElementById("shadows"),whites:document.getElementById("whites"),blacks:document.getElementById("blacks"),hue:document.getElementById("hue"),clarity:document.getElementById("clarity"),denoise:document.getElementById("denoise"),
       ditherStrengthVal: document.getElementById("ditherStrengthVal"),
       brightness: document.getElementById("brightness"),
       contrast: document.getElementById("contrast"),
@@ -1793,6 +1796,11 @@
         const rgb=adjustRgbForCandidate(pixels[i],pixels[i+1],pixels[i+2],p);
         pixels[i]=rgb[0];pixels[i+1]=rgb[1];pixels[i+2]=rgb[2];
       }
+      // 手動変換専用の追加補正。自動最適化の候補生成・評価には接続しない。
+      const ex={hi:+els.highlights.value,sh:+els.shadows.value,wh:+els.whites.value,bl:+els.blacks.value,hue:+els.hue.value,cl:+els.clarity.value,dn:+els.denoise.value},unit=v=>Math.max(0,Math.min(1,v));
+      for(let i=0;i<pixels.length;i+=4){let r=pixels[i],g=pixels[i+1],b=pixels[i+2],y=(.2126*r+.7152*g+.0722*b)/255,d=ex.sh/100*(1-unit(y*1.7))*(1-y)*105+ex.hi/100*unit((y-.3)/.7)*y*105+ex.bl/100*(1-y)*75+ex.wh/100*y*75;r=clamp(r+d);g=clamp(g+d);b=clamp(b+d);
+        if(ex.hue){const mx=Math.max(r,g,b),mn=Math.min(r,g,b),df=mx-mn,sat=mx?df/mx:0;let h=0;if(df){if(mx===r)h=((g-b)/df)%6;else if(mx===g)h=(b-r)/df+2;else h=(r-g)/df+4;h=(h*60+360)%360;}h=(h+ex.hue+360)%360;const c=mx*sat,x=c*(1-Math.abs((h/60)%2-1)),m=mx-c;let rr=0,gg=0,bb=0;if(h<60){rr=c;gg=x;}else if(h<120){rr=x;gg=c;}else if(h<180){gg=c;bb=x;}else if(h<240){gg=x;bb=c;}else if(h<300){rr=x;bb=c;}else{rr=c;bb=x;}r=rr+m;g=gg+m;b=bb+m;}pixels[i]=clamp(Math.round(r));pixels[i+1]=clamp(Math.round(g));pixels[i+2]=clamp(Math.round(b));}
+      if(ex.dn){const src=new Uint8ClampedArray(pixels),amount=ex.dn/100*.55,w=MAP_SIZE;for(let y=0;y<w;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;for(let c=0;c<3;c++){let sum=0,ws=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const xx=Math.max(0,Math.min(w-1,x+dx)),yy=Math.max(0,Math.min(w-1,y+dy)),q=(yy*w+xx)*4,wt=Math.max(0,1-Math.abs(src[i+c]-src[q+c])/48)*(dx===0||dy===0?1:.7);sum+=src[q+c]*wt;ws+=wt;}if(ws)pixels[i+c]=clamp(Math.round(src[i+c]+(sum/ws-src[i+c])*amount));}}}
       const sharpness=p.sharpness/100;
       if(sharpness>0){
         const source=new Uint8ClampedArray(pixels),amount=sharpness*1.15,w=MAP_SIZE;
@@ -1806,6 +1814,7 @@
           }
         }
       }
+      if(ex.cl){const src=new Uint8ClampedArray(pixels),amount=ex.cl/100*.65,w=MAP_SIZE;for(let y=0;y<w;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;let local=0,ws=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=Math.max(0,Math.min(w-1,x+dx)),yy=Math.max(0,Math.min(w-1,y+dy)),q=(yy*w+xx)*4,wt=(dx===0?2:1)*(dy===0?2:1);local+=(.2126*src[q]+.7152*src[q+1]+.0722*src[q+2])*wt;ws+=wt;}const lum=.2126*src[i]+.7152*src[i+1]+.0722*src[i+2],d=(lum-local/ws)*amount;for(let c=0;c<3;c++)pixels[i+c]=clamp(Math.round(src[i+c]+d));}}
     }
 
     const nearestBlockCache = new WeakMap();
@@ -2854,7 +2863,10 @@
     }
     [[els.temperature,"temperatureVal",v=>String(v)],[els.vibrance,"vibranceVal",v=>v+"%"]].forEach(([c,id,f])=>{c.addEventListener("input",()=>{document.getElementById(id).textContent=f(c.value);scheduleSliderConversion();});c.addEventListener("change",flushSliderConversion);});
     document.getElementById("resetQualityAdjustments").addEventListener("click",()=>{els.temperature.value=0;els.vibrance.value=100;document.getElementById("temperatureVal").textContent="0";document.getElementById("vibranceVal").textContent="100%";runConversion();});
-    document.getElementById("autoImageOptimizeBtn").addEventListener("click",optimizeImageAutomatically);
+    const extraControls=[[els.highlights,"highlightsVal",v=>String(v)],[els.shadows,"shadowsVal",v=>String(v)],[els.whites,"whitesVal",v=>String(v)],[els.blacks,"blacksVal",v=>String(v)],[els.hue,"hueVal",v=>v+"°"],[els.clarity,"clarityVal",v=>v+"%"],[els.denoise,"denoiseVal",v=>v+"%"]];
+     extraControls.forEach(([c,id,fmt])=>{c.addEventListener("input",()=>{document.getElementById(id).textContent=fmt(c.value);scheduleSliderConversion();});c.addEventListener("change",flushSliderConversion);});
+     document.getElementById("resetQualityAdjustments").addEventListener("click",()=>{if(sliderConversionTimer!==null){clearTimeout(sliderConversionTimer);sliderConversionTimer=null;}extraControls.forEach(([c,id,fmt])=>{c.value=0;document.getElementById(id).textContent=fmt(0);});runConversion();});
+     document.getElementById("autoImageOptimizeBtn").addEventListener("click",optimizeImageAutomatically);
 
     const PNG_SCALE = 16;
     const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);

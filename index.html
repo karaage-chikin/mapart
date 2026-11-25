@@ -737,9 +737,9 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.38</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.39</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.38</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.39</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
       <li>輪郭確認モードを追加し、元画像とマップアートの輪郭の一致・欠落・余分な線を可視化</li>
@@ -1016,6 +1016,9 @@
     });
 
     const MAP_SIZE = 128;
+    const MAX_IMAGE_FILE_BYTES = 20 * 1024 * 1024;
+    const MAX_IMAGE_PIXELS = 40000000;
+    const MAX_BUILD_STEP_URL_LENGTH = 50000;
     // URL形式v2の固定ID表。過去の設置手順URLとの互換性を保つため並び順を変更しない。
     const URL_BLOCK_IDS = window.MAPART_SHARED.URL_BLOCK_IDS;
 

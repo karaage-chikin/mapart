@@ -662,18 +662,20 @@
       position: fixed;
       right: 12px;
       bottom: 10px;
-      z-index: 10001;
-      padding: 5px 9px;
+      z-index: 1201;
+      padding: 7px 11px;
       border: 1px solid var(--border, #45475a);
       border-radius: 7px;
-      background: rgba(30, 30, 46, .88);
+      background: rgba(30, 30, 46, .96);
       color: var(--subtext, #a6adc8);
+      font: inherit;
       font-size: 11px;
       line-height: 1.2;
       font-variant-numeric: tabular-nums;
-      pointer-events: none;
+      cursor: pointer;
       user-select: none;
     }
+    .app-version:hover, .app-version:focus-visible { border-color: var(--accent); color: var(--text); outline: none; }
     @media (max-width: 600px) {
       .app-version { right: 8px; bottom: 8px; font-size: 10px; }
     }
@@ -708,8 +710,9 @@
       overflow: visible;
     }
     .update-notice {
-      position: fixed; z-index: 1200; top: 18px; right: 18px;
-      width: min(380px, calc(100vw - 36px)); padding: 16px;
+      position: fixed; z-index: 1200; right: 12px; bottom: 48px;
+      width: min(360px, calc(100vw - 24px)); max-height: min(68vh, 440px);
+      overflow-y: auto; overscroll-behavior: contain; padding: 14px;
       color: var(--text); background: #242438; border: 1px solid var(--accent);
       border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,.38);
     }
@@ -718,16 +721,17 @@
     .update-notice p { margin: 6px 0; line-height: 1.55; }
     .update-notice ul { margin: 8px 0 14px; padding-left: 20px; line-height: 1.6; }
     .update-notice button {
-      display: block; width: 100%; padding: 9px 12px; border: 0; border-radius: 7px;
-      color: #111827; background: var(--accent); font-weight: 700; cursor: pointer;
+      display: block; position: sticky; bottom: 0; width: 100%; padding: 10px 12px;
+      border: 0; border-radius: 7px; color: #111827; background: var(--accent);
+      font-weight: 700; cursor: pointer;
     }
     @media (max-width: 600px) {
-      .update-notice { top: 10px; right: 10px; width: calc(100vw - 20px); }
+      .update-notice { right: 10px; bottom: 44px; width: calc(100vw - 20px); max-height: 70vh; }
     }
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.22</div>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.22</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
     <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.22</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
@@ -904,24 +908,25 @@
     </div>  </div>
 
   <script>
-    // バージョンが変わったときだけ、更新内容を一度表示する。
+    // バージョン表示を押したときだけ更新情報を開く。
     (() => {
       const versionElement = document.getElementById("appVersion");
       const notice = document.getElementById("updateNotice");
       const dismissButton = document.getElementById("dismissUpdateNotice");
       if (!versionElement || !notice || !dismissButton) return;
-      const currentVersion = versionElement.textContent.trim();
-      const storageKey = "mapart_last_seen_version";
-      let previousVersion = "";
-      try { previousVersion = localStorage.getItem(storageKey) || ""; } catch (error) {}
-      if (previousVersion !== currentVersion) {
-        notice.hidden = false;
-        const versionLabel = document.getElementById("updateNoticeVersion");
-        if (versionLabel) versionLabel.textContent = currentVersion;
-      }
-      dismissButton.addEventListener("click", () => {
+      const versionLabel = document.getElementById("updateNoticeVersion");
+      if (versionLabel) versionLabel.textContent = versionElement.textContent.trim();
+      const closeNotice = () => {
         notice.hidden = true;
-        try { localStorage.setItem(storageKey, currentVersion); } catch (error) {}
+        versionElement.setAttribute("aria-expanded", "false");
+      };
+      versionElement.addEventListener("click", () => {
+        notice.hidden = !notice.hidden;
+        versionElement.setAttribute("aria-expanded", notice.hidden ? "false" : "true");
+      });
+      dismissButton.addEventListener("click", closeNotice);
+      document.addEventListener("keydown", event => {
+        if (event.key === "Escape" && !notice.hidden) closeNotice();
       });
     })();
 

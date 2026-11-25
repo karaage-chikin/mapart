@@ -731,9 +731,9 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.22</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.23</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.22</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.23</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
       <li>画像アップロード時の二重読み込みを修正</li>
@@ -751,6 +751,7 @@
       <li>シャープネス0/25/50%とディザリング7設定を含む1,701候補を比較</li>
       <li>32×32×32 Lab近似LUTと上位16ブロック候補で探索を高速化</li>
       <li>Worker非対応時はメインスレッドの代替評価へフォールバック</li>
+      <li>自動最適化の進行状況を候補数ではなくパーセント表示に変更</li>
     </ul>
     <button type="button" id="dismissUpdateNotice">確認した</button>
   </section>
@@ -2445,7 +2446,7 @@
         if(!best){status.textContent="最適な設定を決定できませんでした。";return;}
         setOptimizationControls(best);
         const method=best.ditherMethod==="none"?"なし":best.ditherMethod==="atkinson"?"Atkinson":"Floyd–Steinberg";
-        status.textContent="最適化完了："+tested+"候補を128×128で比較。シャープネス"+best.sharpness+"%／"+method+" "+best.ditherStrength+"%／総合スコア "+score.toFixed(2)+"（低いほど元画像に近い）";
+        status.textContent="最適化完了：100%（"+tested+"候補を128×128で比較）。シャープネス"+best.sharpness+"%／"+method+" "+best.ditherStrength+"%／総合スコア "+score.toFixed(2)+"（低いほど元画像に近い）";
         runConversion();
       };
       if(typeof Worker!=="undefined"&&typeof Blob!=="undefined"&&URL.createObjectURL){
@@ -2455,7 +2456,7 @@
           url=URL.createObjectURL(blob);optimizationWorkerUrl=url;worker=new Worker(url);optimizationWorkerInstance=worker;
           worker.onmessage=e=>{
             if(runId!==window.__mapartOptimizationRun)return;
-            if(e.data.type==="progress")status.textContent="128×128フル解像度で評価中… "+e.data.tested+" / "+e.data.total+"候補";
+            if(e.data.type==="progress"){const percent=Math.min(100,Math.round(e.data.tested/e.data.total*100));status.textContent="最適化中… "+percent+"%（"+e.data.tested+" / "+e.data.total+"候補）";}
             if(e.data.type==="done"){worker.terminate();URL.revokeObjectURL(url);optimizationWorkerInstance=null;optimizationWorkerUrl=null;finish(e.data.best,e.data.bestScore,e.data.tested);}
           };
           worker.onerror=()=>{worker.terminate();URL.revokeObjectURL(url);optimizationWorkerInstance=null;optimizationWorkerUrl=null;if(runId===window.__mapartOptimizationRun)status.textContent="画像評価Workerでエラーが発生しました。ページを再読み込みして再試行してください。";};
@@ -2467,7 +2468,7 @@
       for(let i=0;i<candidates.length;i++){
         const p=candidates[i],score=evaluateOptimizationCandidateFallback(source,active,p);
         if(score<bestScore){bestScore=score;best=p;}
-        if(i%2===0){status.textContent="代替評価中… "+(i+1)+" / "+candidates.length;await new Promise(resolve=>setTimeout(resolve,0));}
+        if(i%2===0){const percent=Math.min(100,Math.round((i+1)/candidates.length*100));status.textContent="最適化中… "+percent+"%（"+(i+1)+" / "+candidates.length+"候補・代替評価）";await new Promise(resolve=>setTimeout(resolve,0));}
         if(runId!==window.__mapartOptimizationRun)return;
       }
       finish(best,bestScore,candidates.length);

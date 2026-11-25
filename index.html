@@ -677,10 +677,40 @@
     @media (max-width: 600px) {
       .app-version { right: 8px; bottom: 8px; font-size: 10px; }
     }
+    /* v1.5.10: 左の操作画面と右のプレビューをページ全体の縦スクロールに統一 */
+    .workspace-shell {
+      height: auto;
+      min-height: 0;
+      max-height: none;
+      overflow: visible;
+      align-items: start;
+    }
+    .tab-content {
+      overflow: visible;
+      min-height: 0;
+    }
+    .tab-panel {
+      height: auto;
+      min-height: 0;
+      overflow: visible;
+      overscroll-behavior: auto;
+    }
+    .preview-dock {
+      overflow: visible;
+      min-height: 0;
+    }
+    .tab-panel .block-list {
+      max-height: none;
+      overflow: visible;
+    }
+    .stats-wrap {
+      min-height: 0;
+      overflow: visible;
+    }
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.9</div>
+  <div class="app-version" id="appVersion">v1.5.10</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>

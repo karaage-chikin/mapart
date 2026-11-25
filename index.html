@@ -2898,7 +2898,7 @@
         const dataUrl = els.blueprintPreviewCanvas.toDataURL("image/png");
         const binary = atob(dataUrl.slice("data:image/png;base64,".length));
         const bytes = Uint8Array.from(binary, ch => ch.charCodeAt(0));
-        const id = "bp_" + crypto.randomUUID().replace(/-/g,"");
+        const id = "bp_" + (crypto.randomUUID ? crypto.randomUUID().replace(/-/g,"") : Date.now().toString(36)+Math.random().toString(36).slice(2,18));
         const request = indexedDB.open("mapart-share-v1",1);
         const db = await new Promise((resolve,reject)=>{request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains("payloads"))request.result.createObjectStore("payloads",{keyPath:"id"});};request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);});
         await new Promise((resolve,reject)=>{const tx=db.transaction("payloads","readwrite");tx.objectStore("payloads").put({id,bytes:bytes.buffer,createdAt:Date.now(),type:"blueprint"});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});

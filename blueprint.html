@@ -21,6 +21,7 @@ small{color:#b8b8cc}
 <body>
 <header><h1>Minecraft MapArt 設計図</h1><div class="actions"><button id="download" disabled>PNGを保存</button><button id="copy">このURLをコピー</button></div></header>
 <main><div id="message">設計図を読み込んでいます…</div><img id="blueprint" alt="Minecraft MapArt 座標付き設計図" hidden></main>
+<script src="mapart-shared.js"></script>
 <script>
 (() => {
   const image = document.getElementById("blueprint");
@@ -44,40 +45,35 @@ small{color:#b8b8cc}
     }
     return "data:image/png;base64," + btoa(binary);
   };
+  const DB_NAME = "mapart-share-v1", STORE = "payloads";
+  function openShareDb() { return new Promise((resolve,reject)=>{ const req=indexedDB.open(DB_NAME,1); req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:"id"});}; req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); }
+  async function readSharedPayload(id) { const db=await openShareDb(); return new Promise((resolve,reject)=>{const req=db.transaction(STORE,"readonly").objectStore(STORE).get(id);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);}); }
   async function loadBlueprint() {
     try {
-      if (!hash) {
-        throw new Error("設計図データがURLにありません。元のサイトで「オンラインで表示」を押してください。");
-      }
-      // 2d / 2p の形式と、d / p および接頭辞なしの旧形式に対応。
-      const rawHash = hash.startsWith("2d") || hash.startsWith("2p") ? hash.slice(1) : hash;
-      const mode = rawHash[0] === "d" || rawHash[0] === "p" ? rawHash[0] : "p";
-      const payload = base64ToBytes(mode === "p" && rawHash[0] !== "p" && rawHash[0] !== "d" ? rawHash : rawHash.slice(1));
-      let pngBytes = payload;
-      if (mode === "d") {
-        if (typeof DecompressionStream !== "function") {
-          throw new Error("このブラウザは圧縮URLの展開に対応していません。ブラウザを更新してください。");
+      let pngBytes;
+      const sharedMatch = hash.match(/^id=([a-zA-Z0-9_-]{8,80})$/);
+      if (sharedMatch) {
+        const saved = await readSharedPayload(sharedMatch[1]);
+        if (!saved || !saved.bytes) throw new Error("設計図データが見つかりません。このURLを作成したブラウザと同じ端末・ブラウザで開いてください。");
+        pngBytes = new Uint8Array(saved.bytes);
+      } else {
+        if (!hash) throw new Error("設計図データがURLにありません。元のサイトで「オンラインで表示」を押してください。");
+        const rawHash = hash.startsWith("2d") || hash.startsWith("2p") ? hash.slice(1) : hash;
+        const mode = rawHash[0] === "d" || rawHash[0] === "p" ? rawHash[0] : "p";
+        const payload = base64ToBytes(mode === "p" && rawHash[0] !== "p" && rawHash[0] !== "d" ? rawHash : rawHash.slice(1));
+        pngBytes = payload;
+        if (mode === "d") {
+          if (typeof DecompressionStream !== "function") throw new Error("このブラウザは圧縮URLの展開に対応していません。");
+          const stream = new Blob([payload]).stream().pipeThrough(new DecompressionStream("deflate"));
+          pngBytes = new Uint8Array(await new Response(stream).arrayBuffer());
         }
-        const stream = new Blob([payload]).stream().pipeThrough(new DecompressionStream("deflate"));
-        pngBytes = new Uint8Array(await new Response(stream).arrayBuffer());
       }
-      if (pngBytes.length < 8 || pngBytes[0] !== 137 || pngBytes[1] !== 80 ||
-          pngBytes[2] !== 78 || pngBytes[3] !== 71) {
-        throw new Error("URL内の画像データがPNGとして認識できません。");
-      }
+      if (pngBytes.length < 8 || pngBytes[0] !== 137 || pngBytes[1] !== 80 || pngBytes[2] !== 78 || pngBytes[3] !== 71) throw new Error("設計図データがPNGとして認識できません。");
       dataUrl = bytesToDataUrl(pngBytes);
-      image.onload = () => {
-        image.hidden = false;
-        message.hidden = true;
-        download.disabled = false;
-      };
-      image.onerror = () => {
-        message.textContent = "設計図を読み込めませんでした。URLが途中で切れていないか確認してください。";
-      };
+      image.onload = () => { image.hidden = false; message.hidden = true; download.disabled = false; };
+      image.onerror = () => { message.textContent = "設計図を読み込めませんでした。"; };
       image.src = dataUrl;
-    } catch (error) {
-      message.textContent = error && error.message ? error.message : "設計図を読み込めませんでした。";
-    }
+    } catch (error) { message.textContent = error && error.message ? error.message : "設計図を読み込めませんでした。"; }
   }
   loadBlueprint();
   download.addEventListener("click", () => {

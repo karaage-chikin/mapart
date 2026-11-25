@@ -49,13 +49,44 @@ small{color:#b8b8cc}
     return "data:image/png;base64," + btoa(binary);
   };
 
+  async function fetchWithTimeout(url, options, timeoutMs) {
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    let timer = null;
+    const requestOptions = { ...options };
+    if (controller) requestOptions.signal = controller.signal;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        if (controller) controller.abort();
+        reject(new Error("クラウド読み込みがタイムアウトしました。通信状態を確認してください。"));
+      }, timeoutMs || 25000);
+    });
+    try { return await Promise.race([fetch(url, requestOptions), timeout]); }
+    catch (error) {
+      if (error && error.name === "AbortError") throw new Error("クラウド読み込みがタイムアウトしました。通信状態を確認してください。");
+      throw error;
+    } finally { if (timer !== null) clearTimeout(timer); }
+  }
+  function validatePngBytes(bytes) {
+    if (!(bytes instanceof Uint8Array) || bytes.length < 33 || bytes.length > 1850000) {
+      throw new Error("設計図PNGの容量またはデータ長が不正です。");
+    }
+    const signature = [137,80,78,71,13,10,26,10];
+    if (!signature.every((value,index) => bytes[index] === value)) throw new Error("設計図データがPNGとして認識できません。");
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const width = view.getUint32(16, false), height = view.getUint32(20, false);
+    if (view.getUint32(8, false) !== 13 || bytes[12] !== 73 || bytes[13] !== 72 || bytes[14] !== 68 || bytes[15] !== 82 ||
+        !width || !height || width > 8192 || height > 8192 || width * height > 16777216 || bytes[24] !== 8 || bytes[25] !== 6) {
+      throw new Error("PNGのヘッダーまたは画像サイズが不正です。");
+    }
+  }
+
   async function loadBlueprint() {
     try {
       let pngBytes;
       const cloudMatch = hash.match(/^id=cloud_([a-f0-9]{32})$/);
       const sharedMatch = hash.match(/^id=([a-zA-Z0-9_-]{8,80})$/);
       if (cloudMatch) {
-        const response = await fetch("https://mapart-api.karaage-chikin-029.workers.dev/api/blueprints/" + encodeURIComponent(cloudMatch[1]));
+        const response = await fetchWithTimeout("https://mapart-api.karaage-chikin-029.workers.dev/api/blueprints/" + encodeURIComponent(cloudMatch[1]), { cache: "no-store" }, 25000);
         if (!response.ok) {
           const result = await response.json().catch(() => ({}));
           throw new Error(result.error || "クラウド上の設計図が見つかりません。リンクの期限切れ、またはURLの誤りを確認してください。");
@@ -83,10 +114,10 @@ small{color:#b8b8cc}
           pngBytes = new Uint8Array(await new Response(stream).arrayBuffer());
         }
       }
-      if (pngBytes.length < 8 || pngBytes[0] !== 137 || pngBytes[1] !== 80 || pngBytes[2] !== 78 || pngBytes[3] !== 71) throw new Error("設計図データがPNGとして認識できません。");
+      validatePngBytes(pngBytes);
       dataUrl = bytesToDataUrl(pngBytes);
       image.onload = () => { image.hidden = false; message.hidden = true; download.disabled = false; };
-      image.onerror = () => { message.textContent = "設計図を読み込めませんでした。"; };
+      image.onerror = () => { image.hidden = true; download.disabled = true; message.hidden = false; message.textContent = "PNGデータは取得できましたが、画像として表示できませんでした。ファイルが破損している可能性があります。"; };
       image.src = dataUrl;
     } catch (error) { message.textContent = error && error.message ? error.message : "設計図を読み込めませんでした。"; }
   }

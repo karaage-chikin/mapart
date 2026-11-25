@@ -1997,6 +1997,7 @@
       const conversionStatus = document.getElementById("conversionStatus");
       if (conversionStatus) conversionStatus.textContent = "画像変換を準備しています…";
       const activeBlocks = BLOCK_DATA.filter(b => b.checked && b.mapRgb);
+      const ditherMethod = ditherMethod;
       if (activeBlocks.length === 0) {
         lastGrid = null;
         els.downloadPngBtn.disabled = true;
@@ -2037,27 +2038,31 @@
           conversionStatus.textContent = "画像変換中… " + Math.round(y / MAP_SIZE * 100) + "%（" + y + " / " + MAP_SIZE + " 行）";
         }
         if (y > 0 && y % 4 === 0) {
-          await new Promise(resolve => setTimeout(resolve, 0));
+          if (typeof scheduler !== "undefined" && typeof scheduler.yield === "function") {
+            await scheduler.yield();
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 0));
+          }
           if (currentRun !== conversionSequence) return false;
         }
         for (let x = 0; x < MAP_SIZE; x++) {
           const idx = (y * MAP_SIZE + x) * 4;
           let r = work[idx], g = work[idx + 1], b = work[idx + 2];
-          if(els.ditherMethod.value==="ordered"){const mt=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]],t=(mt[y%4][x%4]-7.5)*strength*3.2;r=clamp(r+t);g=clamp(g+t);b=clamp(b+t);}
+          if(ditherMethod==="ordered"){const mt=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]],t=(mt[y%4][x%4]-7.5)*strength*3.2;r=clamp(r+t);g=clamp(g+t);b=clamp(b+t);}
           const matched = findClosestBlockLab(r, g, b, activeBlocks);
           grid[y * MAP_SIZE + x] = matched;
           counts.set(matched.id, (counts.get(matched.id) || 0) + 1);
-          if (strength > 0 && els.ditherMethod.value !== "none") {
+          if (strength > 0 && ditherMethod !== "none") {
             const er=(r-matched.mapRgb[0])*strength,eg=(g-matched.mapRgb[1])*strength,eb=(b-matched.mapRgb[2])*strength;
             const hereLuma=edgeLuma[y*MAP_SIZE+x];
             const edgeWeight=(xx,yy,base)=>{
               if(xx<0||xx>=MAP_SIZE||yy<0||yy>=MAP_SIZE)return 0;
               return base*(1-.8*Math.min(1,Math.abs(hereLuma-edgeLuma[yy*MAP_SIZE+xx])/64));
             };
-            if(els.ditherMethod.value==="ordered"){}
-            else if(els.ditherMethod.value==="jarvis"){[[1,0,7/48],[2,0,5/48],[-2,1,3/48],[-1,1,5/48],[0,1,7/48],[1,1,5/48],[2,1,3/48],[-2,2,1/48],[-1,2,3/48],[0,2,5/48],[1,2,3/48],[2,2,1/48]].forEach(([dx,dy,w])=>addError(work,MAP_SIZE,x+dx,y+dy,er,eg,eb,edgeWeight(x+dx,y+dy,w)));}
-            else if(els.ditherMethod.value==="sierra"){[[1,0,2/4],[-1,1,1/4],[0,1,1/4]].forEach(([dx,dy,w])=>addError(work,MAP_SIZE,x+dx,y+dy,er,eg,eb,edgeWeight(x+dx,y+dy,w)));}
-            else if(els.ditherMethod.value==="atkinson"){
+            if(ditherMethod==="ordered"){}
+            else if(ditherMethod==="jarvis"){[[1,0,7/48],[2,0,5/48],[-2,1,3/48],[-1,1,5/48],[0,1,7/48],[1,1,5/48],[2,1,3/48],[-2,2,1/48],[-1,2,3/48],[0,2,5/48],[1,2,3/48],[2,2,1/48]].forEach(([dx,dy,w])=>addError(work,MAP_SIZE,x+dx,y+dy,er,eg,eb,edgeWeight(x+dx,y+dy,w)));}
+            else if(ditherMethod==="sierra"){[[1,0,2/4],[-1,1,1/4],[0,1,1/4]].forEach(([dx,dy,w])=>addError(work,MAP_SIZE,x+dx,y+dy,er,eg,eb,edgeWeight(x+dx,y+dy,w)));}
+            else if(ditherMethod==="atkinson"){
               addError(work,MAP_SIZE,x+1,y,er,eg,eb,edgeWeight(x+1,y,1/8));
               addError(work,MAP_SIZE,x+2,y,er,eg,eb,edgeWeight(x+2,y,1/8));
               addError(work,MAP_SIZE,x-1,y+1,er,eg,eb,edgeWeight(x-1,y+1,1/8));
@@ -2238,25 +2243,32 @@
         const shulkerBoxes = Math.ceil(count / 1728).toLocaleString();
 
         const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span class="swatch" style="background: rgb(${blk.rgb[0]},${blk.rgb[1]},${blk.rgb[2]});"></span>
-              <span>${blk.name}</span>
-            </div>
-          </td>
-          <td data-label="必要個数">${count.toLocaleString()} 個</td>
-          <td data-label="スタック">${stacks}</td>
-          <td data-label="シュルカー">${shulkerBoxes}</td>
-        `;
+        const blockCell = document.createElement("td");
+        const blockWrap = document.createElement("div");
+        blockWrap.style.cssText = "display:flex; align-items:center; gap:8px;";
         if (blk.textureImage) {
-          const swatch = tr.querySelector(".swatch");
           const thumbnail = document.createElement("img");
           thumbnail.className = "swatch";
           thumbnail.src = blk.textureImage.src;
           thumbnail.alt = blk.name + "のテクスチャ";
-          swatch.replaceWith(thumbnail);
+          blockWrap.appendChild(thumbnail);
+        } else {
+          const swatch = document.createElement("span");
+          swatch.className = "swatch";
+          swatch.style.background = "rgb(" + blk.rgb.map(value => clamp(Number(value))).join(",") + ")";
+          blockWrap.appendChild(swatch);
         }
+        const name = document.createElement("span");
+        name.textContent = blk.name;
+        blockWrap.appendChild(name);
+        blockCell.appendChild(blockWrap);
+        tr.appendChild(blockCell);
+        [[count.toLocaleString() + " 個", "必要個数"], [stacks, "スタック"], [shulkerBoxes, "シュルカー"]].forEach(([value, label]) => {
+          const td = document.createElement("td");
+          td.dataset.label = label;
+          td.textContent = value;
+          tr.appendChild(td);
+        });
         els.statsBody.appendChild(tr);
         if (id === "copper_block") {
           const honeycombRow = document.createElement("tr");

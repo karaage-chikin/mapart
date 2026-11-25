@@ -745,7 +745,7 @@
       <li>Sobelフィルタで輪郭の方向・強度・線の連続性を評価（35%）</li>
       <li>輪郭付近の色精度（25%）・全ピクセル色差（25%）・2×2領域色差（15%）で評価</li>
       <li>シャープネス0/25/50%とディザリング7設定を含む1,701候補を比較</li>
-      <li>32×32×32 Lab近似LUTと上位8ブロック候補で探索を高速化</li>
+      <li>32×32×32 Lab近似LUTと上位16ブロック候補で探索を高速化</li>
       <li>Worker非対応時はメインスレッドの代替評価へフォールバック</li>
     </ul>
     <button type="button" id="dismissUpdateNotice">確認した</button>
@@ -1934,6 +1934,11 @@
       applyImageAdjustments(srcImg.data);
       srcCtx.putImageData(srcImg, 0, 0);
       const work = new Float32Array(srcImg.data);
+      const edgeLuma = new Float32Array(MAP_SIZE * MAP_SIZE);
+      for (let i = 0; i < edgeLuma.length; i++) {
+        const p = i * 4;
+        edgeLuma[i] = 0.2126 * srcImg.data[p] + 0.7152 * srcImg.data[p + 1] + 0.0722 * srcImg.data[p + 2];
+      }
       const counts = new Map();
       const strength = Number(els.ditherStrength.value) / 100;
       const grid = new Array(MAP_SIZE * MAP_SIZE);
@@ -1950,11 +1955,10 @@
           counts.set(matched.id, (counts.get(matched.id) || 0) + 1);
           if (strength > 0 && els.ditherMethod.value !== "none") {
             const er=(r-matched.mapRgb[0])*strength,eg=(g-matched.mapRgb[1])*strength,eb=(b-matched.mapRgb[2])*strength;
-            const hereLuma=.2126*srcImg.data[idx]+.7152*srcImg.data[idx+1]+.0722*srcImg.data[idx+2];
+            const hereLuma=edgeLuma[y*MAP_SIZE+x];
             const edgeWeight=(xx,yy,base)=>{
               if(xx<0||xx>=MAP_SIZE||yy<0||yy>=MAP_SIZE)return 0;
-              const q=(yy*MAP_SIZE+xx)*4,l=.2126*srcImg.data[q]+.7152*srcImg.data[q+1]+.0722*srcImg.data[q+2];
-              return base*(1-.8*Math.min(1,Math.abs(hereLuma-l)/64));
+              return base*(1-.8*Math.min(1,Math.abs(hereLuma-edgeLuma[yy*MAP_SIZE+xx])/64));
             };
             if(els.ditherMethod.value==="atkinson"){
               addError(work,MAP_SIZE,x+1,y,er,eg,eb,edgeWeight(x+1,y,1/8));
@@ -2334,14 +2338,14 @@
       }
       onmessage=e=>{
         const source=new Uint8Array(e.data.source),blocks=e.data.blocks,candidates=e.data.candidates,N=128,total=N*N;
-        const blockLabs=blocks.map(b=>b.lab),blockRgb=blocks.map(b=>b.rgb),lut=new Uint16Array(32768*8);
+        const blockLabs=blocks.map(b=>b.lab),blockRgb=blocks.map(b=>b.rgb),lut=new Uint16Array(32768*16);
         for(let r=0;r<32;r++)for(let g=0;g<32;g++)for(let b=0;b<32;b++){
-          const L=labOf(r*255/31,g*255/31,b*255/31),best=new Array(8).fill(0),dist=new Array(8).fill(Infinity);
+          const L=labOf(r*255/31,g*255/31,b*255/31),best=new Array(16).fill(0),dist=new Array(16).fill(Infinity);
           for(let k=0;k<blocks.length;k++){
             const q=blockLabs[k],dl=L[0]-q[0],da=L[1]-q[1],db=L[2]-q[2],v=dl*dl+da*da+db*db;
-            if(v<dist[7]){let z=7;while(z>0&&v<dist[z-1]){dist[z]=dist[z-1];best[z]=best[z-1];z--;}dist[z]=v;best[z]=k;}
+            if(v<dist[15]){let z=15;while(z>0&&v<dist[z-1]){dist[z]=dist[z-1];best[z]=best[z-1];z--;}dist[z]=v;best[z]=k;}
           }
-          const off=((r*32+g)*32+b)*8;for(let z=0;z<8;z++)lut[off+z]=best[z];
+          const off=((r*32+g)*32+b)*16;for(let z=0;z<16;z++)lut[off+z]=best[z];
         }
         const originalL=new Float32Array(total),originalLab=new Array(total);
         for(let i=0;i<total;i++){const q=i*4;originalL[i]=.2126*source[q]+.7152*source[q+1]+.0722*source[q+2];originalLab[i]=labOf(source[q],source[q+1],source[q+2]);}
@@ -2380,9 +2384,9 @@
           let pixelError=0,edgeColor=0,edgeWeight=0;const strength=p.ditherStrength/100;
           for(let y=0;y<N;y++)for(let x=0;x<N;x++){
             const i=y*N+x,z=i*3,r=clamp(work[z]),g=clamp(work[z+1]),b=clamp(work[z+2]),lab=labOf(r,g,b);
-            const ri=Math.min(31,Math.round(r*31/255)),gi=Math.min(31,Math.round(g*31/255)),bi=Math.min(31,Math.round(b*31/255)),off=((ri*32+gi)*32+bi)*8;
+            const ri=Math.min(31,Math.round(r*31/255)),gi=Math.min(31,Math.round(g*31/255)),bi=Math.min(31,Math.round(b*31/255)),off=((ri*32+gi)*32+bi)*16;
             let chosen=lut[off],bestDist=Infinity;
-            for(let k=0;k<8;k++){const id=lut[off+k],q=blockLabs[id],dl=lab[0]-q[0],da=lab[1]-q[1],db=lab[2]-q[2],d=dl*dl+da*da+db*db;if(d<bestDist){bestDist=d;chosen=id;}}
+            for(let k=0;k<16;k++){const id=lut[off+k],q=blockLabs[id],dl=lab[0]-q[0],da=lab[1]-q[1],db=lab[2]-q[2],d=dl*dl+da*da+db*db;if(d<bestDist){bestDist=d;chosen=id;}}
             const q=blockLabs[chosen],rgb=blockRgb[chosen];outputL[i]=q[0];outputRGB[z]=rgb[0];outputRGB[z+1]=rgb[1];outputRGB[z+2]=rgb[2];
             const o=originalLab[i],dl=o[0]-q[0],da=o[1]-q[1],db=o[2]-q[2],w=.18+.82*sourceEdge.mag[i],e=dl*dl+da*da+db*db;
             pixelError+=e;edgeColor+=e*w;edgeWeight+=w;
@@ -2419,6 +2423,7 @@
       const active=BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab);
       if(!active.length){status.textContent="使用ブロックを1種類以上選択してください。";return;}
       const selectedIds=active.map(b=>b.id).sort().join("|");
+      const imageAtStart=loadedImage;
       const runId=(window.__mapartOptimizationRun=(window.__mapartOptimizationRun||0)+1);
       if(optimizationWorkerInstance){optimizationWorkerInstance.terminate();optimizationWorkerInstance=null;}
       status.textContent="選択中のブロックを使い、128×128フル解像度で輪郭・色・領域を評価しています…";
@@ -2427,6 +2432,7 @@
       const blocks=active.map(b=>({rgb:b.mapRgb,lab:b.lab}));
       const finish=(best,score,tested)=>{
         if(runId!==window.__mapartOptimizationRun)return;
+        if(loadedImage!==imageAtStart){status.textContent="最適化中に画像が変更されたため、結果を適用しませんでした。";return;}
         const current=BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab).map(b=>b.id).sort().join("|");
         if(current!==selectedIds){status.textContent="最適化中に使用ブロックが変更されたため、結果を適用しませんでした。";return;}
         if(!best){status.textContent="最適な設定を決定できませんでした。";return;}

@@ -6,11 +6,15 @@ const SAVE_WINDOW_SECONDS = 10 * 60;
 const SAVE_LIMIT = 10;
 const READ_WINDOW_SECONDS = 60;
 const READ_LIMIT = 120;
+// Application-level storage guard; expired rows are excluded even before daily cleanup.
+const MAX_STORED_BLUEPRINTS = 2000;
+const MAX_TOTAL_STORAGE_BYTES = 500 * 1024 * 1024;
 
 function corsHeaders(origin) {
   return {
     "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "X-Content-Type-Options": "nosniff",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Expose-Headers": "X-Expires-At",
     "Access-Control-Max-Age": "86400",
@@ -112,9 +116,19 @@ export default {
         });
         const now = Math.floor(Date.now() / 1000);
         const id = randomId();
-        await env.DB.prepare("INSERT INTO blueprints (id, data, created_at, expires_at) VALUES (?, ?, ?, ?)")
-          .bind(id, bytes, now, now + TTL_SECONDS).run();
-        return json({ id, expiresAt: now + TTL_SECONDS }, 201, origin);
+        const saved = await env.DB.prepare(
+          "INSERT INTO blueprints (id, data, created_at, expires_at) " +
+          "SELECT ?, ?, ?, ? WHERE " +
+          "(SELECT COUNT(*) FROM blueprints WHERE expires_at > ?) < ? AND " +
+          "(SELECT COALESCE(SUM(length(data)), 0) FROM blueprints WHERE expires_at > ?) + ? <= ?"
+        ).bind(
+          id, bytes, now, now + TTL_SECONDS,
+          now, MAX_STORED_BLUEPRINTS, now, bytes.byteLength, MAX_TOTAL_STORAGE_BYTES
+        ).run();
+        if (Number(saved?.meta?.changes || 0) !== 1) {
+          return json({ error: "クラウド保存領域が上限に達しています。古い設計図の期限切れ後に再度お試しください。" }, 507, origin);
+        }
+        return json({ id, expiresAt: now + TTL_SECONDS, maxAgeDays: 30 }, 201, origin);
       } catch (error) {
         console.error("Blueprint save failed", error);
         return json({ error: "クラウド保存に失敗しました。時間をおいて再試行してください。" }, 500, origin);
@@ -165,3 +179,5 @@ export default {
     ctx.waitUntil(cleanup(env));
   }
 };
+
+export { validPng, corsHeaders };

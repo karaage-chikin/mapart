@@ -86,7 +86,7 @@ function bytesFromBase64(value){
  return bytes;
 }
 async function decode(){
- const hash=location.hash.slice(1); progressKey="mapart_progress_"+hash.slice(0,96);
+ const hash=location.hash.slice(1); progressKey="mapart_progress_"+(()=>{let h1=2166136261,h2=2246822519;for(let i=0;i<hash.length;i++){const c=hash.charCodeAt(i);h1=Math.imul(h1^c,16777619);h2=Math.imul(h2^c,3266489917);}return (h1>>>0).toString(36)+"_"+(h2>>>0).toString(36);})();
  const isV2=hash.startsWith("2d")||hash.startsWith("2p");
  const mode=isV2?hash[1]:hash[0];
  const encoded=isV2?hash.slice(2):hash.slice(1);
@@ -166,40 +166,25 @@ function draw(){
  $("next").disabled=first>=total;
  $("next").textContent=first+STEP>=total?"完了":"次へ（4ブロック）";
 }
-let miniMapBaseCanvas=null, miniMapPlacedCanvas=null;
+let miniMapBaseCanvas=null,miniMapDrawnPlaced=0,miniMapNeedsReset=true;
 function prepareMiniMap(){
  if(miniMapBaseCanvas)return;
  miniMapBaseCanvas=document.createElement("canvas");miniMapBaseCanvas.width=SIZE;miniMapBaseCanvas.height=SIZE;
- miniMapPlacedCanvas=document.createElement("canvas");miniMapPlacedCanvas.width=SIZE;miniMapPlacedCanvas.height=SIZE;
- const baseCtx=miniMapBaseCanvas.getContext("2d"),placedCtx=miniMapPlacedCanvas.getContext("2d");
- const base=baseCtx.createImageData(SIZE,SIZE),dark=placedCtx.createImageData(SIZE,SIZE);
- for(let order=0;order<SIZE*SIZE;order++){
-  const pos=position(order),item=PALETTE[pos.index],rgb=item.mapRgb||[100,100,100],o=(pos.y*SIZE+pos.x)*4;
-  base.data[o]=rgb[0];base.data[o+1]=rgb[1];base.data[o+2]=rgb[2];base.data[o+3]=255;
-  dark.data[o]=Math.round(rgb[0]*.42);dark.data[o+1]=Math.round(rgb[1]*.42);dark.data[o+2]=Math.round(rgb[2]*.42);dark.data[o+3]=255;
- }
- baseCtx.putImageData(base,0,0);placedCtx.putImageData(dark,0,0);
+ const c=miniMapBaseCanvas.getContext("2d"),image=c.createImageData(SIZE,SIZE);
+ for(let order=0;order<SIZE*SIZE;order++){const pos=position(order),item=PALETTE[pos.index],rgb=item.mapRgb||[100,100,100],o=(pos.y*SIZE+pos.x)*4;image.data[o]=rgb[0];image.data[o+1]=rgb[1];image.data[o+2]=rgb[2];image.data[o+3]=255;}
+ c.putImageData(image,0,0);
 }
 function drawMiniMap(first,last){
- prepareMiniMap();
- const canvas=$("miniMap"),ctx=canvas.getContext("2d");
- ctx.clearRect(0,0,canvas.width,canvas.height);
- const scale=canvas.width/SIZE,split=Math.min(first,SIZE*SIZE);
- if(split>0){
-  // The cached dimmed image is only used as a full image when all blocks are placed;
-  // for partial progress, overlay the already-placed cells in one path.
-  ctx.drawImage(miniMapBaseCanvas,0,0,canvas.width,canvas.height);
-  ctx.fillStyle="rgba(0,0,0,.58)";ctx.beginPath();
-  for(let order=0;order<split;order++){const pos=position(order);ctx.rect(pos.x*scale,pos.y*scale,scale,scale);}
-  ctx.fill();
- }else ctx.drawImage(miniMapBaseCanvas,0,0,canvas.width,canvas.height);
+ prepareMiniMap();const canvas=$("miniMap"),ctx=canvas.getContext("2d"),scale=canvas.width/SIZE;
+ if(miniMapNeedsReset){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(miniMapBaseCanvas,0,0,canvas.width,canvas.height);miniMapDrawnPlaced=0;miniMapNeedsReset=false;}
+ const from=Math.min(first,miniMapDrawnPlaced),to=Math.max(first,miniMapDrawnPlaced);
+ for(let order=from;order<to;order++){const pos=position(order),x=pos.x*scale,y=pos.y*scale;if(order<first){ctx.fillStyle="rgba(0,0,0,.58)";ctx.fillRect(x,y,scale,scale);}else{ctx.drawImage(miniMapBaseCanvas,pos.x,pos.y,1,1,x,y,scale,scale);}}
+ miniMapDrawnPlaced=first;
  ctx.lineWidth=1.2;ctx.strokeStyle="#ffffff";ctx.beginPath();
- for(let order=first;order<last;order++){const pos=position(order);ctx.rect(pos.x*scale+.5,pos.y*scale+.5,scale-1,scale-1);}
- ctx.stroke();
+ for(let order=first;order<last;order++){const pos=position(order);ctx.rect(pos.x*scale+.5,pos.y*scale+.5,scale-1,scale-1);}ctx.stroke();
  if(first<SIZE*SIZE){const pos=position(first);ctx.lineWidth=2;ctx.strokeStyle="#ffcf45";ctx.strokeRect(pos.x*scale+1,pos.y*scale+1,scale-2,scale-2);$("miniMapPosition").textContent="現在位置："+(pos.x+1)+"列目・"+(pos.y+1)+"行目";}
  else $("miniMapPosition").textContent="現在位置：設置完了";
 }
-function saveProgress(){try{localStorage.setItem(progressKey,JSON.stringify({placed,direction,updatedAt:Date.now()}));}catch(_){status.textContent="進捗を保存できませんでした。ブラウザの保存容量を確認してください。";}}
 function setPosition(value){placed=Math.max(0,Math.min(SIZE*SIZE,Math.floor(value/STEP)*STEP));saveProgress();draw();}
 $("first").addEventListener("click",()=>{if(placed>0&&!confirm("設置済みの進捗表示を最初に戻しますか？"))return;setPosition(0);});
 $("back").addEventListener("click",()=>setPosition(placed-STEP));
@@ -213,7 +198,7 @@ $("direction").addEventListener("change",()=>{
   }
   placed=0;
  }
- direction=next;saveProgress();miniMapBaseCanvas=null;miniMapPlacedCanvas=null;draw();
+ direction=next;saveProgress();miniMapNeedsReset=true;draw();
 });
 $("copyUrl").addEventListener("click",async()=>{
  try{await navigator.clipboard.writeText(location.href);status.textContent="この設置手順のURLをコピーしました。";}

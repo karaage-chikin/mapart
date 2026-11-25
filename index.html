@@ -2417,6 +2417,7 @@
     }
 
     let optimizationWorkerInstance=null;
+    let optimizationWorkerUrl=null;
     async function optimizeImageAutomatically(){
       const status=document.getElementById("optimizationStatus"),stats=analyzeImageForAutoCorrection();
       if(!stats){status.textContent="先に画像をアップロードしてください。";return;}
@@ -2426,6 +2427,7 @@
       const imageAtStart=loadedImage;
       const runId=(window.__mapartOptimizationRun=(window.__mapartOptimizationRun||0)+1);
       if(optimizationWorkerInstance){optimizationWorkerInstance.terminate();optimizationWorkerInstance=null;}
+      if(optimizationWorkerUrl){URL.revokeObjectURL(optimizationWorkerUrl);optimizationWorkerUrl=null;}
       status.textContent="選択中のブロックを使い、128×128フル解像度で輪郭・色・領域を評価しています…";
       await new Promise(resolve=>setTimeout(resolve,20));drawFittedImage(loadedImage);
       const source=srcCtx.getImageData(0,0,MAP_SIZE,MAP_SIZE).data,candidates=buildOptimizationCandidates(stats);
@@ -2445,15 +2447,15 @@
         let url=null,worker=null;
         try{
           const blob=new Blob(["("+optimizationWorkerMain.toString()+")()"],{type:"text/javascript"});
-          url=URL.createObjectURL(blob);worker=new Worker(url);optimizationWorkerInstance=worker;
+          url=URL.createObjectURL(blob);optimizationWorkerUrl=url;worker=new Worker(url);optimizationWorkerInstance=worker;
           worker.onmessage=e=>{
             if(runId!==window.__mapartOptimizationRun)return;
             if(e.data.type==="progress")status.textContent="128×128フル解像度で評価中… "+e.data.tested+" / "+e.data.total+"候補";
-            if(e.data.type==="done"){worker.terminate();URL.revokeObjectURL(url);optimizationWorkerInstance=null;finish(e.data.best,e.data.bestScore,e.data.tested);}
+            if(e.data.type==="done"){worker.terminate();URL.revokeObjectURL(url);optimizationWorkerInstance=null;optimizationWorkerUrl=null;finish(e.data.best,e.data.bestScore,e.data.tested);}
           };
-          worker.onerror=()=>{worker.terminate();URL.revokeObjectURL(url);optimizationWorkerInstance=null;if(runId===window.__mapartOptimizationRun)status.textContent="画像評価Workerでエラーが発生しました。ページを再読み込みして再試行してください。";};
+          worker.onerror=()=>{worker.terminate();URL.revokeObjectURL(url);optimizationWorkerInstance=null;optimizationWorkerUrl=null;if(runId===window.__mapartOptimizationRun)status.textContent="画像評価Workerでエラーが発生しました。ページを再読み込みして再試行してください。";};
           const copy=new Uint8Array(source);worker.postMessage({source:copy.buffer,blocks,candidates},[copy.buffer]);return;
-        }catch(error){if(worker)worker.terminate();if(url)URL.revokeObjectURL(url);optimizationWorkerInstance=null;}
+        }catch(error){if(worker)worker.terminate();if(url)URL.revokeObjectURL(url);optimizationWorkerInstance=null;optimizationWorkerUrl=null;}
       }
       status.textContent="Worker非対応のため、メインスレッドで代替評価を実行しています…";
       let best=null,bestScore=Infinity;

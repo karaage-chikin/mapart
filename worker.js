@@ -98,6 +98,16 @@ export default {
       status: 403, headers: { "Content-Type": "application/json; charset=utf-8" }
     });
     const url = new URL(request.url);
+    if (request.method === "GET" && url.pathname === "/api/health") {
+      try {
+        const databaseCheck = await env.DB.prepare("SELECT 1 AS ok").first();
+        if (Number(databaseCheck?.ok) !== 1) throw new Error("D1 health check returned an unexpected result");
+        return json({ ok: true, database: "connected" }, 200, origin);
+      } catch (error) {
+        console.error("Health check failed", error);
+        return json({ ok: false, error: "クラウドデータベースに接続できません。" }, 503, origin);
+      }
+    }
     if (request.method === "POST" && url.pathname === "/api/blueprints") {
       if ((request.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase() !== "image/png") {
         return json({ error: "PNG画像として送信してください。" }, 415, origin);

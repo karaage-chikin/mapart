@@ -737,12 +737,12 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.42</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.43</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
     <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.41</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
-      <li>追加の画質・色調補正7項目を自動最適化の精密探索にも対応</li>
+      <li>追加補正7項目を全範囲探索＋局所精密探索で自動最適化</li>
       <li>手動補正にハイライト・シャドウ・白レベル・黒レベル・色相・明瞭度・ノイズ軽減を追加</li>
       <li>必要数一覧を「〇st + 〇〇」「〇sh + 〇st + 〇〇」の実数換算表示に変更</li>
       <li>通常変換でディザリング方式を取得する変数の自己参照を修正</li>
@@ -2820,6 +2820,34 @@
       return results.filter(Boolean).reduce((a,x)=>{if(x.bestScore<a.score){a.best=x.best;a.score=x.bestScore;}a.tested+=x.tested;(x.top||[]).forEach(t=>a.top.push(t));a.top.sort((u,v)=>u.score-v.score);a.top=a.top.slice(0,10);return a;},{best:null,score:Infinity,tested:0,top:[]});}
       finally{stopOptimizationWorkers();URL.revokeObjectURL(url);}
     }
+    function buildQualityAxisCandidates(base,key,values){
+      const limits={
+        highlights:[-100,100],shadows:[-100,100],whites:[-100,100],blacks:[-100,100],
+        hue:[-180,180],clarity:[0,100],denoise:[0,100]
+      };
+      const [min,max]=limits[key],seen=new Set(),out=[];
+      for(const value of values){
+        const p={...base,[key]:Math.max(min,Math.min(max,value))};
+        if(p.ditherMethod==="none")p.ditherStrength=0;
+        const signature=[p.brightness,p.contrast,p.saturation,p.gamma,p.sharpness,p.temperature,p.vibrance,p.highlights,p.shadows,p.whites,p.blacks,p.hue,p.clarity,p.denoise,p.ditherMethod,p.ditherStrength].join("|");
+        if(!seen.has(signature)){seen.add(signature);out.push(p);}
+      }
+      return out;
+    }
+    async function evaluateQualityAxis(source,blocks,base,key,values,runId,progress,label){
+      const candidates=buildQualityAxisCandidates(base,key,values);
+      if(!candidates.length)return {best:base,score:Infinity,tested:0};
+      const result=await runWorkerBatch(source,blocks,candidates,runId,n=>progress(n,candidates.length,label));
+      if(result)return {best:result.best||base,score:result.score,tested:result.tested};
+      let best=base,score=Infinity;
+      for(let i=0;i<candidates.length;i++){
+        const value=evaluateOptimizationCandidateFallback(source,blocks,candidates[i]);
+        if(value<score){score=value;best=candidates[i];}
+        if(i%2===0){progress(i+1,candidates.length,label+"（代替）");await new Promise(r=>setTimeout(r,0));}
+        if(optimizationCancelled)return null;
+      }
+      return {best,score,tested:candidates.length};
+    }
     async function optimizeImageAutomatically(){
       const status=document.getElementById("optimizationStatus"),btn=document.getElementById("autoImageOptimizeBtn"),cancel=document.getElementById("cancelOptimizationBtn"),bar=document.getElementById("optimizationProgress"),pt=document.getElementById("optimizationProgressText"),stats=analyzeImageForAutoCorrection();
       if(!stats){status.textContent="先に画像をアップロードしてください。";return;}const active=BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab);if(!active.length||btn.disabled)return;
@@ -2833,10 +2861,43 @@
         if(!coarse||optimizationCancelled)return;
         const fineCandidates=buildFineOptimizationCandidates(coarse.top);status.textContent="第2段階：精密探索";let fine=await runWorkerBatch(source,blocks,fineCandidates,runId,n=>progress(coarseCandidates.length+n,coarseCandidates.length+fineCandidates.length,"精密探索"));
         if(!fine&&!optimizationCancelled){let best=coarse.best,score=coarse.score;for(let i=0;i<fineCandidates.length;i++){const v=evaluateOptimizationCandidateFallback(source,active,fineCandidates[i]);if(v<score){score=v;best=fineCandidates[i];}if(i%2===0){progress(coarseCandidates.length+i+1,coarseCandidates.length+fineCandidates.length,"精密探索（代替）");await new Promise(r=>setTimeout(r,0));}if(optimizationCancelled)return;}fine={best,score,bestScore:score,tested:fineCandidates.length};}
-        if(!fine||optimizationCancelled)return;const best=fine.score<coarse.score?fine.best:coarse.best,score=Math.min(fine.score,coarse.score);
+        if(!fine||optimizationCancelled)return;
+        let best=fine.score<coarse.score?fine.best:coarse.best,score=Math.min(fine.score,coarse.score);
+        // 追加補正7項目を、既存スコアを変えずに全範囲→局所範囲の順で座標探索する。
+        const qualityAxes=[
+          ["highlights",[-100,-75,-50,-25,0,25,50,75,100],[-25,-12,0,12,25]],
+          ["shadows",[-100,-75,-50,-25,0,25,50,75,100],[-25,-12,0,12,25]],
+          ["whites",[-100,-75,-50,-25,0,25,50,75,100],[-25,-12,0,12,25]],
+          ["blacks",[-100,-75,-50,-25,0,25,50,75,100],[-25,-12,0,12,25]],
+          ["hue",[-180,-135,-90,-45,0,45,90,135,180],[-45,-22,0,22,45]],
+          ["clarity",[0,12,25,38,50,62,75,88,100],[-25,-12,0,12,25]],
+          ["denoise",[0,12,25,38,50,62,75,88,100],[-25,-12,0,12,25]]
+        ];
+        let qualityTested=0;
+        for(let axisIndex=0;axisIndex<qualityAxes.length;axisIndex++){
+          if(optimizationCancelled)return;
+          const [key,wideValues,localOffsets]=qualityAxes[axisIndex];
+          status.textContent="追加補正 全範囲探索："+(axisIndex+1)+"/7（"+key+"）";
+          const wide=await evaluateQualityAxis(source,active,best,key,wideValues,runId,
+            (n,total,label)=>progress(qualityTested+n,total,label),
+            "追加補正 "+(axisIndex+1)+"/7");
+          if(!wide||optimizationCancelled)return;
+          qualityTested+=wide.tested;
+          if(wide.score<score){best=wide.best;score=wide.score;}
+          const [min,max]=key==="hue"?[-180,180]:(key==="clarity"||key==="denoise")?[0,100]:[-100,100];
+          const center=Number(best[key]||0);
+          const localValues=localOffsets.map(offset=>Math.max(min,Math.min(max,center+offset)));
+          status.textContent="追加補正 精密調整："+(axisIndex+1)+"/7（"+key+"）";
+          const local=await evaluateQualityAxis(source,active,best,key,localValues,runId,
+            (n,total,label)=>progress(n,total,label),
+            "追加補正精密 "+(axisIndex+1)+"/7");
+          if(!local||optimizationCancelled)return;
+          qualityTested+=local.tested;
+          if(local.score<score){best=local.best;score=local.score;}
+        }
         if(loadedImage!==imageAtStart||BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab).map(b=>b.id).sort().join("|")!==ids){status.textContent="画像または使用ブロックが変更されたため、結果を適用しませんでした。";return;}
         setOptimizationControls(best);const name=({none:"なし",atkinson:"Atkinson",floyd:"Floyd–Steinberg",jarvis:"Jarvis–Judice–Ninke",sierra:"Sierra Lite",ordered:"Bayer 4×4"})[best.ditherMethod]||best.ditherMethod;
-        status.textContent="最適化完了："+(coarse.tested+fine.tested)+"候補（粗探索"+coarse.tested+"＋精密探索"+fine.tested+"）。追加補正：ハイライト"+(best.highlights||0)+"／シャドウ"+(best.shadows||0)+"／白"+(best.whites||0)+"／黒"+(best.blacks||0)+"／色相"+(best.hue||0)+"°／明瞭度"+(best.clarity||0)+"%／ノイズ軽減"+(best.denoise||0)+"%／スコア "+score.toFixed(2)+"・"+((performance.now()-started)/1000).toFixed(1)+"秒";runConversion();
+        status.textContent="最適化完了："+(coarse.tested+fine.tested+qualityTested)+"候補（粗探索"+coarse.tested+"＋精密探索"+fine.tested+"＋追加補正"+qualityTested+"）。追加補正：ハイライト"+(best.highlights||0)+"／シャドウ"+(best.shadows||0)+"／白"+(best.whites||0)+"／黒"+(best.blacks||0)+"／色相"+(best.hue||0)+"°／明瞭度"+(best.clarity||0)+"%／ノイズ軽減"+(best.denoise||0)+"%／スコア "+score.toFixed(2)+"・"+((performance.now()-started)/1000).toFixed(1)+"秒";runConversion();
       }catch(err){status.textContent="最適化エラー："+(err.message||"Worker error");}
       finally{if(runId===window.__mapartOptimizationRun){btn.disabled=false;cancel.hidden=true;bar.hidden=true;}}
     }

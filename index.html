@@ -2386,16 +2386,8 @@
           }
           const off=((r*32+g)*32+b)*16;for(let z=0;z<16;z++)lut[off+z]=best[z];
         }
-        const originalL=new Float32Array(total),originalLab=new Array(total);
-        for(let i=0;i<total;i++){const q=i*4;originalL[i]=.2126*source[q]+.7152*source[q+1]+.0722*source[q+2];originalLab[i]=labOf(source[q],source[q+1],source[q+2]);}
-        function sobel(L){
-          const gx=new Float32Array(total),gy=new Float32Array(total),mag=new Float32Array(total);
-          for(let y=1;y<N-1;y++)for(let x=1;x<N-1;x++){
-            const i=y*N+x,a=L[i-N-1],b=L[i-N],c=L[i-N+1],d=L[i-1],f=L[i+1],g=L[i+N-1],h=L[i+N],j=L[i+N+1];
-            gx[i]=-a+c-2*d+2*f-g+j;gy[i]=-a-2*b-c+g+2*h+j;mag[i]=Math.min(1,Math.hypot(gx[i],gy[i])/420);
-          }return {gx,gy,mag};
-        }
-        const sourceEdge=sobel(originalL);
+        const originalLab=new Array(total);
+        for(let i=0;i<total;i++){const q=i*4;originalLab[i]=labOf(source[q],source[q+1],source[q+2]);}
         function adjust(r,g,b,p){
           const cf=p.contrast===0?1:(259*(p.contrast+255))/(255*(259-p.contrast));
           r=cf*(r+p.brightness-128)+128;g=cf*(g+p.brightness-128)+128;b=cf*(b+p.brightness-128)+128;
@@ -2423,30 +2415,22 @@
           }
           const edgeL=new Float32Array(total);
           for(let i=0;i<total;i++){const z=i*3;edgeL[i]=.2126*work[z]+.7152*work[z+1]+.0722*work[z+2];}
-          const outputL=new Float32Array(total),outputRGB=new Uint8Array(total*3);
-          let pixelError=0,edgeColor=0,edgeWeight=0;const strength=p.ditherStrength/100;
+          const outputRGB=new Uint8Array(total*3);
+          let pixelError=0;const strength=p.ditherStrength/100;
           for(let y=0;y<N;y++)for(let x=0;x<N;x++){
             const i=y*N+x,z=i*3;let r=clamp(work[z]),g=clamp(work[z+1]),b=clamp(work[z+2]);if(p.ditherMethod==="ordered"){const mt=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]],t=(mt[y%4][x%4]-7.5)*strength*3.2;r=clamp(r+t);g=clamp(g+t);b=clamp(b+t);}const lab=labOf(r,g,b);
             const ri=Math.min(31,Math.round(r*31/255)),gi=Math.min(31,Math.round(g*31/255)),bi=Math.min(31,Math.round(b*31/255)),off=((ri*32+gi)*32+bi)*16;
             let chosen=lut[off],bestDist=Infinity;
             for(let k=0;k<16;k++){const id=lut[off+k],q=blockLabs[id],dl=lab[0]-q[0],da=lab[1]-q[1],db=lab[2]-q[2],d=dl*dl+da*da+db*db;if(d<bestDist){bestDist=d;chosen=id;}}
-            const q=blockLabs[chosen],rgb=blockRgb[chosen];outputL[i]=q[0];outputRGB[z]=rgb[0];outputRGB[z+1]=rgb[1];outputRGB[z+2]=rgb[2];
-            const o=originalLab[i],dl=o[0]-q[0],da=o[1]-q[1],db=o[2]-q[2],w=.18+.82*sourceEdge.mag[i],e=dl*dl+da*da+db*db;
-            pixelError+=e;edgeColor+=e*w;edgeWeight+=w;
+            const rgb=blockRgb[chosen];outputRGB[z]=rgb[0];outputRGB[z+1]=rgb[1];outputRGB[z+2]=rgb[2];
+            const o=originalLab[i],q=blockLabs[chosen],dl=o[0]-q[0],da=o[1]-q[1],db=o[2]-q[2];
+            pixelError+=dl*dl+da*da+db*db;
             if(strength&&p.ditherMethod!=="none"){
               const er=(r-rgb[0])*strength,eg=(g-rgb[1])*strength,eb=(b-rgb[2])*strength;
               const add=(xx,yy,weight)=>{if(xx<0||xx>=N||yy<0||yy>=N)return;const j=yy*N+xx,t=j*3,atten=1-.8*Math.min(1,Math.abs(edgeL[i]-edgeL[j])/64);work[t]+=er*weight*atten;work[t+1]+=eg*weight*atten;work[t+2]+=eb*weight*atten;};
               if(p.ditherMethod==="ordered"){}else if(p.ditherMethod==="jarvis"){[[1,0,7/48],[2,0,5/48],[-2,1,3/48],[-1,1,5/48],[0,1,7/48],[1,1,5/48],[2,1,3/48],[-2,2,1/48],[-1,2,3/48],[0,2,5/48],[1,2,3/48],[2,2,1/48]].forEach(([dx,dy,w])=>add(x+dx,y+dy,w));}else if(p.ditherMethod==="sierra"){add(x+1,y,2/4);add(x-1,y+1,1/4);add(x,y+1,1/4);}else if(p.ditherMethod==="atkinson"){add(x+1,y,1/8);add(x+2,y,1/8);add(x-1,y+1,1/8);add(x,y+1,1/8);add(x+1,y+1,1/8);add(x,y+2,1/8);}
               else{add(x+1,y,7/16);add(x-1,y+1,3/16);add(x,y+1,5/16);add(x+1,y+1,1/16);}
             }
-          }
-          const resultEdge=sobel(outputL);let grad=0,gradWeight=0;
-          for(let i=0;i<total;i++){const w=.18+.82*sourceEdge.mag[i],dx=sourceEdge.gx[i]-resultEdge.gx[i],dy=sourceEdge.gy[i]-resultEdge.gy[i];grad+=(dx*dx+dy*dy)*w;gradWeight+=w;}
-          let region=0,regions=0;
-          for(let y=0;y<N;y+=2)for(let x=0;x<N;x+=2){
-            let ar=0,ag=0,ab=0,br=0,bg=0,bb=0;
-            for(let yy=y;yy<y+2;yy++)for(let xx=x;xx<x+2;xx++){const i=yy*N+xx,q=i*4,z=i*3;ar+=source[q];ag+=source[q+1];ab+=source[q+2];br+=outputRGB[z];bg+=outputRGB[z+1];bb+=outputRGB[z+2];}
-            const A=labOf(ar/4,ag/4,ab/4),B=labOf(br/4,bg/4,bb/4),dl=A[0]-B[0],da=A[1]-B[1],db=A[2]-B[2];region+=dl*dl+da*da+db*db;regions++;
           }
           // 最終的なマップ出力色の平均色差だけで評価する。テクスチャや輪郭評価は混ぜない。
           return pixelError/total;

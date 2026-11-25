@@ -49,9 +49,10 @@ small{color:#b8b8cc}
       if (!hash) {
         throw new Error("設計図データがURLにありません。元のサイトで「オンラインで表示」を押してください。");
       }
-      // d=DEFLATE圧縮、p=未圧縮PNG、接頭辞なし=旧バージョンのURL。
-      const mode = hash[0] === "d" || hash[0] === "p" ? hash[0] : "p";
-      const payload = base64ToBytes(mode === "p" && hash[0] !== "p" && hash[0] !== "d" ? hash : hash.slice(1));
+      // 2d / 2p の形式と、d / p および接頭辞なしの旧形式に対応。
+      const rawHash = hash.startsWith("2d") || hash.startsWith("2p") ? hash.slice(1) : hash;
+      const mode = rawHash[0] === "d" || rawHash[0] === "p" ? rawHash[0] : "p";
+      const payload = base64ToBytes(mode === "p" && rawHash[0] !== "p" && rawHash[0] !== "d" ? rawHash : rawHash.slice(1));
       let pngBytes = payload;
       if (mode === "d") {
         if (typeof DecompressionStream !== "function") {

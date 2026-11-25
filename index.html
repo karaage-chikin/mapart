@@ -2438,6 +2438,7 @@
     let optimizationWorkerInstances=[],optimizationCancelled=false;
     function stopOptimizationWorkers(){optimizationWorkerInstances.forEach(w=>w.terminate());optimizationWorkerInstances=[];}
     async function runWorkerBatch(source,blocks,candidates,runId,progress){
+      if(typeof Worker==="undefined"||typeof Blob==="undefined"||!URL.createObjectURL)return null;
       const count=Math.min(4,Math.max(1,(navigator.hardwareConcurrency||2)-1),candidates.length),url=URL.createObjectURL(new Blob(["("+optimizationWorkerMain.toString()+")()"],{type:"text/javascript"}));
       const jobs=Array.from({length:count},(_,k)=>candidates.filter((_,i)=>i%count===k)),progressByWorker=new Array(count).fill(0);
       try{const results=await Promise.all(jobs.map((chunk,k)=>new Promise((resolve,reject)=>{const w=new Worker(url);optimizationWorkerInstances.push(w);w.onmessage=e=>{if(optimizationCancelled||runId!==window.__mapartOptimizationRun){w.terminate();resolve(null);}else if(e.data.type==="progress"){progressByWorker[k]=e.data.tested;progress(progressByWorker.reduce((a,b)=>a+b,0));}else if(e.data.type==="done"){w.terminate();resolve(e.data);}};w.onerror=reject;const src=new Uint8Array(source);w.postMessage({source:src.buffer,blocks,candidates:chunk},[src.buffer]);})));
@@ -2453,12 +2454,14 @@
       try{
         drawFittedImage(loadedImage);const source=srcCtx.getImageData(0,0,MAP_SIZE,MAP_SIZE).data,blocks=active.map(b=>({rgb:b.mapRgb,lab:b.lab})),coarseCandidates=buildOptimizationCandidates(stats);
         status.textContent="第1段階：粗探索";let coarse=await runWorkerBatch(source,blocks,coarseCandidates,runId,n=>progress(n,140,"粗探索"));
+        if(!coarse&&!optimizationCancelled){const top=[];let best=null,score=Infinity;for(let i=0;i<coarseCandidates.length;i++){const v=evaluateOptimizationCandidateFallback(source,active,coarseCandidates[i]);if(v<score){score=v;best=coarseCandidates[i];}top.push({candidate:coarseCandidates[i],score:v});if(i%4===0){progress(i+1,140,"粗探索（代替）");await new Promise(r=>setTimeout(r,0));}if(optimizationCancelled)return;}top.sort((a,b)=>a.score-b.score);coarse={best,bestScore:score,score,tested:140,top:top.slice(0,10)};}
         if(!coarse||optimizationCancelled)return;
         const fineCandidates=buildFineOptimizationCandidates(coarse.top);status.textContent="第2段階：精密探索";let fine=await runWorkerBatch(source,blocks,fineCandidates,runId,n=>progress(140+n,210,"精密探索"));
+        if(!fine&&!optimizationCancelled){let best=coarse.best,score=coarse.score;for(let i=0;i<fineCandidates.length;i++){const v=evaluateOptimizationCandidateFallback(source,active,fineCandidates[i]);if(v<score){score=v;best=fineCandidates[i];}if(i%2===0){progress(140+i+1,210,"精密探索（代替）");await new Promise(r=>setTimeout(r,0));}if(optimizationCancelled)return;}fine={best,score,bestScore:score,tested:fineCandidates.length};}
         if(!fine||optimizationCancelled)return;const best=fine.score<coarse.score?fine.best:coarse.best,score=Math.min(fine.score,coarse.score);
         if(loadedImage!==imageAtStart||BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab).map(b=>b.id).sort().join("|")!==ids){status.textContent="画像または使用ブロックが変更されたため、結果を適用しませんでした。";return;}
         setOptimizationControls(best);const name=({none:"なし",atkinson:"Atkinson",floyd:"Floyd–Steinberg",jarvis:"Jarvis–Judice–Ninke",sierra:"Sierra Lite",ordered:"Bayer 4×4"})[best.ditherMethod]||best.ditherMethod;
-        status.textContent="最適化完了："+(coarse.tested+fine.tested)+"候補（粗探索140＋精密探索7）。色温度"+best.temperature+"／自然な彩度"+best.vibrance+"%／"+name+" "+best.ditherStrength+"%／スコア "+score.toFixed(2)+"・"+((performance.now()-started)/1000).toFixed(1)+"秒";runConversion();
+        status.textContent="最適化完了："+(coarse.tested+fine.tested)+"候補（粗探索140＋精密探索最大70）。色温度"+best.temperature+"／自然な彩度"+best.vibrance+"%／"+name+" "+best.ditherStrength+"%／スコア "+score.toFixed(2)+"・"+((performance.now()-started)/1000).toFixed(1)+"秒";runConversion();
       }catch(err){status.textContent="最適化エラー："+(err.message||"Worker error");}
       finally{if(runId===window.__mapartOptimizationRun){btn.disabled=false;cancel.hidden=true;bar.hidden=true;}}
     }

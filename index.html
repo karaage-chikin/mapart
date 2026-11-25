@@ -677,7 +677,7 @@
     @media (max-width: 600px) {
       .app-version { right: 8px; bottom: 8px; font-size: 10px; }
     }
-    /* v1.5.10: 左の操作画面と右のプレビューをページ全体の縦スクロールに統一 */
+    /* v1.5.15: 左の操作画面と右のプレビューをページ全体の縦スクロールに統一 */
     .workspace-shell {
       height: auto;
       min-height: 0;
@@ -710,7 +710,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.14</div>
+  <div class="app-version" id="appVersion">v1.5.15</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -1168,14 +1168,19 @@
     let conversionSequence = 0;
     let patternCache = new Map();
 
+    let patternPixelCache = new Map();
+
     function rebuildPatternCache(tilePx) {
       patternCache.clear();
+      patternPixelCache.clear();
       BLOCK_DATA.forEach(b => {
+        let tile;
         if (b.textureImage) {
-          const tile = document.createElement("canvas");
+          tile = document.createElement("canvas");
           tile.width = tilePx;
           tile.height = tilePx;
           const ctx = tile.getContext("2d", { willReadFrequently: true });
+          if (!ctx) throw new Error("テクスチャ用Canvasを作成できませんでした。");
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(b.textureImage, 0, 0, tilePx, tilePx);
           if (b.tint) {
@@ -1191,11 +1196,24 @@
             ctx.putImageData(pixels, 0, 0);
           }
           b.textureTile = tile;
-          patternCache.set(b.id, tile);
         } else {
           b.textureTile = null;
-          patternCache.set(b.id, createBlockPatternCanvas(b, tilePx));
+          tile = createBlockPatternCanvas(b, tilePx);
         }
+        patternCache.set(b.id, tile);
+
+        const tCtx = tile.getContext("2d", { willReadFrequently: true });
+        if (!tCtx) throw new Error("テクスチャピクセルを取得できませんでした。");
+        const raw = tCtx.getImageData(0, 0, tilePx, tilePx).data;
+        const baked = new Uint8ClampedArray(tilePx * tilePx * 4);
+        for (let i = 0; i < raw.length; i += 4) {
+          const alpha = raw[i + 3] / 255;
+          baked[i] = Math.round(raw[i] * alpha + 216 * (1 - alpha));
+          baked[i + 1] = Math.round(raw[i + 1] * alpha + 220 * (1 - alpha));
+          baked[i + 2] = Math.round(raw[i + 2] * alpha + 226 * (1 - alpha));
+          baked[i + 3] = 255;
+        }
+        patternPixelCache.set(b.id, baked);
       });
     }
 
@@ -1736,20 +1754,26 @@
         els.resultCanvas.height = outPx;
         els.resultTitle.textContent = `2D マップアート結果（ブロック模様 / ${tilePx}×${tilePx}px）`;
 
-        if (patternCache.size === 0 || patternCache.values().next().value.width !== tilePx) {
+        const firstTile = patternCache.values().next().value;
+        if (patternPixelCache.size === 0 || !firstTile || firstTile.width !== tilePx) {
           rebuildPatternCache(tilePx);
         }
 
+        const outImg = resCtx.createImageData(outPx, outPx);
+        const dst = outImg.data;
         for (let y = 0; y < MAP_SIZE; y++) {
           for (let x = 0; x < MAP_SIZE; x++) {
             const blk = lastGrid[y * MAP_SIZE + x];
-            const tile = patternCache.get(blk.id);
-            // 透過PNGのガラスで隣のブロックが透けないよう、各マスに下地を描く
-            resCtx.fillStyle = "#d8dce2";
-            resCtx.fillRect(x * tilePx, y * tilePx, tilePx, tilePx);
-            resCtx.drawImage(tile, x * tilePx, y * tilePx, tilePx, tilePx);
+            const src = patternPixelCache.get(blk.id);
+            if (!src) continue;
+            for (let py = 0; py < tilePx; py++) {
+              const srcRowOffset = py * tilePx * 4;
+              const dstRowOffset = ((y * tilePx + py) * outPx + x * tilePx) * 4;
+              dst.set(src.subarray(srcRowOffset, srcRowOffset + tilePx * 4), dstRowOffset);
+            }
           }
         }
+        resCtx.putImageData(outImg, 0, 0);
         drawBlockGrid(tilePx);
       } else {
         const solidTilePx = 4;
@@ -1762,7 +1786,8 @@
         for (let y = 0; y < MAP_SIZE; y++) {
           for (let x = 0; x < MAP_SIZE; x++) {
             const blk = lastGrid[y * MAP_SIZE + x];
-            const rr = blk.mapRgb[0], gg = blk.mapRgb[1], bb = blk.mapRgb[2];
+            const rgb = Array.isArray(blk.mapRgb) ? blk.mapRgb : blk.rgb;
+            const rr = rgb[0], gg = rgb[1], bb = rgb[2];
             for (let py = 0; py < solidTilePx; py++) {
               for (let px = 0; px < solidTilePx; px++) {
                 const idx = ((y * solidTilePx + py) * outPx + (x * solidTilePx + px)) * 4;
@@ -2105,11 +2130,6 @@
       const file = e.target.files && e.target.files.length ? e.target.files[0] : null;
       if (file) loadSelectedImage(file);
       e.target.value = "";
-    });
-
-    els.imageInput.addEventListener("change", (e) => {
-      const file = e.target.files && e.target.files.length ? e.target.files[0] : null;
-      if (file) loadSelectedImage(file);
     });
 
     const uploadArea = document.getElementById("imageUploadArea");

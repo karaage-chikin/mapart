@@ -26,7 +26,7 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:not-allowed}
 .minimap-legend{display:grid;gap:7px;color:var(--muted);font-size:.78rem;align-content:start}
 .legend-item{display:flex;align-items:center;gap:7px}
 .legend-swatch{width:13px;height:13px;border:1px solid #aaa;border-radius:3px;flex:none}
-.legend-done{background:#555}.legend-current{background:#ffcf45}.legend-next{background:#89b4fa}
+.legend-done{background:#555}.legend-current{background:#ffcf45}
 
 .blocks{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
 .block{min-width:0;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:8px;display:flex;flex-direction:column;gap:5px}
@@ -49,11 +49,10 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:not-allowed}
 <div class="track"><div id="progressFill"></div></div>
 <div class="zoom-title">ミニマップ（現在位置）</div>
 <div class="minimap-wrap">
- <canvas id="miniMap" width="256" height="256" aria-label="128×128マスのミニマップ。設置済み範囲と現在位置を表示"></canvas>
+ <canvas id="miniMap" width="128" height="128" aria-label="128×128マスのミニマップ。設置済み範囲と現在位置を表示"></canvas>
  <div class="minimap-legend">
   <div class="legend-item"><span class="legend-swatch legend-done"></span>設置済み</div>
   <div class="legend-item"><span class="legend-swatch legend-current"></span>今置く4マス</div>
-  <div class="legend-item"><span class="legend-swatch legend-next"></span>これから置く範囲</div>
   <div id="miniMapPosition">現在位置：—</div>
 </div>
 <div class="settings"><label for="direction">2行目以降の進行方向</label><select id="direction"><option value="left">毎行、左端から右へ</option><option value="right">左右交互（2行目は右端から）</option></select></div>

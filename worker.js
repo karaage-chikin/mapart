@@ -1,6 +1,6 @@
 const ALLOWED_ORIGIN = "https://karaage-chikin.github.io";
-const MAX_DATA_CHARS = 1_500_000;
-const MAX_BODY_BYTES = 1_600_000;
+const MAX_DATA_CHARS = 1_880_000;
+const MAX_BODY_BYTES = 1_900_000;
 const TTL_SECONDS = 30 * 24 * 60 * 60;
 const SAVE_WINDOW_SECONDS = 10 * 60;
 const SAVE_LIMIT = 10;

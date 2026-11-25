@@ -2583,6 +2583,7 @@
       els.saturation.value=String(values.saturation);
       els.gamma.value=String(values.gamma);
       els.sharpness.value=String(values.sharpness===undefined?20:values.sharpness);els.temperature.value=String(values.temperature===undefined?0:values.temperature);els.vibrance.value=String(values.vibrance===undefined?100:values.vibrance);document.getElementById("temperatureVal").textContent=els.temperature.value;document.getElementById("vibranceVal").textContent=els.vibrance.value+"%";
+      for(const key of ["highlights","shadows","whites","blacks","hue","clarity","denoise"]){els[key].value=String(values[key]||0);const label=document.getElementById(key+"Val");if(label)label.textContent=key==="hue"?els[key].value+"°":key==="clarity"||key==="denoise"?els[key].value+"%":els[key].value;}
       if(values.ditherMethod)els.ditherMethod.value=values.ditherMethod;
       if(values.ditherStrength!==undefined)els.ditherStrength.value=String(values.ditherStrength);
       adjustmentControls.forEach(([control,labelId,format])=>{
@@ -2752,6 +2753,20 @@
               }
             }
           }
+          if(p.denoise>0||p.clarity>0){
+            const old=new Float32Array(work),amountD=(p.denoise||0)/100*.55,amountC=(p.clarity||0)/100*.65;
+            for(let y=0;y<N;y++)for(let x=0;x<N;x++){const i=(y*N+x)*3;
+              for(let c=0;c<3;c++){let sum=0,ws=0,local=0,lw=0;
+                for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=clamp(x+dx,0,N-1),yy=clamp(y+dy,0,N-1),q=(yy*N+xx)*3;
+                  const w=(dx===0?2:1)*(dy===0?2:1),diff=Math.abs(old[i+c]-old[q+c]),edgeW=Math.max(0,1-diff/48)*w;
+                  sum+=old[q+c]*edgeW;ws+=edgeW;local+=old[q+c]*w;lw+=w;
+                }
+                let v=old[i+c];if(amountD&&ws)v+=(sum/ws-v)*amountD;
+                if(amountC){const lum=.2126*old[i]+.7152*old[i+1]+.0722*old[i+2],blur=.2126*local/lw+.7152*local/lw+.0722*local/lw;v+=(lum-blur)*amountC;}
+                work[i+c]=clamp(Math.round(v));
+              }
+            }
+          }
           const edgeL=new Float32Array(total);
           for(let i=0;i<total;i++){const z=i*3;edgeL[i]=.2126*work[z]+.7152*work[z+1]+.0722*work[z+2];}
           const outputRGB=new Uint8Array(total*3);
@@ -2820,7 +2835,7 @@
         if(!fine||optimizationCancelled)return;const best=fine.score<coarse.score?fine.best:coarse.best,score=Math.min(fine.score,coarse.score);
         if(loadedImage!==imageAtStart||BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab).map(b=>b.id).sort().join("|")!==ids){status.textContent="画像または使用ブロックが変更されたため、結果を適用しませんでした。";return;}
         setOptimizationControls(best);const name=({none:"なし",atkinson:"Atkinson",floyd:"Floyd–Steinberg",jarvis:"Jarvis–Judice–Ninke",sierra:"Sierra Lite",ordered:"Bayer 4×4"})[best.ditherMethod]||best.ditherMethod;
-        status.textContent="最適化完了："+(coarse.tested+fine.tested)+"候補（粗探索"+coarse.tested+"＋精密探索"+fine.tested+"）。色温度"+best.temperature+"／自然な彩度"+best.vibrance+"%／"+name+" "+best.ditherStrength+"%／スコア "+score.toFixed(2)+"・"+((performance.now()-started)/1000).toFixed(1)+"秒";runConversion();
+        status.textContent="最適化完了："+(coarse.tested+fine.tested)+"候補（粗探索"+coarse.tested+"＋精密探索"+fine.tested+"）。追加補正：ハイライト"+(best.highlights||0)+"／シャドウ"+(best.shadows||0)+"／白"+(best.whites||0)+"／黒"+(best.blacks||0)+"／色相"+(best.hue||0)+"°／明瞭度"+(best.clarity||0)+"%／ノイズ軽減"+(best.denoise||0)+"%／スコア "+score.toFixed(2)+"・"+((performance.now()-started)/1000).toFixed(1)+"秒";runConversion();
       }catch(err){status.textContent="最適化エラー："+(err.message||"Worker error");}
       finally{if(runId===window.__mapartOptimizationRun){btn.disabled=false;cancel.hidden=true;bar.hidden=true;}}
     }
@@ -2846,6 +2861,11 @@
             }work[z+c]=clamp(original[z+c]+(original[z+c]-blur/weight)*amount);
           }
         }
+      }
+      if(p.denoise>0||p.clarity>0){const old=new Float32Array(work),amountD=(p.denoise||0)/100*.55,amountC=(p.clarity||0)/100*.65;
+        for(let y=0;y<N;y++)for(let x=0;x<N;x++){const i=(y*N+x)*3;
+          for(let c=0;c<3;c++){let sum=0,ws=0,local=0,lw=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=Math.max(0,Math.min(N-1,x+dx)),yy=Math.max(0,Math.min(N-1,y+dy)),q=(yy*N+xx)*3,w=(dx===0?2:1)*(dy===0?2:1),ew=Math.max(0,1-Math.abs(old[i+c]-old[q+c])/48)*w;sum+=old[q+c]*ew;ws+=ew;local+=old[q+c]*w;lw+=w;}
+            let v=old[i+c];if(amountD&&ws)v+=(sum/ws-v)*amountD;if(amountC){const lum=.2126*old[i]+.7152*old[i+1]+.0722*old[i+2],blur=(.2126*local+.7152*local+.0722*local)/lw;v+=(lum-blur)*amountC;}work[i+c]=clamp(v);}}
       }
       for(let i=0;i<total;i++){const z=i*3;sourceL[i]=.2126*work[z]+.7152*work[z+1]+.0722*work[z+2];}
       const strength=p.ditherStrength/100;

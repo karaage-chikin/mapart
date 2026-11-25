@@ -677,7 +677,7 @@
     @media (max-width: 600px) {
       .app-version { right: 8px; bottom: 8px; font-size: 10px; }
     }
-    /* v1.5.15: 左の操作画面と右のプレビューをページ全体の縦スクロールに統一 */
+    /* v1.5.16: 左の操作画面と右のプレビューをページ全体の縦スクロールに統一 */
     .workspace-shell {
       height: auto;
       min-height: 0;
@@ -727,14 +727,15 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.15</div>
+  <div class="app-version" id="appVersion">v1.5.16</div>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.15</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.16</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
       <li>画像アップロード時の二重読み込みを修正</li>
       <li>2Dプレビューのピクセル描画方式を改善</li>
       <li>プレビュー表示の安定性を改善</li>
+      <li>ガンマ補正の計算ミスを修正し、明るさ・色調補正を正常化</li>
     </ul>
     <button type="button" id="dismissUpdateNotice">確認した</button>
   </section>
@@ -1729,7 +1730,7 @@
       const brightness = Number(els.brightness.value);
       const contrast = Number(els.contrast.value);
       const saturation = Number(els.saturation.value) / 100;
-      const gamma = 100 / (Number(els.gamma.value) / 100);
+      const gamma = 100 / Number(els.gamma.value);
       const contrastFactor = contrast === 0 ? 1 : (259 * (contrast + 255)) / (255 * (259 - contrast));
       for (let i = 0; i < pixels.length; i += 4) {
         let r = pixels[i] + brightness;

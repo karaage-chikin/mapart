@@ -731,11 +731,11 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.28</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.29</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.28</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.29</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
-    <ul id="updateNoticeChanges">\n      <li>クラウド保存をPNGバイナリ方式に変更し、Base64変換による容量増加を解消</li>
+    <ul id="updateNoticeChanges">\n      <li>クラウド保存の通信タイムアウトとHTTP別エラー表示を追加</li>\n      <li>クラウド保存領域に件数・総容量の上限を追加</li>\n      <li>Safariで新しいタブを先に確保し、保存中・失敗時の案内を改善</li>\n      <li>クラウド共有機能を空の状態から再スタート</li>\n      <li>クラウド保存をPNGバイナリ方式に変更し、Base64変換による容量増加を解消</li>
       <li>クラウド読み込み時のD1 BLOB配列変換に対応し、共有PNGが空になる問題を修正</li>
       <li>設計図データをIndexedDBで受け渡し、URLを短縮（旧URLも引き続き対応）</li>
       <li>設置進捗を自動保存し、設置方向の変更時に進捗リセットを確認</li>
@@ -2543,6 +2543,24 @@
       els.pngSaveStatus.textContent = message;
     }
 
+    async function fetchWithTimeout(url, options, timeoutMs) {
+      const controller = typeof AbortController === "function" ? new AbortController() : null;
+      let timer = null;
+      const requestOptions = { ...options };
+      if (controller) requestOptions.signal = controller.signal;
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          if (controller) controller.abort();
+          reject(new Error("通信がタイムアウトしました。ネットワークを確認して再試行してください。"));
+        }, timeoutMs || 25000);
+      });
+      try { return await Promise.race([fetch(url, requestOptions), timeout]); }
+      catch (error) {
+        if (error && error.name === "AbortError") throw new Error("通信がタイムアウトしました。ネットワークを確認して再試行してください。");
+        throw error;
+      } finally { if (timer !== null) clearTimeout(timer); }
+    }
+
     async function createLosslessScaledPng(sourceCanvas, scale, onProgress) {
       if (typeof CompressionStream !== "function") {
         throw new Error("このブラウザはストリーム圧縮に対応していません。最新のSafari / Chromeでお試しください。");
@@ -2897,19 +2915,32 @@
           els.blueprintPreviewCanvas.toBlob(value => value ? resolve(value) : reject(new Error("PNG画像を作成できませんでした。")), "image/png");
         });
         if (blob.size > 1850000) throw new Error("設計図画像が大きすぎます（上限約1.85MB）。画像を小さくせずに保存できる範囲を超えています。");
-        const response = await fetch("https://mapart-api.karaage-chikin-029.workers.dev/api/blueprints", {
+        setPngStatus("PNGを作成しました。クラウドへ送信しています…", "progress");
+        const response = await fetchWithTimeout("https://mapart-api.karaage-chikin-029.workers.dev/api/blueprints", {
           method: "POST", headers: { "Content-Type": "image/png" }, body: blob
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.id) throw new Error("HTTP " + response.status + ": " + (result.error || "保存に失敗しました。"));
+        }, 25000);
+        const responseText = await response.text();
+        let result = {};
+        try { result = responseText ? JSON.parse(responseText) : {}; }
+        catch (_) { throw new Error("サーバーからJSONではない応答が返りました（HTTP " + response.status + "）。時間をおいて再試行してください。"); }
+        if (!response.ok || !result.id) {
+          const detail = result.error || "保存に失敗しました。";
+          if (response.status === 413) throw new Error("画像がサーバーの送信上限を超えています。PNG容量を確認してください。");
+          if (response.status === 429) throw new Error("短時間の保存回数が上限に達しました。少し待ってから再試行してください。");
+          if (response.status === 507) throw new Error("クラウドの保存領域が上限に達しています。古いデータの期限切れ後に再試行してください。");
+          if (response.status >= 500) throw new Error("クラウドサーバー側でエラーが発生しました（HTTP " + response.status + "）。詳細：" + detail);
+          throw new Error("保存に失敗しました（HTTP " + response.status + "）。" + detail);
+        }
         const target = new URL("blueprint.html", window.location.href);
         const shareUrl = target.href + "#id=cloud_" + encodeURIComponent(result.id);
+        if (opened.closed) throw new Error("保存は完了しましたが、新しいタブが閉じられています。共有URLを再度開いてください：" + shareUrl);
         opened.location.replace(shareUrl);
         setPngStatus("クラウド保存に成功しました。有効期限は30日です。共有URLを開いて確認してください。", "success");
       } catch (error) {
         console.error("クラウド保存エラー:", error);
-        try { opened.document.body.textContent = "保存に失敗しました。元のタブに戻ってエラー内容を確認してください。"; opened.close(); } catch (_) {}
-        setPngStatus("クラウド保存エラー: " + (error && error.message ? error.message : String(error)), "error");
+        try { if (!opened.closed) { opened.document.body.textContent = "保存に失敗しました。元のタブに戻ってエラー内容を確認してください。"; opened.close(); } } catch (_) {}
+        const message = error && error.message ? error.message : String(error);
+        setPngStatus("クラウド保存エラー: " + message + "\\n保存は完了していない可能性があります。通信状態を確認して再試行してください。", "error");
       } finally {
         button.disabled = false;
         button.textContent = originalText;

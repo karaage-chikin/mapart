@@ -2335,10 +2335,10 @@
       const ds=[["none",0],["floyd",25],["floyd",50],["atkinson",35],["sierra",35],["ordered",35],["jarvis",40],["atkinson",65],["sierra",65],["ordered",65],["floyd",75],["jarvis",65],["none",0],["floyd",40]];
       return bases.flatMap(v=>ds.map(([ditherMethod,ditherStrength])=>({...v,ditherMethod,ditherStrength})));
     }
-    function buildFineOptimizationCandidates(base){
-      const out=[];for(const [b,c,g] of [[0,0,0],[-4,0,0],[4,0,0],[0,-4,0],[0,4,0],[0,0,-4],[0,0,4]]){
-        out.push({...base,brightness:Math.max(-100,Math.min(100,base.brightness+b)),contrast:Math.max(-100,Math.min(100,base.contrast+c)),gamma:Math.max(50,Math.min(200,base.gamma+g)),ditherStrength:Math.max(0,Math.min(100,base.ditherStrength+(out.length%2?4:-4)))});
-      }return out;
+    function buildFineOptimizationCandidates(top){
+      const out=[],seen=new Set(),steps=[[0,0,0],[-4,0,0],[4,0,0],[0,-4,0],[0,4,0],[0,0,-4],[0,0,4]];
+      for(const item of top.slice(0,10))for(const [b,c,g] of steps){const base=item.candidate||item,p={...base,brightness:Math.max(-100,Math.min(100,base.brightness+b)),contrast:Math.max(-100,Math.min(100,base.contrast+c)),gamma:Math.max(50,Math.min(200,base.gamma+g)),ditherStrength:Math.max(0,Math.min(100,base.ditherStrength+(out.length%2?4:-4)))};const key=Object.values(p).join("|");if(!seen.has(key)){seen.add(key);out.push(p);}}
+      return out.slice(0,70);
     }
 
     function optimizationWorkerMain(){
@@ -2426,11 +2426,11 @@
           }
           let clipped=0;for(let i=0;i<total;i++){const z=i*3;if(outputRGB[z]<2||outputRGB[z]>253||outputRGB[z+1]<2||outputRGB[z+1]>253||outputRGB[z+2]<2||outputRGB[z+2]>253)clipped++;}return .35*(grad/Math.max(1,gradWeight))+.25*(edgeColor/Math.max(1,edgeWeight))+.25*(pixelError/total)+.15*(region/Math.max(1,regions))+(clipped/total)*180;
         }
-        let index=0,best=null,bestScore=Infinity;
+        let index=0,best=null,bestScore=Infinity;const top=[];
         function batch(){const end=Math.min(candidates.length,index+3);
-          for(;index<end;index++){const score=evaluate(candidates[index]);if(score<bestScore){bestScore=score;best=candidates[index];}}
+          for(;index<end;index++){const candidate=candidates[index],score=evaluate(candidate);if(score<bestScore){bestScore=score;best=candidate;}top.push({candidate,score});top.sort((a,b)=>a.score-b.score);if(top.length>10)top.pop();}
           postMessage({type:"progress",tested:index,total:candidates.length});
-          if(index<candidates.length)setTimeout(batch,0);else postMessage({type:"done",best,bestScore,tested:index});
+          if(index<candidates.length)setTimeout(batch,0);else postMessage({type:"done",best,bestScore,tested:index,top});
         }batch();
       };
     }
@@ -2439,9 +2439,9 @@
     function stopOptimizationWorkers(){optimizationWorkerInstances.forEach(w=>w.terminate());optimizationWorkerInstances=[];}
     async function runWorkerBatch(source,blocks,candidates,runId,progress){
       const count=Math.min(4,Math.max(1,(navigator.hardwareConcurrency||2)-1),candidates.length),url=URL.createObjectURL(new Blob(["("+optimizationWorkerMain.toString()+")()"],{type:"text/javascript"}));
-      const jobs=Array.from({length:count},(_,k)=>candidates.filter((_,i)=>i%count===k));
-      try{const results=await Promise.all(jobs.map(chunk=>new Promise((resolve,reject)=>{const w=new Worker(url);optimizationWorkerInstances.push(w);w.onmessage=e=>{if(optimizationCancelled||runId!==window.__mapartOptimizationRun){w.terminate();resolve(null);}else if(e.data.type==="progress")progress(e.data.tested);else if(e.data.type==="done"){w.terminate();resolve(e.data);}};w.onerror=reject;const src=new Uint8Array(source);w.postMessage({source:src.buffer,blocks,candidates:chunk},[src.buffer]);})));
-      return results.filter(Boolean).reduce((a,x)=>{if(x.bestScore<a.score){a.best=x.best;a.score=x.bestScore;}a.tested+=x.tested;return a;},{best:null,score:Infinity,tested:0});}
+      const jobs=Array.from({length:count},(_,k)=>candidates.filter((_,i)=>i%count===k)),progressByWorker=new Array(count).fill(0);
+      try{const results=await Promise.all(jobs.map((chunk,k)=>new Promise((resolve,reject)=>{const w=new Worker(url);optimizationWorkerInstances.push(w);w.onmessage=e=>{if(optimizationCancelled||runId!==window.__mapartOptimizationRun){w.terminate();resolve(null);}else if(e.data.type==="progress"){progressByWorker[k]=e.data.tested;progress(progressByWorker.reduce((a,b)=>a+b,0));}else if(e.data.type==="done"){w.terminate();resolve(e.data);}};w.onerror=reject;const src=new Uint8Array(source);w.postMessage({source:src.buffer,blocks,candidates:chunk},[src.buffer]);})));
+      return results.filter(Boolean).reduce((a,x)=>{if(x.bestScore<a.score){a.best=x.best;a.score=x.bestScore;}a.tested+=x.tested;(x.top||[]).forEach(t=>a.top.push(t));a.top.sort((u,v)=>u.score-v.score);a.top=a.top.slice(0,10);return a;},{best:null,score:Infinity,tested:0,top:[]});}
       finally{stopOptimizationWorkers();URL.revokeObjectURL(url);}
     }
     async function optimizeImageAutomatically(){
@@ -2454,7 +2454,7 @@
         drawFittedImage(loadedImage);const source=srcCtx.getImageData(0,0,MAP_SIZE,MAP_SIZE).data,blocks=active.map(b=>({rgb:b.mapRgb,lab:b.lab})),coarseCandidates=buildOptimizationCandidates(stats);
         status.textContent="第1段階：粗探索";let coarse=await runWorkerBatch(source,blocks,coarseCandidates,runId,n=>progress(n,140,"粗探索"));
         if(!coarse||optimizationCancelled)return;
-        const fineCandidates=buildFineOptimizationCandidates(coarse.best);status.textContent="第2段階：精密探索";let fine=await runWorkerBatch(source,blocks,fineCandidates,runId,n=>progress(140+n,147,"精密探索"));
+        const fineCandidates=buildFineOptimizationCandidates(coarse.top);status.textContent="第2段階：精密探索";let fine=await runWorkerBatch(source,blocks,fineCandidates,runId,n=>progress(140+n,210,"精密探索"));
         if(!fine||optimizationCancelled)return;const best=fine.score<coarse.score?fine.best:coarse.best,score=Math.min(fine.score,coarse.score);
         if(loadedImage!==imageAtStart||BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab).map(b=>b.id).sort().join("|")!==ids){status.textContent="画像または使用ブロックが変更されたため、結果を適用しませんでした。";return;}
         setOptimizationControls(best);const name=({none:"なし",atkinson:"Atkinson",floyd:"Floyd–Steinberg",jarvis:"Jarvis–Judice–Ninke",sierra:"Sierra Lite",ordered:"Bayer 4×4"})[best.ditherMethod]||best.ditherMethod;

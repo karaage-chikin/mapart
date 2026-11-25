@@ -680,7 +680,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.8</div>
+  <div class="app-version" id="appVersion">v1.5.9</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -761,6 +761,21 @@
               <span id="ditherStrengthVal">75%</span>
             </label>
             <input type="range" id="ditherStrength" min="0" max="100" value="75">
+            <p class="muted">色の誤差を周囲に分散する強さ。低いほど元の位置の色を優先します。</p>
+          </div>
+
+          <div class="field" style="border-top:1px solid var(--border-color, #ddd); padding-top:12px;">
+            <h3 style="margin:0 0 8px;">画像の画質・色調補正</h3>
+            <label><span>明るさ</span><span id="brightnessVal">0</span></label>
+            <input type="range" id="brightness" min="-100" max="100" value="0">
+            <label><span>コントラスト</span><span id="contrastVal">0</span></label>
+            <input type="range" id="contrast" min="-100" max="100" value="0">
+            <label><span>彩度</span><span id="saturationVal">100%</span></label>
+            <input type="range" id="saturation" min="0" max="200" value="100">
+            <label><span>ガンマ</span><span id="gammaVal">100%</span></label>
+            <input type="range" id="gamma" min="50" max="200" value="100">
+            <button type="button" class="secondary" id="resetImageAdjustments" style="margin-top:8px;">色調補正をリセット</button>
+            <p class="muted">補正はブロックへの色変換前に適用されます。プレビュー・必要数・保存画像すべてに反映されます。</p>
           </div>
 
           <div class="field" style="margin-bottom:0;">
@@ -1096,6 +1111,10 @@
       ditherStrength: document.getElementById("ditherStrength"),
       ditherMethod: document.getElementById("ditherMethod"),
       ditherStrengthVal: document.getElementById("ditherStrengthVal"),
+      brightness: document.getElementById("brightness"),
+      contrast: document.getElementById("contrast"),
+      saturation: document.getElementById("saturation"),
+      gamma: document.getElementById("gamma"),
       bgFillToggle: document.getElementById("bgFillToggle"),
       bgColorInput: document.getElementById("bgColorInput"),
       blockList: document.getElementById("blockList"),
@@ -1609,6 +1628,32 @@
       }
     }
 
+    function applyImageAdjustments(pixels) {
+      const brightness = Number(els.brightness.value);
+      const contrast = Number(els.contrast.value);
+      const saturation = Number(els.saturation.value) / 100;
+      const gamma = 100 / (Number(els.gamma.value) / 100);
+      const contrastFactor = contrast === 0 ? 1 : (259 * (contrast + 255)) / (255 * (259 - contrast));
+      for (let i = 0; i < pixels.length; i += 4) {
+        let r = pixels[i] + brightness;
+        let g = pixels[i + 1] + brightness;
+        let b = pixels[i + 2] + brightness;
+
+        r = contrastFactor * (r - 128) + 128;
+        g = contrastFactor * (g - 128) + 128;
+        b = contrastFactor * (b - 128) + 128;
+
+        const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        r = luma + (r - luma) * saturation;
+        g = luma + (g - luma) * saturation;
+        b = luma + (b - luma) * saturation;
+
+        pixels[i] = Math.round(255 * Math.pow(Math.max(0, Math.min(255, r)) / 255, gamma));
+        pixels[i + 1] = Math.round(255 * Math.pow(Math.max(0, Math.min(255, g)) / 255, gamma));
+        pixels[i + 2] = Math.round(255 * Math.pow(Math.max(0, Math.min(255, b)) / 255, gamma));
+      }
+    }
+
     function findClosestBlockLab(r, g, b, activeBlocks) {
       const [L1, a1, b1] = rgbToLab(clamp(r), clamp(g), clamp(b));
       let best = activeBlocks[0];
@@ -1801,6 +1846,8 @@
       drawFittedImage(loadedImage);
 
       const srcImg = srcCtx.getImageData(0, 0, MAP_SIZE, MAP_SIZE);
+      applyImageAdjustments(srcImg.data);
+      srcCtx.putImageData(srcImg, 0, 0);
       const work = new Float32Array(srcImg.data);
       const counts = new Map();
       const strength = Number(els.ditherStrength.value) / 100;
@@ -2038,6 +2085,29 @@
       runConversion();
     });
     els.ditherMethod.addEventListener("change", runConversion);
+
+    const adjustmentControls = [
+      [els.brightness, "brightnessVal", value => String(value)],
+      [els.contrast, "contrastVal", value => String(value)],
+      [els.saturation, "saturationVal", value => value + "%"],
+      [els.gamma, "gammaVal", value => value + "%"]
+    ];
+    adjustmentControls.forEach(([control, labelId, format]) => {
+      control.addEventListener("input", () => {
+        document.getElementById(labelId).textContent = format(control.value);
+        runConversion();
+      });
+    });
+    document.getElementById("resetImageAdjustments").addEventListener("click", () => {
+      els.brightness.value = 0;
+      els.contrast.value = 0;
+      els.saturation.value = 100;
+      els.gamma.value = 100;
+      adjustmentControls.forEach(([control, labelId, format]) => {
+        document.getElementById(labelId).textContent = format(control.value);
+      });
+      runConversion();
+    });
 
     const PNG_SCALE = 16;
     const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);

@@ -710,7 +710,7 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.12</div>
+  <div class="app-version" id="appVersion">v1.5.13</div>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
     <div class="texture-loading-card">
       <div class="texture-loading-title">Minecraftテクスチャを読み込み中…</div>
@@ -1165,6 +1165,7 @@
     const resCtx = els.resultCanvas.getContext("2d");
     let loadedImage = null;
     let lastGrid = null;
+    let conversionSequence = 0;
     let patternCache = new Map();
 
     function rebuildPatternCache(tilePx) {
@@ -1860,8 +1861,9 @@
       }
     }
 
-    function runConversion() {
+    async function runConversion() {
       if (!loadedImage) return;
+      const currentRun = ++conversionSequence;
 
       const activeBlocks = BLOCK_DATA.filter(b => b.checked && b.mapRgb);
       if (activeBlocks.length === 0) {
@@ -1884,6 +1886,11 @@
       const grid = new Array(MAP_SIZE * MAP_SIZE);
 
       for (let y = 0; y < MAP_SIZE; y++) {
+        // 数行ごとにブラウザへ処理を返し、画像変換中も画面操作を止めない。
+        if (y > 0 && y % 4 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 0));
+          if (currentRun !== conversionSequence) return;
+        }
         for (let x = 0; x < MAP_SIZE; x++) {
           const idx = (y * MAP_SIZE + x) * 4;
           const r = work[idx];
@@ -1916,6 +1923,7 @@
         }
       }
 
+      if (currentRun !== conversionSequence) return;
       lastGrid = grid;
       els.downloadPngBtn.disabled = false;
       els.onlineBlueprintBtn.disabled = false;
@@ -2044,7 +2052,9 @@
       img.onload = async () => {
         loadedImage = img;
         try {
-          runConversion();
+          errorBox.hidden = false;
+          errorBox.textContent = "画像を読み込みました。2Dプレビューを作成中…";
+          await runConversion();
           errorBox.hidden = true;
           errorBox.textContent = "";
           if (saveToHistory) {

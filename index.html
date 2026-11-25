@@ -677,7 +677,7 @@
     @media (max-width: 600px) {
       .app-version { right: 8px; bottom: 8px; font-size: 10px; }
     }
-    /* v1.5.16: 左の操作画面と右のプレビューをページ全体の縦スクロールに統一 */
+    /* v1.5.17: 左の操作画面と右のプレビューをページ全体の縦スクロールに統一 */
     .workspace-shell {
       height: auto;
       min-height: 0;
@@ -727,15 +727,17 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.16</div>
+  <div class="app-version" id="appVersion">v1.5.17</div>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.16</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.17</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
       <li>画像アップロード時の二重読み込みを修正</li>
       <li>2Dプレビューのピクセル描画方式を改善</li>
       <li>プレビュー表示の安定性を改善</li>
       <li>ガンマ補正の計算ミスを修正し、明るさ・色調補正を正常化</li>
+      <li>アップロードと画像調整を別カテゴリに整理</li>
+      <li>自動画像補正とマイクラ向け最適化を追加（ディザリングも自動調整）</li>
     </ul>
     <button type="button" id="dismissUpdateNotice">確認した</button>
   </section>
@@ -757,94 +759,59 @@
 
     <div class="workspace-shell">
       <nav class="vertical-tabs" role="tablist" aria-label="機能メニュー" aria-orientation="vertical">
-        <button type="button" class="vertical-tab active" role="tab" aria-selected="true" data-tab="image">画像設定</button>
+        <button type="button" class="vertical-tab active" role="tab" aria-selected="true" data-tab="upload">アップロード</button>
+        <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="adjust">画像調整</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="blocks">ブロック選択</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="stats">必要数一覧</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="coordinates">ワールド座標</button>
       </nav>
       <main class="tab-content">
-        <section class="tab-panel active" role="tabpanel" data-panel="image"><div class="box">
-          <h2>1. 画像＆表示設定</h2>
-          <div class="field">
-            <label>元画像を選択（128×128に変換）</label>
+        <section class="tab-panel active" role="tabpanel" data-panel="upload"><div class="box">
+          <h2>1. 画像アップロード</h2>
+          <div class="field"><label>元画像を選択（128×128に変換）</label>
             <div class="image-upload-area" id="imageUploadArea">
               <input type="file" id="imageInput" accept="image/*,.heic,.heif" aria-label="画像ファイルを選択">
               <span id="selectedImageName" class="selected-image-name" aria-live="polite">画像が選択されていません</span>
               <div class="upload-hint">ここに画像をドラッグ＆ドロップすることもできます</div>
             </div>
-            <div id="recentUploads" class="recent-uploads" aria-live="polite">
-              <div class="recent-uploads-title">最近のアップロード（過去3件）</div>
-              <div id="recentUploadsList" class="recent-uploads-list"><span class="muted">まだ履歴はありません</span></div>
-            </div>
+            <div id="recentUploads" class="recent-uploads" aria-live="polite"><div class="recent-uploads-title">最近のアップロード（過去3件）</div><div id="recentUploadsList" class="recent-uploads-list"><span class="muted">まだ履歴はありません</span></div></div>
             <div id="imageUploadError" class="upload-error" role="alert" hidden></div>
           </div>
-
-          <div class="field">
-            <label for="previewStyle">結果プレビューの見た目</label>
-            <select id="previewStyle">
-              <option value="texture">統合版ブロックテクスチャプレビュー</option>
-              <option value="solid">単色プレビュー（1ブロック＝1色）</option>
-            </select>
+          <div class="field"><label for="fitMode">画像の収め方（縦横比補正）</label><select id="fitMode">
+            <option value="cover">中央を正方形に切り抜き（ゆがみなし）</option><option value="contain">全体を余白付きで収める</option><option value="stretch">128×128に引き伸ばし</option>
+          </select></div>
+          <div class="field"><label for="previewStyle">結果プレビューの見た目</label><select id="previewStyle">
+            <option value="texture">統合版ブロックテクスチャプレビュー</option><option value="solid">単色プレビュー（1ブロック＝1色）</option>
+          </select></div>
+          <div class="field"><label for="textureScale">模様の細かさ（1ブロックあたりの描画サイズ）</label><select id="textureScale">
+            <option value="4">粗め（4×4px / 全体が見やすい）</option><option value="8" selected>標準（8×8px / 拡大表示）</option><option value="16">細かい（16×16px / ドット感強め）</option>
+          </select></div>
+          <div class="field" style="margin-bottom:0;"><label><span>余白・透過部分の背景色</span><input type="checkbox" id="bgFillToggle" checked></label>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;"><span class="muted">背景色:</span><input type="color" id="bgColorInput" value="#ffffff"></div>
           </div>
-
-          <div class="field">
-            <label for="textureScale">模様の細かさ（1ブロックあたりの描画サイズ）</label>
-            <select id="textureScale">
-              <option value="4">粗め（4×4px / 全体が見やすい）</option>
-              <option value="8" selected>標準（8×8px / 拡大表示）</option>
-              <option value="16">細かい（16×16px / ドット感強め）</option>
-            </select>
+        </div></section>
+        <section class="tab-panel" role="tabpanel" data-panel="adjust"><div class="box">
+          <h2>2. 画像調整・最適化</h2>
+          <div class="field"><h3 style="margin:0 0 8px;">自動最適化</h3>
+            <div class="action-row"><button type="button" id="autoImageOptimizeBtn">画像を自動補正</button><button type="button" class="secondary" id="minecraftOptimizeBtn">マイクラ向け最適化</button></div>
+            <p class="muted">通常の自動補正、または選択中のブロックに合わせた色補正とディザリング調整を行います。実行後も各項目を手動で変更できます。</p>
+            <div id="optimizationStatus" class="muted" aria-live="polite"></div>
           </div>
-
-          <div class="field">
-            <label for="fitMode">画像の収め方（縦横比補正）</label>
-            <select id="fitMode">
-              <option value="cover">中央を正方形に切り抜き（ゆがみなし）</option>
-              <option value="contain">全体を余白付きで収める</option>
-              <option value="stretch">128×128に引き伸ばし</option>
+          <div class="field"><h3 style="margin:0 0 8px;">ディザリング</h3>
+            <label for="ditherMethod">ディザリング方式</label><select id="ditherMethod">
+              <option value="floyd">Floyd–Steinberg（標準・なめらか）</option><option value="atkinson">Atkinson（細かい粒状感）</option><option value="none">なし（くっきり）</option>
             </select>
-          </div>
-
-          <div class="field">
-            <label for="ditherMethod">ディザリング方式</label>
-            <select id="ditherMethod">
-              <option value="floyd">Floyd–Steinberg（標準・なめらか）</option>
-              <option value="atkinson">Atkinson（細かい粒状感）</option>
-              <option value="none">なし（くっきり）</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>
-              <span>ディザリング強さ</span>
-              <span id="ditherStrengthVal">75%</span>
-            </label>
+            <label style="margin-top:8px;"><span>ディザリング強さ</span><span id="ditherStrengthVal">75%</span></label>
             <input type="range" id="ditherStrength" min="0" max="100" value="75">
             <p class="muted">色の誤差を周囲に分散する強さ。低いほど元の位置の色を優先します。</p>
           </div>
-
-          <div class="field" style="border-top:1px solid var(--border-color, #ddd); padding-top:12px;">
-            <h3 style="margin:0 0 8px;">画像の画質・色調補正</h3>
-            <label><span>明るさ</span><span id="brightnessVal">0</span></label>
-            <input type="range" id="brightness" min="-100" max="100" value="0">
-            <label><span>コントラスト</span><span id="contrastVal">0</span></label>
-            <input type="range" id="contrast" min="-100" max="100" value="0">
-            <label><span>彩度</span><span id="saturationVal">100%</span></label>
-            <input type="range" id="saturation" min="0" max="200" value="100">
-            <label><span>ガンマ</span><span id="gammaVal">100%</span></label>
-            <input type="range" id="gamma" min="50" max="200" value="100">
+          <div class="field"><h3 style="margin:0 0 8px;">画像の画質・色調補正</h3>
+            <label><span>明るさ</span><span id="brightnessVal">0</span></label><input type="range" id="brightness" min="-100" max="100" value="0">
+            <label><span>コントラスト</span><span id="contrastVal">0</span></label><input type="range" id="contrast" min="-100" max="100" value="0">
+            <label><span>彩度</span><span id="saturationVal">100%</span></label><input type="range" id="saturation" min="0" max="200" value="100">
+            <label><span>ガンマ</span><span id="gammaVal">100%</span></label><input type="range" id="gamma" min="50" max="200" value="100">
             <button type="button" class="secondary" id="resetImageAdjustments" style="margin-top:8px;">色調補正をリセット</button>
             <p class="muted">補正はブロックへの色変換前に適用されます。プレビュー・必要数・保存画像すべてに反映されます。</p>
-          </div>
-
-          <div class="field" style="margin-bottom:0;">
-            <label>
-              <span>余白・透過部分の背景色</span>
-              <input type="checkbox" id="bgFillToggle" checked>
-            </label>
-            <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
-              <span class="muted">背景色:</span>
-              <input type="color" id="bgColorInput" value="#ffffff">
-            </div>
           </div>
         </div></section>
         <section class="tab-panel" role="tabpanel" data-panel="blocks"><div class="box">
@@ -2258,6 +2225,59 @@
       });
       runConversion();
     });
+
+    function setOptimizationControls(values) {
+      els.brightness.value = String(values.brightness); els.contrast.value = String(values.contrast);
+      els.saturation.value = String(values.saturation); els.gamma.value = String(values.gamma);
+      if (values.ditherMethod) els.ditherMethod.value = values.ditherMethod;
+      if (values.ditherStrength !== undefined) els.ditherStrength.value = String(values.ditherStrength);
+      [[els.brightness,"brightnessVal",v=>String(v)],[els.contrast,"contrastVal",v=>String(v)],[els.saturation,"saturationVal",v=>v+"%"],[els.gamma,"gammaVal",v=>v+"%"]]
+        .forEach(([el,id,fmt])=>{document.getElementById(id).textContent=fmt(el.value);});
+      els.ditherStrengthVal.textContent=els.ditherStrength.value+"%";
+    }
+    function sampleImageStats() {
+      if (!loadedImage) return null;
+      drawFittedImage(loadedImage); const data=srcCtx.getImageData(0,0,MAP_SIZE,MAP_SIZE).data;
+      let sum=0,sumSq=0,chroma=0,edge=0,count=0;
+      for(let y=0;y<MAP_SIZE;y+=2) for(let x=0;x<MAP_SIZE;x+=2) {
+        const i=(y*MAP_SIZE+x)*4, l=.2126*data[i]+.7152*data[i+1]+.0722*data[i+2];
+        sum+=l;sumSq+=l*l;chroma+=Math.max(data[i],data[i+1],data[i+2])-Math.min(data[i],data[i+1],data[i+2]);
+        if(x+2<MAP_SIZE){const j=i+8;edge+=Math.abs(l-(.2126*data[j]+.7152*data[j+1]+.0722*data[j+2]));} count++;
+      }
+      const mean=sum/count; return {mean,std:Math.sqrt(Math.max(0,sumSq/count-mean*mean)),chroma:chroma/count,edge:edge/count};
+    }
+    function optimizeImageAutomatically() {
+      const st=sampleImageStats(); if(!st){document.getElementById("optimizationStatus").textContent="先に画像をアップロードしてください。";return;}
+      setOptimizationControls({brightness:Math.round(Math.max(-35,Math.min(35,(128-st.mean)*.35))),
+        contrast:Math.round(Math.max(-25,Math.min(30,(58-st.std)*.65))),
+        saturation:Math.round(Math.max(90,Math.min(125,108+(48-st.chroma)*.18))),
+        gamma:Math.round(Math.max(80,Math.min(120,100+(st.mean-128)*.16)))});
+      document.getElementById("optimizationStatus").textContent="画像全体の明るさ・明暗差・色の強さを解析して自動補正しました。";runConversion();
+    }
+    function optimizeForMinecraft() {
+      if(!loadedImage){document.getElementById("optimizationStatus").textContent="先に画像をアップロードしてください。";return;}
+      const blocks=BLOCK_DATA.filter(b=>b.checked&&b.mapRgb);
+      if(!blocks.length){document.getElementById("optimizationStatus").textContent="ブロックを1種類以上選択してください。";return;}
+      drawFittedImage(loadedImage);const src=srcCtx.getImageData(0,0,MAP_SIZE,MAP_SIZE).data;let best=null;
+      for(const brightness of [-20,-10,0,10,20]) for(const contrast of [-15,0,15])
+      for(const saturation of [90,100,115]) for(const gamma of [85,100,115]) {
+        const cf=contrast===0?1:(259*(contrast+255))/(255*(259-contrast)), exp=100/gamma;let score=0,n=0;
+        for(let y=2;y<MAP_SIZE;y+=16) for(let x=2;x<MAP_SIZE;x+=16) {
+          const i=(y*MAP_SIZE+x)*4;let r=src[i]+brightness,g=src[i+1]+brightness,b=src[i+2]+brightness;
+          r=cf*(r-128)+128;g=cf*(g-128)+128;b=cf*(b-128)+128;
+          const l=.2126*r+.7152*g+.0722*b;r=l+(r-l)*saturation/100;g=l+(g-l)*saturation/100;b=l+(b-l)*saturation/100;
+          const lab=rgbToLab(255*Math.pow(Math.max(0,Math.min(255,r))/255,exp),255*Math.pow(Math.max(0,Math.min(255,g))/255,exp),255*Math.pow(Math.max(0,Math.min(255,b))/255,exp));
+          let min=Infinity;for(const block of blocks){const dL=lab[0]-block.lab[0],da=lab[1]-block.lab[1],db=lab[2]-block.lab[2],d=dL*dL+da*da+db*db;if(d<min)min=d;}
+          score+=min;n++;
+        }
+        const candidate={brightness,contrast,saturation,gamma,score:score/n};if(!best||candidate.score<best.score)best=candidate;
+      }
+      const st=sampleImageStats(),method=st.edge>18?"atkinson":st.edge>7?"floyd":"none";
+      setOptimizationControls({...best,ditherMethod:method,ditherStrength:method==="none"?0:method==="atkinson"?55:70});
+      document.getElementById("optimizationStatus").textContent="選択中のブロック色との近さをサンプル点で比較し、色補正とディザリングを自動設定しました。";runConversion();
+    }
+    document.getElementById("autoImageOptimizeBtn").addEventListener("click",optimizeImageAutomatically);
+    document.getElementById("minecraftOptimizeBtn").addEventListener("click",optimizeForMinecraft);
 
     const PNG_SCALE = 16;
     const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);

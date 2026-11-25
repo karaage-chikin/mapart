@@ -727,9 +727,9 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.19</div>
+  <div class="app-version" id="appVersion">v1.5.20</div>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.19</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.20</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
       <li>画像アップロード時の二重読み込みを修正</li>
@@ -740,6 +740,8 @@
       <li>自動最適化を複数パターン比較方式に変更し、ブロック色差と輪郭保持を評価</li>
       <li>明るさ・コントラスト・彩度・ガンマ・ディザリングを組み合わせて自動選択</li>
       <li>2つ目の最適化機能を削除</li>
+      <li>自動最適化後も手動スライダーをそのまま操作できるよう調整</li>
+      <li>選択中のブロックだけで最適化し、最適化中に選択が変わった場合は誤適用を防止</li>
     </ul>
     <button type="button" id="dismissUpdateNotice">確認した</button>
   </section>
@@ -2229,13 +2231,21 @@
     });
 
     function setOptimizationControls(values) {
-      els.brightness.value=String(values.brightness);els.contrast.value=String(values.contrast);
-      els.saturation.value=String(values.saturation);els.gamma.value=String(values.gamma);
+      // 自動最適化の値を通常の手動調整と同じ入力状態へ反映する。
+      // 以前のスライダー変換予約が残っていても、新しい値を上書きしないよう先に解除。
+      if (sliderConversionTimer !== null) {
+        clearTimeout(sliderConversionTimer);
+        sliderConversionTimer = null;
+      }
+      els.brightness.value=String(values.brightness);
+      els.contrast.value=String(values.contrast);
+      els.saturation.value=String(values.saturation);
+      els.gamma.value=String(values.gamma);
       if(values.ditherMethod)els.ditherMethod.value=values.ditherMethod;
       if(values.ditherStrength!==undefined)els.ditherStrength.value=String(values.ditherStrength);
-      [[els.brightness,"brightnessVal",v=>String(v)],[els.contrast,"contrastVal",v=>String(v)],
-       [els.saturation,"saturationVal",v=>v+"%"],[els.gamma,"gammaVal",v=>v+"%"]]
-       .forEach(([el,id,fmt])=>{document.getElementById(id).textContent=fmt(el.value);});
+      adjustmentControls.forEach(([control,labelId,format])=>{
+        document.getElementById(labelId).textContent=format(control.value);
+      });
       els.ditherStrengthVal.textContent=els.ditherStrength.value+"%";
     }
     function analyzeImageForAutoCorrection() {
@@ -2318,7 +2328,8 @@
       if(!st){status.textContent="先に画像をアップロードしてください。";return;}
       const activeBlocks=BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab);
       if(!activeBlocks.length){status.textContent="使用ブロックを1種類以上選択してください。";return;}
-      status.textContent="画像を分析し、ブロック色・輪郭・ディザリングの組み合わせを比較しています…";
+      const selectedBlockIds=activeBlocks.map(b=>b.id).sort().join("|");
+      status.textContent="選択中の"+activeBlocks.length+"種類のブロックだけを対象に、色差・輪郭・ディザリングを比較しています…";
       await new Promise(resolve=>setTimeout(resolve,30));
       drawFittedImage(loadedImage);
       const source=srcCtx.getImageData(0,0,MAP_SIZE,MAP_SIZE).data;
@@ -2349,6 +2360,11 @@
         if(tested%12===0){status.textContent="自動最適化中… "+tested+" / "+total+" パターンを比較";await new Promise(resolve=>setTimeout(resolve,0));}
       }
       if(!best){status.textContent="最適な設定を決定できませんでした。";return;}
+      const currentSelectedBlockIds=BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab).map(b=>b.id).sort().join("|");
+      if(currentSelectedBlockIds!==selectedBlockIds){
+        status.textContent="最適化中に選択ブロックが変更されました。現在の選択内容で、もう一度最適化してください。";
+        return;
+      }
       setOptimizationControls(best);
       const methodName=best.ditherMethod==="none"?"なし":best.ditherMethod==="atkinson"?"Atkinson":"Floyd–Steinberg";
       status.textContent="最適化完了："+tested+"パターンを比較。色差と輪郭の残り方を評価し、"+methodName+"（"+best.ditherStrength+"%）を採用しました。";

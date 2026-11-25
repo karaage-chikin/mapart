@@ -731,9 +731,9 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.29</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.30</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.29</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.30</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">\n      <li>クラウド保存の通信タイムアウトとHTTP別エラー表示を追加</li>\n      <li>クラウド保存領域に件数・総容量の上限を追加</li>\n      <li>Safariで新しいタブを先に確保し、保存中・失敗時の案内を改善</li>\n      <li>クラウド共有機能を空の状態から再スタート</li>\n      <li>クラウド保存をPNGバイナリ方式に変更し、Base64変換による容量増加を解消</li>
       <li>クラウド読み込み時のD1 BLOB配列変換に対応し、共有PNGが空になる問題を修正</li>
@@ -804,7 +804,7 @@
               <div class="upload-hint">ここに画像をドラッグ＆ドロップすることもできます</div>
             </div>
             <div id="recentUploads" class="recent-uploads" aria-live="polite"><div class="recent-uploads-title">最近のアップロード（過去3件）</div><div id="recentUploadsList" class="recent-uploads-list"><span class="muted">まだ履歴はありません</span></div></div>
-            <div id="imageUploadError" class="upload-error" role="alert" hidden></div>
+            <div id="imageUploadError" class="upload-error" role="alert" hidden></div>\n            <div id="conversionStatus" class="upload-hint" role="status" aria-live="polite">画像をアップロードすると変換状況を表示します。</div>
           </div>
           <div class="field"><label for="fitMode">画像の収め方（縦横比補正）</label><select id="fitMode">
             <option value="cover">中央を正方形に切り抜き（ゆがみなし）</option><option value="contain">全体を余白付きで収める</option><option value="stretch">128×128に引き伸ばし</option>
@@ -1944,12 +1944,15 @@
       if (!loadedImage) return false;
       const currentRun = ++conversionSequence;
       const openBuildStepBtn = document.getElementById("openBuildStepBtn");
+      const conversionStatus = document.getElementById("conversionStatus");
+      if (conversionStatus) conversionStatus.textContent = "画像変換を準備しています…";
       const activeBlocks = BLOCK_DATA.filter(b => b.checked && b.mapRgb);
       if (activeBlocks.length === 0) {
         lastGrid = null;
         els.downloadPngBtn.disabled = true;
         els.onlineBlueprintBtn.disabled = true;
         if (openBuildStepBtn) openBuildStepBtn.disabled = true;
+        if (conversionStatus) conversionStatus.textContent = "使用するブロックを1種類以上選択してください。";
         resCtx.clearRect(0, 0, els.resultCanvas.width, els.resultCanvas.height);
         els.statsBody.innerHTML = '<tr><td colspan="4" class="muted">ブロックを1種類以上選択してください。</td></tr>';
         return true;
@@ -1968,6 +1971,9 @@
       const strength = Number(els.ditherStrength.value) / 100;
       const grid = new Array(MAP_SIZE * MAP_SIZE);
       for (let y = 0; y < MAP_SIZE; y++) {
+        if (y % 8 === 0 && conversionStatus && currentRun === conversionSequence) {
+          conversionStatus.textContent = "画像変換中… " + Math.round(y / MAP_SIZE * 100) + "%（" + y + " / " + MAP_SIZE + " 行）";
+        }
         if (y > 0 && y % 4 === 0) {
           await new Promise(resolve => setTimeout(resolve, 0));
           if (currentRun !== conversionSequence) return false;
@@ -2012,6 +2018,7 @@
       if (openBuildStepBtn) openBuildStepBtn.disabled = false;
       renderResultPreview();
       renderStats(counts);
+      if (conversionStatus) conversionStatus.textContent = "画像変換完了：128×128・16,384マスを処理しました。";
       return true;
     }
 

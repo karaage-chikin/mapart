@@ -731,11 +731,11 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.26</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.27</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.26</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.27</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
-    <ul id="updateNoticeChanges">
+    <ul id="updateNoticeChanges">\n      <li>クラウド保存をPNGバイナリ方式に変更し、Base64変換による容量増加を解消</li>
       <li>設計図データをIndexedDBで受け渡し、URLを短縮（旧URLも引き続き対応）</li>
       <li>設置進捗を自動保存し、設置方向の変更時に進捗リセットを確認</li>
       <li>ミニマップの色画像をキャッシュして、移動時はハイライトのみ更新</li>
@@ -2895,13 +2895,9 @@
         const blob = await new Promise((resolve, reject) => {
           els.blueprintPreviewCanvas.toBlob(value => value ? resolve(value) : reject(new Error("PNG画像を作成できませんでした。")), "image/png");
         });
-        if (blob.size > 1400000) throw new Error("設計図画像が大きすぎます（上限約1.4MB）。設計図を少し小さくしてお試しください。");
-        const buffer = new Uint8Array(await blob.arrayBuffer());
-        let binary = "";
-        for (let offset = 0; offset < buffer.length; offset += 0x8000) binary += String.fromCharCode(...buffer.subarray(offset, offset + 0x8000));
+        if (blob.size > 1850000) throw new Error("設計図画像が大きすぎます（上限約1.85MB）。画像を小さくせずに保存できる範囲を超えています。");
         const response = await fetch("https://mapart-api.karaage-chikin-029.workers.dev/api/blueprints", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data: btoa(binary) })
+          method: "POST", headers: { "Content-Type": "image/png" }, body: blob
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok || !result.id) throw new Error("HTTP " + response.status + ": " + (result.error || "保存に失敗しました。"));

@@ -727,9 +727,9 @@
   </style>
 </head>
 <body class="is-loading">
-  <div class="app-version" id="appVersion">v1.5.21</div>
+  <div class="app-version" id="appVersion">v1.5.22</div>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.21</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.22</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
       <li>画像アップロード時の二重読み込みを修正</li>
@@ -816,6 +816,7 @@
             <label><span>コントラスト</span><span id="contrastVal">0</span></label><input type="range" id="contrast" min="-100" max="100" value="0">
             <label><span>彩度</span><span id="saturationVal">100%</span></label><input type="range" id="saturation" min="0" max="200" value="100">
             <label><span>ガンマ</span><span id="gammaVal">100%</span></label><input type="range" id="gamma" min="50" max="200" value="100">
+            <label><span>輪郭強調（シャープネス）</span><span id="sharpnessVal">20%</span></label><input type="range" id="sharpness" min="0" max="100" value="20">
             <button type="button" class="secondary" id="resetImageAdjustments" style="margin-top:8px;">色調補正をリセット</button>
             <p class="muted">補正はブロックへの色変換前に適用されます。プレビュー・必要数・保存画像すべてに反映されます。</p>
           </div>
@@ -1167,6 +1168,7 @@
       contrast: document.getElementById("contrast"),
       saturation: document.getElementById("saturation"),
       gamma: document.getElementById("gamma"),
+      sharpness: document.getElementById("sharpness"),
       bgFillToggle: document.getElementById("bgFillToggle"),
       bgColorInput: document.getElementById("bgColorInput"),
       blockList: document.getElementById("blockList"),

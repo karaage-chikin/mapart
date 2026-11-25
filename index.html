@@ -2339,7 +2339,7 @@
       r=luma+(r-luma)*(p.saturation/100);
       g=luma+(g-luma)*(p.saturation/100);
       b=luma+(b-luma)*(p.saturation/100);
-      const exponent=100/p.gamma;let rr=255*Math.pow(clamp(r)/255,exponent),gg=255*Math.pow(clamp(g)/255,exponent),bb=255*Math.pow(clamp(b)/255,exponent);rr=clamp(rr+p.temperature*.72);bb=clamp(bb-p.temperature*.72);const ch=Math.max(rr,gg,bb)-Math.min(rr,gg,bb),vf=1+(p.vibrance/100-1)*(1-ch/255),vl=.2126*rr+.7152*gg+.0722*bb;return [clamp(vl+(rr-vl)*vf),clamp(vl+(gg-vl)*vf),clamp(vl+(bb-vl)*vf)];
+      const exponent=100/p.gamma;let rr=255*Math.pow(clamp(r)/255,exponent),gg=255*Math.pow(clamp(g)/255,exponent),bb=255*Math.pow(clamp(b)/255,exponent);rr=clamp(rr+p.temperature*.72);bb=clamp(bb-p.temperature*.72);const ch=Math.max(rr,gg,bb)-Math.min(rr,gg,bb),vf=1+(p.vibrance/100-1)*(1-ch/255),vl=.2126*rr+.7152*gg+.0722*bb;return [Math.round(clamp(vl+(rr-vl)*vf)),Math.round(clamp(vl+(gg-vl)*vf)),Math.round(clamp(vl+(bb-vl)*vf))];
     }
     function buildOptimizationCandidates(st){
       const range=Math.max(32,st.high-st.low),factor=Math.max(.82,Math.min(1.72,238/range));
@@ -2434,7 +2434,7 @@
           let gg=clamp(255*Math.pow(clamp(g)/255,ex));
           let bb=clamp(255*Math.pow(clamp(b)/255,ex)-p.temperature*.72);
           const chroma=Math.max(rr,gg,bb)-Math.min(rr,gg,bb),vf=1+(p.vibrance/100-1)*(1-chroma/255),vl=.2126*rr+.7152*gg+.0722*bb;
-          return [clamp(vl+(rr-vl)*vf),clamp(vl+(gg-vl)*vf),clamp(vl+(bb-vl)*vf)];
+          return [Math.round(clamp(vl+(rr-vl)*vf)),Math.round(clamp(vl+(gg-vl)*vf)),Math.round(clamp(vl+(bb-vl)*vf))];
         }
         function evaluate(p){
           const work=new Float32Array(total*3);

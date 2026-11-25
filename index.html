@@ -928,8 +928,8 @@
                 <tr>
                   <th>ブロック</th>
                   <th>必要個数</th>
-                  <th>スタック (64個)</th>
-                  <th>シュルカーボックス (1,728個)</th>
+                  <th>スタック換算</th>
+                  <th>シュルカー換算</th>
                 </tr>
               </thead>
               <tbody>
@@ -1997,7 +1997,7 @@
       const conversionStatus = document.getElementById("conversionStatus");
       if (conversionStatus) conversionStatus.textContent = "画像変換を準備しています…";
       const activeBlocks = BLOCK_DATA.filter(b => b.checked && b.mapRgb);
-      const ditherMethod = ditherMethod;
+      const ditherMethod = els.ditherMethod.value;
       if (activeBlocks.length === 0) {
         lastGrid = null;
         els.downloadPngBtn.disabled = true;
@@ -2229,9 +2229,24 @@
       });
     })();
 
+    function formatRequiredQuantity(count, includeShulker) {
+      const parts = [];
+      let remaining = Math.max(0, Math.floor(Number(count) || 0));
+      if (includeShulker) {
+        const shulkers = Math.floor(remaining / 1728);
+        if (shulkers > 0) parts.push(shulkers.toLocaleString() + "sh");
+        remaining %= 1728;
+      }
+      const stacks = Math.floor(remaining / 64);
+      if (stacks > 0) parts.push(stacks.toLocaleString() + "st");
+      remaining %= 64;
+      if (remaining > 0) parts.push(remaining.toLocaleString());
+      return parts.length ? parts.join(" + ") : "0";
+    }
+
     function renderStats(counts) {
       const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
-      els.statsBody.innerHTML = "";
+      els.statsBody.replaceChildren();
 
       for (const [id, count] of sorted) {
         const blk = BLOCK_DATA.find(b => b.id === id);
@@ -2239,8 +2254,6 @@
           console.warn("集計に未知のブロックIDが含まれています:", id);
           continue;
         }
-        const stacks = Math.ceil(count / 64).toLocaleString();
-        const shulkerBoxes = Math.ceil(count / 1728).toLocaleString();
 
         const tr = document.createElement("tr");
         const blockCell = document.createElement("td");
@@ -2255,7 +2268,8 @@
         } else {
           const swatch = document.createElement("span");
           swatch.className = "swatch";
-          swatch.style.background = "rgb(" + blk.rgb.map(value => clamp(Number(value))).join(",") + ")";
+          const rgb = Array.isArray(blk.mapRgb) ? blk.mapRgb : blk.rgb;
+          swatch.style.background = "rgb(" + rgb.map(value => clamp(Number(value))).join(",") + ")";
           blockWrap.appendChild(swatch);
         }
         const name = document.createElement("span");
@@ -2263,27 +2277,44 @@
         blockWrap.appendChild(name);
         blockCell.appendChild(blockWrap);
         tr.appendChild(blockCell);
-        [[count.toLocaleString() + " 個", "必要個数"], [stacks, "スタック"], [shulkerBoxes, "シュルカー"]].forEach(([value, label]) => {
+
+        [
+          [count.toLocaleString() + " 個", "必要個数"],
+          [formatRequiredQuantity(count, false), "スタック換算"],
+          [formatRequiredQuantity(count, true), "シュルカー換算"]
+        ].forEach(([value, label]) => {
           const td = document.createElement("td");
           td.dataset.label = label;
           td.textContent = value;
           tr.appendChild(td);
         });
         els.statsBody.appendChild(tr);
+
         if (id === "copper_block") {
           const honeycombRow = document.createElement("tr");
           honeycombRow.className = "honeycomb-material-row";
-          honeycombRow.innerHTML = `
-            <td>
-              <div style="display:flex; align-items:center; gap:8px; padding-left:18px;">
-                <span class="honeycomb-mini" aria-hidden="true">⬡</span>
-                <span>ハニカム（銅ブロックの加工材料）</span>
-              </div>
-            </td>
-            <td data-label="必要個数">${count.toLocaleString()} 個</td>
-            <td data-label="スタック">${stacks}</td>
-            <td data-label="シュルカー">${shulkerBoxes}</td>
-          `;
+          const honeycombName = document.createElement("td");
+          const honeycombWrap = document.createElement("div");
+          honeycombWrap.style.cssText = "display:flex; align-items:center; gap:8px; padding-left:18px;";
+          const marker = document.createElement("span");
+          marker.className = "honeycomb-mini";
+          marker.setAttribute("aria-hidden", "true");
+          marker.textContent = "⬡";
+          const label = document.createElement("span");
+          label.textContent = "ハニカム（銅ブロックの加工材料）";
+          honeycombWrap.append(marker, label);
+          honeycombName.appendChild(honeycombWrap);
+          honeycombRow.appendChild(honeycombName);
+          [
+            [count.toLocaleString() + " 個", "必要個数"],
+            [formatRequiredQuantity(count, false), "スタック換算"],
+            [formatRequiredQuantity(count, true), "シュルカー換算"]
+          ].forEach(([value, labelText]) => {
+            const td = document.createElement("td");
+            td.dataset.label = labelText;
+            td.textContent = value;
+            honeycombRow.appendChild(td);
+          });
           els.statsBody.appendChild(honeycombRow);
         }
       }

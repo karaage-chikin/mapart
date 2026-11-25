@@ -121,8 +121,8 @@ async function loadTextures(){
  const used=[...new Set(indices)].map(i=>PALETTE[i]);
  try{
   const [blocksRes,terrainRes]=await Promise.all([
-   fetch(BASE+"blocks.json").then(r=>{if(!r.ok)throw Error("blocks.json "+r.status);return r.text();}),
-   fetch(BASE+"textures/terrain_texture.json").then(r=>{if(!r.ok)throw Error("terrain_texture.json "+r.status);return r.text();})
+   window.MAPART_SHARED.fetchCachedText(BASE+"blocks.json"),
+   window.MAPART_SHARED.fetchCachedText(BASE+"textures/terrain_texture.json")
   ]);
   const blockDefs=window.MAPART_SHARED.parseBedrockJson(blocksRes),terrainJson=window.MAPART_SHARED.parseBedrockJson(terrainRes),terrain=terrainJson.texture_data||{};
   let done=0,cursor=0;

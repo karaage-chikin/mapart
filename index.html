@@ -2683,7 +2683,7 @@
         }
         for(const p of variants){
           if(p.ditherMethod==="none")p.ditherStrength=0;
-          const key=[p.brightness,p.contrast,p.saturation,p.gamma,p.sharpness,p.temperature,p.vibrance,p.ditherMethod,p.ditherStrength].join("|");
+          const key=[p.brightness,p.contrast,p.saturation,p.gamma,p.sharpness,p.temperature,p.vibrance,p.highlights,p.shadows,p.whites,p.blacks,p.hue,p.clarity,p.denoise,p.ditherMethod,p.ditherStrength].join("|");
           if(!seen.has(key)){seen.add(key);out.push(p);}
         }
       }

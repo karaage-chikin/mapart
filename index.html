@@ -731,9 +731,9 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.23</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.24</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.23</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.24</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
       <li>画像アップロード時の二重読み込みを修正</li>
@@ -752,6 +752,9 @@
       <li>32×32×32 Lab近似LUTと上位16ブロック候補で探索を高速化</li>
       <li>Worker非対応時はメインスレッドの代替評価へフォールバック</li>
       <li>自動最適化の進行状況を候補数ではなくパーセント表示に変更</li>
+      <li>Jarvis–Judice–Ninke・Sierra Lite・Bayer 4×4ディザリングを追加</li>
+      <li>画質・色調補正を独立タブに分離し、色温度・自然な彩度を追加</li>
+      <li>追加補正と新ディザリング方式も自動最適化の比較対象に追加</li>
     </ul>
     <button type="button" id="dismissUpdateNotice">確認した</button>
   </section>
@@ -775,6 +778,7 @@
       <nav class="vertical-tabs" role="tablist" aria-label="機能メニュー" aria-orientation="vertical">
         <button type="button" class="vertical-tab active" role="tab" aria-selected="true" data-tab="upload">アップロード</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="adjust">画像調整</button>
+        <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="quality">画質・色調補正</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="blocks">ブロック選択</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="stats">必要数一覧</button>
         <button type="button" class="vertical-tab" role="tab" aria-selected="false" data-tab="coordinates">ワールド座標</button>
@@ -813,7 +817,7 @@
           </div>
           <div class="field"><h3 style="margin:0 0 8px;">ディザリング</h3>
             <label for="ditherMethod">ディザリング方式</label><select id="ditherMethod">
-              <option value="floyd">Floyd–Steinberg（標準・なめらか）</option><option value="atkinson">Atkinson（細かい粒状感）</option><option value="none">なし（くっきり）</option>
+              <option value="floyd">Floyd–Steinberg（標準・なめらか）</option><option value="atkinson">Atkinson（粒状感）</option><option value="jarvis">Jarvis–Judice–Ninke（広範囲・なめらか）</option><option value="sierra">Sierra Lite（軽め）</option><option value="ordered">Bayer 4×4（規則的な網点）</option><option value="none">なし（くっきり）</option>
             </select>
             <label style="margin-top:8px;"><span>ディザリング強さ</span><span id="ditherStrengthVal">75%</span></label>
             <input type="range" id="ditherStrength" min="0" max="100" value="75">
@@ -828,6 +832,12 @@
             <button type="button" class="secondary" id="resetImageAdjustments" style="margin-top:8px;">色調補正をリセット</button>
             <p class="muted">補正はブロックへの色変換前に適用されます。プレビュー・必要数・保存画像すべてに反映されます。</p>
           </div>
+        </div></section>
+        <section class="tab-panel" role="tabpanel" data-panel="quality"><div class="box">
+          <h2>追加の画質・色調補正</h2><p class="muted">色温度と自然な彩度を調整します。自動最適化でも組み合わせを比較します。</p>
+          <div class="field"><label><span>色温度（寒色 ↔ 暖色）</span><span id="temperatureVal">0</span></label><input type="range" id="temperature" min="-50" max="50" value="0"></div>
+          <div class="field"><label><span>自然な彩度</span><span id="vibranceVal">100%</span></label><input type="range" id="vibrance" min="0" max="200" value="100"></div>
+          <button type="button" class="secondary" id="resetQualityAdjustments">追加補正をリセット</button>
         </div></section>
         <section class="tab-panel" role="tabpanel" data-panel="blocks"><div class="box">
           <h2>2. 使用ブロック選択（統合版バニラパレット）</h2>
@@ -1172,6 +1182,7 @@
       fitMode: document.getElementById("fitMode"),
       ditherStrength: document.getElementById("ditherStrength"),
       ditherMethod: document.getElementById("ditherMethod"),
+      temperature: document.getElementById("temperature"), vibrance: document.getElementById("vibrance"),
       ditherStrengthVal: document.getElementById("ditherStrengthVal"),
       brightness: document.getElementById("brightness"),
       contrast: document.getElementById("contrast"),
@@ -1713,7 +1724,7 @@
     function applyImageAdjustments(pixels) {
       const brightness=Number(els.brightness.value),contrast=Number(els.contrast.value);
       const saturation=Number(els.saturation.value)/100,gamma=100/Number(els.gamma.value);
-      const sharpness=Number(els.sharpness.value)/100;
+      const sharpness=Number(els.sharpness.value)/100,temperature=Number(els.temperature.value),vibrance=Number(els.vibrance.value)/100;
       const contrastFactor=contrast===0?1:(259*(contrast+255))/(255*(259-contrast));
       for(let i=0;i<pixels.length;i+=4){
         let r=pixels[i]+brightness,g=pixels[i+1]+brightness,b=pixels[i+2]+brightness;
@@ -1723,6 +1734,7 @@
         pixels[i]=Math.round(255*Math.pow(Math.max(0,Math.min(255,r))/255,gamma));
         pixels[i+1]=Math.round(255*Math.pow(Math.max(0,Math.min(255,g))/255,gamma));
         pixels[i+2]=Math.round(255*Math.pow(Math.max(0,Math.min(255,b))/255,gamma));
+        const ch=Math.max(r,g,b)-Math.min(r,g,b),vf=1+(vibrance-1)*(1-ch/255);pixels[i]=clamp(pixels[i]+temperature*.72);pixels[i+2]=clamp(pixels[i+2]-temperature*.72);const vl=.2126*pixels[i]+.7152*pixels[i+1]+.0722*pixels[i+2];for(let c=0;c<3;c++)pixels[i+c]=clamp(Math.round(vl+(pixels[i+c]-vl)*vf));
       }
       if(sharpness>0){
         const source=new Uint8ClampedArray(pixels),amount=sharpness*1.15,w=MAP_SIZE;
@@ -1955,7 +1967,8 @@
         }
         for (let x = 0; x < MAP_SIZE; x++) {
           const idx = (y * MAP_SIZE + x) * 4;
-          const r = work[idx], g = work[idx + 1], b = work[idx + 2];
+          let r = work[idx], g = work[idx + 1], b = work[idx + 2];
+          if(els.ditherMethod.value==="ordered"){const mt=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]],t=(mt[y%4][x%4]-7.5)*strength*3.2;r=clamp(r+t);g=clamp(g+t);b=clamp(b+t);}
           const matched = findClosestBlockLab(r, g, b, activeBlocks);
           grid[y * MAP_SIZE + x] = matched;
           counts.set(matched.id, (counts.get(matched.id) || 0) + 1);
@@ -1966,7 +1979,10 @@
               if(xx<0||xx>=MAP_SIZE||yy<0||yy>=MAP_SIZE)return 0;
               return base*(1-.8*Math.min(1,Math.abs(hereLuma-edgeLuma[yy*MAP_SIZE+xx])/64));
             };
-            if(els.ditherMethod.value==="atkinson"){
+            if(els.ditherMethod.value==="ordered"){}
+            else if(els.ditherMethod.value==="jarvis"){[[1,0,7/48],[2,0,5/48],[-2,1,3/48],[-1,1,5/48],[0,1,7/48],[1,1,5/48],[2,1,3/48],[-2,2,1/48],[-1,2,3/48],[0,2,5/48],[1,2,3/48],[2,2,1/48]].forEach(([dx,dy,w])=>addError(work,MAP_SIZE,x+dx,y+dy,er,eg,eb,edgeWeight(x+dx,y+dy,w)));}
+            else if(els.ditherMethod.value==="sierra"){[[1,0,2/4],[-1,1,1/4],[0,1,1/4]].forEach(([dx,dy,w])=>addError(work,MAP_SIZE,x+dx,y+dy,er,eg,eb,edgeWeight(x+dx,y+dy,w)));}
+            else if(els.ditherMethod.value==="atkinson"){
               addError(work,MAP_SIZE,x+1,y,er,eg,eb,edgeWeight(x+1,y,1/8));
               addError(work,MAP_SIZE,x+2,y,er,eg,eb,edgeWeight(x+2,y,1/8));
               addError(work,MAP_SIZE,x-1,y+1,er,eg,eb,edgeWeight(x-1,y+1,1/8));
@@ -2266,7 +2282,7 @@
       els.contrast.value=String(values.contrast);
       els.saturation.value=String(values.saturation);
       els.gamma.value=String(values.gamma);
-      els.sharpness.value=String(values.sharpness===undefined?20:values.sharpness);
+      els.sharpness.value=String(values.sharpness===undefined?20:values.sharpness);els.temperature.value=String(values.temperature===undefined?0:values.temperature);els.vibrance.value=String(values.vibrance===undefined?100:values.vibrance);document.getElementById("temperatureVal").textContent=els.temperature.value;document.getElementById("vibranceVal").textContent=els.vibrance.value+"%";
       if(values.ditherMethod)els.ditherMethod.value=values.ditherMethod;
       if(values.ditherStrength!==undefined)els.ditherStrength.value=String(values.ditherStrength);
       adjustmentControls.forEach(([control,labelId,format])=>{
@@ -2305,8 +2321,7 @@
       r=luma+(r-luma)*(p.saturation/100);
       g=luma+(g-luma)*(p.saturation/100);
       b=luma+(b-luma)*(p.saturation/100);
-      const exponent=100/p.gamma;
-      return [255*Math.pow(clamp(r)/255,exponent),255*Math.pow(clamp(g)/255,exponent),255*Math.pow(clamp(b)/255,exponent)];
+      const exponent=100/p.gamma;let rr=255*Math.pow(clamp(r)/255,exponent),gg=255*Math.pow(clamp(g)/255,exponent),bb=255*Math.pow(clamp(b)/255,exponent);rr=clamp(rr+p.temperature*.72);bb=clamp(bb-p.temperature*.72);const ch=Math.max(rr,gg,bb)-Math.min(rr,gg,bb),vf=1+(p.vibrance/100-1)*(1-ch/255),vl=.2126*rr+.7152*gg+.0722*bb;return [clamp(vl+(rr-vl)*vf),clamp(vl+(gg-vl)*vf),clamp(vl+(bb-vl)*vf)];
     }
     function buildOptimizationCandidates(st){
       const range=Math.max(32,st.high-st.low),factor=Math.max(.82,Math.min(1.72,238/range));
@@ -2318,14 +2333,15 @@
       const baseSaturation=Math.round(Math.max(85,Math.min(125,st.chroma<8?115:st.chroma>90?90:100+(42-st.chroma)*.35)));
       const values=(v,d,min,max)=>Array.from(new Set([v-d,v,v+d].map(x=>Math.round(Math.max(min,Math.min(max,x))))));
       const dithers=[{ditherMethod:"none",ditherStrength:0}];
-      ["floyd","atkinson"].forEach(method=>[20,40,65].forEach(strength=>dithers.push({ditherMethod:method,ditherStrength:strength})));
+      ["floyd","atkinson","jarvis","sierra","ordered"].forEach(method=>[20,40,65].forEach(strength=>dithers.push({ditherMethod:method,ditherStrength:strength})));
       const candidates=[];
       for(const brightness of values(baseBrightness,9,-100,100))
       for(const contrast of values(baseContrast,9,-100,100))
       for(const saturation of values(baseSaturation,10,0,200))
       for(const gamma of values(baseGamma,7,50,200))
       for(const sharpness of [0,25,50])
-      for(const dither of dithers)candidates.push({brightness,contrast,saturation,gamma,sharpness,...dither});
+      for(const tune of [{temperature:-18,vibrance:90},{temperature:0,vibrance:100},{temperature:18,vibrance:110}])
+      for(const dither of dithers)candidates.push({brightness,contrast,saturation,gamma,sharpness,...tune,...dither});
       return candidates;
     }
 
@@ -2389,7 +2405,7 @@
           const outputL=new Float32Array(total),outputRGB=new Uint8Array(total*3);
           let pixelError=0,edgeColor=0,edgeWeight=0;const strength=p.ditherStrength/100;
           for(let y=0;y<N;y++)for(let x=0;x<N;x++){
-            const i=y*N+x,z=i*3,r=clamp(work[z]),g=clamp(work[z+1]),b=clamp(work[z+2]),lab=labOf(r,g,b);
+            const i=y*N+x,z=i*3;let r=clamp(work[z]),g=clamp(work[z+1]),b=clamp(work[z+2]);if(p.ditherMethod==="ordered"){const mt=[[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]],t=(mt[y%4][x%4]-7.5)*strength*3.2;r=clamp(r+t);g=clamp(g+t);b=clamp(b+t);}const lab=labOf(r,g,b);
             const ri=Math.min(31,Math.round(r*31/255)),gi=Math.min(31,Math.round(g*31/255)),bi=Math.min(31,Math.round(b*31/255)),off=((ri*32+gi)*32+bi)*16;
             let chosen=lut[off],bestDist=Infinity;
             for(let k=0;k<16;k++){const id=lut[off+k],q=blockLabs[id],dl=lab[0]-q[0],da=lab[1]-q[1],db=lab[2]-q[2],d=dl*dl+da*da+db*db;if(d<bestDist){bestDist=d;chosen=id;}}
@@ -2399,7 +2415,7 @@
             if(strength&&p.ditherMethod!=="none"){
               const er=(r-rgb[0])*strength,eg=(g-rgb[1])*strength,eb=(b-rgb[2])*strength;
               const add=(xx,yy,weight)=>{if(xx<0||xx>=N||yy<0||yy>=N)return;const j=yy*N+xx,t=j*3,atten=1-.8*Math.min(1,Math.abs(edgeL[i]-edgeL[j])/64);work[t]+=er*weight*atten;work[t+1]+=eg*weight*atten;work[t+2]+=eb*weight*atten;};
-              if(p.ditherMethod==="atkinson"){add(x+1,y,1/8);add(x+2,y,1/8);add(x-1,y+1,1/8);add(x,y+1,1/8);add(x+1,y+1,1/8);add(x,y+2,1/8);}
+              if(p.ditherMethod==="ordered"){}else if(p.ditherMethod==="jarvis"){[[1,0,7/48],[2,0,5/48],[-2,1,3/48],[-1,1,5/48],[0,1,7/48],[1,1,5/48],[2,1,3/48],[-2,2,1/48],[-1,2,3/48],[0,2,5/48],[1,2,3/48],[2,2,1/48]].forEach(([dx,dy,w])=>add(x+dx,y+dy,w));}else if(p.ditherMethod==="sierra"){add(x+1,y,2/4);add(x-1,y+1,1/4);add(x,y+1,1/4);}else if(p.ditherMethod==="atkinson"){add(x+1,y,1/8);add(x+2,y,1/8);add(x-1,y+1,1/8);add(x,y+1,1/8);add(x+1,y+1,1/8);add(x,y+2,1/8);}
               else{add(x+1,y,7/16);add(x-1,y+1,3/16);add(x,y+1,5/16);add(x+1,y+1,1/16);}
             }
           }
@@ -2445,8 +2461,8 @@
         if(current!==selectedIds){status.textContent="最適化中に使用ブロックが変更されたため、結果を適用しませんでした。";return;}
         if(!best){status.textContent="最適な設定を決定できませんでした。";return;}
         setOptimizationControls(best);
-        const method=best.ditherMethod==="none"?"なし":best.ditherMethod==="atkinson"?"Atkinson":"Floyd–Steinberg";
-        status.textContent="最適化完了：100%（"+tested+"候補を128×128で比較）。シャープネス"+best.sharpness+"%／"+method+" "+best.ditherStrength+"%／総合スコア "+score.toFixed(2)+"（低いほど元画像に近い）";
+        const method=({none:"なし",atkinson:"Atkinson",floyd:"Floyd–Steinberg",jarvis:"Jarvis–Judice–Ninke",sierra:"Sierra Lite",ordered:"Bayer 4×4"})[best.ditherMethod]||best.ditherMethod;
+        status.textContent="最適化完了：100%（"+tested+"候補を128×128で比較）。色温度"+best.temperature+"／自然な彩度"+best.vibrance+"%／シャープネス"+best.sharpness+"%／"+method+" "+best.ditherStrength+"%／総合スコア "+score.toFixed(2)+"（低いほど元画像に近い）";
         runConversion();
       };
       if(typeof Worker!=="undefined"&&typeof Blob!=="undefined"&&URL.createObjectURL){
@@ -2500,6 +2516,8 @@
       }
       return error/total;
     }
+    [[els.temperature,"temperatureVal",v=>String(v)],[els.vibrance,"vibranceVal",v=>v+"%"]].forEach(([c,id,f])=>{c.addEventListener("input",()=>{document.getElementById(id).textContent=f(c.value);scheduleSliderConversion();});c.addEventListener("change",flushSliderConversion);});
+    document.getElementById("resetQualityAdjustments").addEventListener("click",()=>{els.temperature.value=0;els.vibrance.value=100;document.getElementById("temperatureVal").textContent="0";document.getElementById("vibranceVal").textContent="100%";runConversion();});
     document.getElementById("autoImageOptimizeBtn").addEventListener("click",optimizeImageAutomatically);
 
     const PNG_SCALE = 16;

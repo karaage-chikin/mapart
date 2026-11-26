@@ -3413,7 +3413,7 @@
         }
         let stepBinary = "";
         for (let i = 0; i < stepBytes.length; i += 0x8000) stepBinary += String.fromCharCode(...stepBytes.subarray(i, i + 0x8000));
-        const stepHash = stepMode + btoa(stepBinary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
+        const stepHash = stepMode + btoa(stepBinary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
         const target = new URL("blueprint.html", window.location.href);
         const shareUrl = target.href + "#id=cloud_" + encodeURIComponent(result.id) + "&step=" + stepHash;
         if (opened.closed) throw new Error("保存は完了しましたが、新しいタブが閉じられています。共有URLを再度開いてください：" + shareUrl);

@@ -1,4 +1,4 @@
-import { extractGeometryDefinitions, validateGeometry, resolveAttachableGeometry } from "./bedrock-parser.js";
+import { extractGeometryDefinitions, validateGeometry, resolveAttachableGeometry } from "./bedrock-parser.js?v=0.2.0";
 
 const $ = id => document.getElementById(id);
 const THREE = window.THREE;

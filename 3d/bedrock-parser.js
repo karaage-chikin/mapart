@@ -1,19 +1,28 @@
 export function extractGeometryDefinitions(data) {
   if (!data || typeof data !== "object") throw new TypeError("JSONのルートがオブジェクトではありません。");
   const modern = data["minecraft:geometry"];
-  if (Array.isArray(modern)) return modern.filter(item => item && typeof item === "object" && Array.isArray(item.bones));
-  // Bedrock legacy geometry files store identifiers as object keys.
-  const legacy = Object.entries(data).filter(([key, value]) => key.startsWith("geometry.") && value && typeof value === "object" && Array.isArray(value.bones));
-  if (legacy.length) return legacy.map(([identifier, value]) => ({
-    description: { ...(value.description || {}), identifier: value.description?.identifier || identifier },
-    bones: value.bones
-  }));
+  if (Array.isArray(modern)) {
+    return modern.filter(item => item && typeof item === "object" && Array.isArray(item.bones));
+  }
+  // Legacy Bedrock format: "geometry.child:geometry.parent" declares inheritance.
+  const legacy = Object.entries(data).filter(([key, value]) =>
+    key.startsWith("geometry.") && value && typeof value === "object" &&
+    (Array.isArray(value.bones) || key.includes(":"))
+  );
+  if (legacy.length) return legacy.map(([key, value]) => {
+    const [identifier, parent] = key.split(":");
+    return {
+      ...value,
+      description: { ...(value.description || {}), identifier: value.description?.identifier || identifier },
+      parent: value.parent || parent || null,
+      bones: Array.isArray(value.bones) ? value.bones : []
+    };
+  });
   throw new Error("minecraft:geometry または旧形式の geometry.* 定義が見つかりません。");
 }
 
 export function validateGeometry(geometry) {
   const errors = [];
-  const description = geometry?.description;
   if (!Array.isArray(geometry?.bones) || geometry.bones.length === 0) errors.push("bones がありません。");
   const names = new Set();
   for (const bone of geometry?.bones || []) {
@@ -30,20 +39,20 @@ export function validateGeometry(geometry) {
       if (cube.uv != null && !Array.isArray(cube.uv) && (typeof cube.uv !== "object" || Array.isArray(cube.uv))) errors.push("Bone " + bone.name + " に不正なUVがあります。");
     }
   }
-  return { valid: errors.length === 0, errors, identifier: description?.identifier || "unknown", boneCount: geometry?.bones?.length || 0 };
+  return { valid: errors.length === 0, errors, identifier: geometry?.description?.identifier || "unknown", boneCount: geometry?.bones?.length || 0 };
 }
 
 export function cloneGeometry(geometry) {
   return JSON.parse(JSON.stringify(geometry));
 }
 
-/** Apply Bedrock geometry variant patches by identifier, preserving unmentioned bone properties. */
+/** Apply one or more Bedrock geometry patches in parent-to-child order. */
 export function applyGeometryVariants(baseGeometry, geometryData, identifiers = []) {
   const result = cloneGeometry(baseGeometry);
   const definitions = extractGeometryDefinitions(geometryData);
   for (const identifier of identifiers) {
     const patch = definitions.find(item => item.description?.identifier === identifier);
-    if (!patch) continue;
+    if (!patch) throw new Error("継承Geometry " + identifier + " が見つかりません。");
     for (const change of patch.bones || []) {
       const index = result.bones.findIndex(bone => bone.name === change.name);
       if (change.reset) {
@@ -51,7 +60,9 @@ export function applyGeometryVariants(baseGeometry, geometryData, identifiers = 
         continue;
       }
       if (index < 0) {
-        result.bones.push(cloneGeometry({bones:[change]}).bones[0]);
+        const added = cloneGeometry({bones:[change]}).bones[0];
+        delete added.inflate;
+        result.bones.push(added);
         continue;
       }
       const target = result.bones[index];
@@ -72,10 +83,21 @@ export function resolveAttachableGeometry(attachableData, geometryData, preferre
   const geometryRef = desc?.geometry?.[preferredKey] || desc?.geometry?.default;
   if (!geometryRef) throw new Error("AttachableにGeometry参照がありません。");
   const definitions = extractGeometryDefinitions(geometryData);
-  const base = definitions.find(item => item.description?.identifier === geometryRef);
-  if (!base) throw new Error("参照Geometry " + geometryRef + " が見つかりません。");
-  const variants = Object.keys(geometryData).filter(key => key.startsWith("geometry.") && key !== geometryRef);
-  const resolved = applyGeometryVariants(base, geometryData, variants);
+  const byId = new Map(definitions.map(item => [item.description?.identifier, item]));
+  const target = byId.get(geometryRef);
+  if (!target) throw new Error("参照Geometry " + geometryRef + " が見つかりません。");
+  const chain = [];
+  const visited = new Set();
+  let current = target;
+  while (current?.parent) {
+    if (visited.has(current.description.identifier)) throw new Error("Geometry継承が循環しています: " + current.description.identifier);
+    visited.add(current.description.identifier);
+    chain.unshift(current.description.identifier);
+    current = byId.get(current.parent);
+    if (!current) throw new Error("継承元Geometry " + chain[0] + " の親 " + target.parent + " が見つかりません。");
+  }
+  if (!current) throw new Error("基底Geometryが見つかりません。");
+  const resolved = applyGeometryVariants(current, geometryData, chain);
   resolved.description = {...(resolved.description || {}), identifier: desc.identifier + " / " + geometryRef};
-  return { geometry: resolved, geometryRef, attachable: desc };
+  return { geometry: resolved, geometryRef, attachable: desc, inheritance: [current.description.identifier, ...chain] };
 }

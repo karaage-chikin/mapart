@@ -119,7 +119,7 @@ function averageTextureColor(cube){if(!textureImage)return 0x9aa3b2;try{
 }catch{return 0x9aa3b2;}}
 function loadTexture(file){
   if(textureObjectUrl)URL.revokeObjectURL(textureObjectUrl);textureObjectUrl=URL.createObjectURL(file);
-  return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>{textureImage=img;if(activeGeometry)buildModel(activeGeometry);resolve();};img.onerror=()=>reject(new Error("テクスチャ画像を読み込めません。"));img.src=textureObjectUrl;});
+  return new Promise((resolve,reject)=>{const img=new Image();img.crossOrigin="anonymous";img.onload=()=>{textureImage=img;if(activeGeometry)buildModel(activeGeometry);resolve();};img.onerror=()=>reject(new Error("テクスチャ画像を読み込めません。"));img.src=textureObjectUrl;});
 }
 async function loadZip(file){
   if(!window.JSZip)throw new Error("ZIPライブラリを読み込めませんでした。");
@@ -210,9 +210,10 @@ async function loadCatalogItem(){
  if(!desc?.geometry?.default)throw new Error("AttachableにGeometry参照がありません。");
  const source=geoData[item.geometryId];if(!source?.bones)throw new Error("参照Geometry "+item.geometryId+" が見つかりません。");
  const baseBone=source.bones.find(b=>b.name===item.bone);if(!baseBone?.cubes?.length)throw new Error("表示対象のGeometryがありません。");
- const bones=[JSON.parse(JSON.stringify(baseBone))];
+ const head=JSON.parse(JSON.stringify(baseBone));head.cubes=head.cubes.map(c=>({...c,inflate:Number(c.inflate||0)+1.0}));
+ const bones=[head];
  const hat=source.bones.find(b=>b.name==="hat");
- if(hat?.cubes?.length){const outer=JSON.parse(JSON.stringify(hat));outer.inflate=1.5;outer.neverRender=false;bones.push(outer);}
+ if(hat?.cubes?.length){const outer=JSON.parse(JSON.stringify(hat));outer.cubes=outer.cubes.map(c=>({...c,inflate:1.5}));outer.neverRender=false;bones.push(outer);}
  const resolved={description:{identifier:desc.identifier+" / "+desc.geometry.default},bones};
  geometryChoices=[{geometry:resolved,label:item.name}];textureImage=null;
  const file=new File([textureBlob],item.id+".png",{type:"image/png"});

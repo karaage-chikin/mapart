@@ -180,8 +180,8 @@ function renderLayer(){
 async function handleZip(file){try{setStatus("loadStatus","ZIPを解析しています…");await loadZip(file);}catch(error){setStatus("loadStatus",error.message||String(error),"error");}}
 
 const ITEM_CATALOG = [
- {id:"turtle_helmet",name:"カメの甲羅",category:"wearable",icon:"🐢",available:true,attachable:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/attachables/turtle_shell_helmet.player.json",geometry:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/models/entity/player_armor.json",texture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/models/armor/turtle_1.png",geometryId:"geometry.player.armor.base",bone:"head"},
- {id:"elytra",name:"エリトラ",category:"wearable",icon:"🪽",available:false,reason:"公式サンプルに対応Geometryが含まれていません"}
+ {id:"turtle_helmet",name:"カメの甲羅",category:"wearable",iconTexture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/items/turtle_helmet.png",available:true,attachable:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/attachables/turtle_shell_helmet.player.json",geometry:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/models/entity/player_armor.json",texture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/models/armor/turtle_1.png",geometryId:"geometry.player.armor.base",bone:"head"},
+ {id:"elytra",name:"エリトラ",category:"wearable",iconTexture:"",available:false,reason:"公式サンプルに対応Geometryが含まれていません"}
 ];
 let selectedCatalogItem="turtle_helmet",activeItemCategory="all";
 function populateItemCatalog(filter=""){
@@ -190,7 +190,7 @@ function populateItemCatalog(filter=""){
  const items=ITEM_CATALOG.filter(x=>(activeItemCategory==="all"||x.category===activeItemCategory)&&(x.name+" "+x.id).toLowerCase().includes(q));
  for(const item of items){
   const button=document.createElement("button");button.type="button";button.className="item-card"+(selectedCatalogItem===item.id?" selected":"");button.disabled=!item.available;button.title=item.available?item.name:item.reason;
-  const icon=document.createElement("span");icon.className="item-icon";icon.textContent=item.icon;
+  const icon=document.createElement("span");icon.className="item-icon";if(item.iconTexture){const image=document.createElement("img");image.src=item.iconTexture;image.alt=item.name+"のテクスチャ";image.loading="lazy";image.decoding="async";icon.append(image);}else{icon.textContent="";}
   const name=document.createElement("span");name.textContent=item.name;
   const note=document.createElement("small");note.textContent=item.available?"対応済み":"準備中";
   button.append(icon,name,note);

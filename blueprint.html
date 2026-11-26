@@ -29,7 +29,7 @@ small{color:#b8b8cc}
   const download = document.getElementById("download");
   const hash = location.hash.slice(1);
   let buildStepHash = "";
-  const stepMatch = hash.match(/(?:^|&)step=([dp][A-Za-z0-9_-]+)(?:&|$)/);
+  const stepMatch = hash.match(/(?:^|&)step=((?:[23])?[dp][A-Za-z0-9_-]+)(?:&|$)/);
   if (stepMatch) buildStepHash = stepMatch[1];
   const openBuildStep = document.getElementById("openBuildStep");
   if (buildStepHash) openBuildStep.disabled = false;
@@ -88,7 +88,7 @@ small{color:#b8b8cc}
   async function loadBlueprint() {
     try {
       let pngBytes;
-      const cloudMatch = hash.match(/^id=cloud_([a-f0-9]{32})(?:&step=[dp][A-Za-z0-9_-]+)?$/);
+      const cloudMatch = hash.match(/^id=cloud_([a-f0-9]{32})(?:&step=(?:[23])?[dp][A-Za-z0-9_-]+)?$/);
       const sharedMatch = hash.match(/^id=([a-zA-Z0-9_-]{8,80})$/);
       if (cloudMatch) {
         const response = await fetchWithTimeout("https://mapart-api.karaage-chikin-029.workers.dev/api/blueprints/" + encodeURIComponent(cloudMatch[1]), { cache: "no-store" }, 25000);

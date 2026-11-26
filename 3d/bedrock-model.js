@@ -260,7 +260,11 @@ $("itemSearch").addEventListener("input",e=>populateItemCatalog(e.target.value))
 $("itemCategories").addEventListener("click",e=>{const button=e.target.closest("[data-item-category]");if(!button)return;activeItemCategory=button.dataset.itemCategory;$("itemCategories").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===button));populateItemCatalog($("itemSearch").value);});
 $("loadItem").addEventListener("click",async()=>{try{await loadCatalogItem();}catch(error){setStatus("loadStatus",error.message||String(error),"error");}});
 populateItemCatalog();
-for(const id of ["rx","ry","rz","scale"])$(id).addEventListener("input",setOrientationFromControls);
+for(const id of ["rx","ry","rz","scale"]){
+ const control=$(id);
+ control.addEventListener("input",setOrientationFromControls);
+ control.addEventListener("change",setOrientationFromControls);
+}
 $("resetView").addEventListener("click",()=>{if(modelRoot)for(const child of modelRoot.children)child.visible=true;if(voxelGroup)voxelGroup.visible=false;showingVoxels=false;orientation.rotation.set(0,0,0);orientation.scale.setScalar(1);for(const id of ["rx","ry","rz"])$(id).value=0;$("scale").value=1;setOrientationFromControls();fitCamera();});
 $("fitView").addEventListener("click",fitCamera);
 $("convertBtn").addEventListener("click",()=>{try{setStatus("convertStatus","3D形状をブロックに変換しています…");voxels=voxelize();renderVoxelPreview();currentLayer=1;updateBlueprint();setStatus("convertStatus","変換完了: "+voxels.length.toLocaleString()+"ブロック\n内部構造: "+($("fillMode").value==="solid"?"内部まで充填":"表面のみ"),"ok");}catch(error){setStatus("convertStatus",error.message||String(error),"error");}});
@@ -268,4 +272,4 @@ $("layer").addEventListener("input",e=>{currentLayer=Number(e.target.value);rend
 $("prevLayer").addEventListener("click",()=>{if(currentLayer>1){currentLayer--;$("layer").value=currentLayer;renderLayer();}});
 $("nextLayer").addEventListener("click",()=>{if(currentLayer<dimensions.y){currentLayer++;$("layer").value=currentLayer;renderLayer();}});
 $("saveLayer").addEventListener("click",()=>{const a=document.createElement("a");a.download="3d-blueprint-layer-"+currentLayer+".png";a.href=$("layerCanvas").toDataURL("image/png");a.click();});
-initPalette();initScene();
+initPalette();initScene();setOrientationFromControls();

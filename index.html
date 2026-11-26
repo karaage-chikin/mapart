@@ -3416,12 +3416,12 @@
           if (stableIndex < 0 || stableIndex > 255) throw new Error("設計図に未対応のブロックが含まれています。");
           stepPayload[i + 1] = stableIndex;
         }
-        let stepBytes = stepPayload, stepMode = "p";
+        let stepBytes = stepPayload, stepMode = "3p";
         if (typeof CompressionStream === "function") {
           try {
             const stream = new Blob([stepPayload]).stream().pipeThrough(new CompressionStream("deflate"));
             const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
-            if (compressed.length < stepPayload.length) { stepBytes = compressed; stepMode = "d"; }
+            if (compressed.length < stepPayload.length) { stepBytes = compressed; stepMode = "3d"; }
           } catch (compressionError) { console.warn("設置手順データの圧縮を利用できません。", compressionError); }
         }
         let stepBinary = "";
@@ -3461,14 +3461,14 @@
           payload[i + 1] = stableIndex;
         }
         let payloadBytes = payload;
-        let mode = "p";
+        let mode = "3p";
         if (typeof CompressionStream === "function") {
           try {
             const stream = new Blob([payload]).stream().pipeThrough(new CompressionStream("deflate"));
             const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
             if (compressed.length < payload.length) {
               payloadBytes = compressed;
-              mode = "d";
+              mode = "3d";
             }
           } catch (compressionError) {
             console.warn("設置手順URLの圧縮を利用できないため、未圧縮データを使用します。", compressionError);

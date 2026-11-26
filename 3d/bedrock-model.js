@@ -1,4 +1,4 @@
-import { extractGeometryDefinitions, validateGeometry } from "./bedrock-parser.js";
+import { extractGeometryDefinitions, validateGeometry, resolveAttachableGeometry } from "./bedrock-parser.js";
 
 const $ = id => document.getElementById(id);
 const THREE = window.THREE;
@@ -214,30 +214,15 @@ async function loadCatalogItem(){
  setStatus("loadStatus",item.name+" のAttachable・Geometry・テクスチャを取得しています…");
  const [a,g,t]=await Promise.all([fetch(item.attachable),fetch(item.geometry),fetch(item.texture)]);
  if(!a.ok||!g.ok||!t.ok)throw new Error("公式モデルデータの取得に失敗しました。HTTP "+[a.status,g.status,t.status].join("/"));
- const attachData=await a.json(),geoData=await g.json(),textureBlob=await t.blob();
- const desc=attachData["minecraft:attachable"]?.description;
- if(!desc?.geometry?.default)throw new Error("AttachableにGeometry参照がありません。");
- const source=geoData[item.geometryId];if(!source?.bones)throw new Error("参照Geometry "+item.geometryId+" が見つかりません。");
- const bones=source.bones.map(b=>JSON.parse(JSON.stringify(b)));
- const variants=Object.entries(geoData).filter(([key])=>key.includes(":"));
- const applyVariant=(variantId)=>{
-  const entry=variants.find(([key])=>key.split(":")[0]===variantId);
-  if(!entry)return;
-  for(const patch of entry[1].bones||[]){
-   const index=bones.findIndex(b=>b.name===patch.name);
-   if(patch.reset){if(index>=0)bones.splice(index,1);continue;}
-   if(index>=0){const target=bones[index];if(patch.inflate!==undefined)target.cubes=(target.cubes||[]).map(c=>({...c,inflate:Number(c.inflate||0)+Number(patch.inflate)}));if(patch.neverRender!==undefined)target.neverRender=patch.neverRender;}
-  }
- };
- applyVariant("geometry.player.armor1");
- applyVariant("geometry.player.armor.helmet");
- const visibleBones=bones.filter(b=>b.name===item.bone||b.name==="hat").filter(b=>!b.neverRender&&b.cubes?.length);
- if(!visibleBones.some(b=>b.name===item.bone))throw new Error("AttachableのGeometryから頭部モデルを構成できません。");
- const resolved={description:{identifier:desc.identifier+" / "+desc.geometry.default},bones:visibleBones};
- geometryChoices=[{geometry:resolved,label:item.name}];textureImage=null;
+ const [attachData,geoData,textureBlob]=await Promise.all([a.json(),g.json(),t.blob()]);
+ const resolved=resolveAttachableGeometry(attachData,geoData,item.geometryKey||"default");
+ let geometry=resolved.geometry;
+ if(item.visibleBones?.length)geometry={...geometry,bones:geometry.bones.filter(b=>item.visibleBones.includes(b.name))};
+ if(!geometry.bones.some(b=>!b.neverRender&&(b.cubes||[]).length))throw new Error("表示可能なCubeがありません。");
+ geometryChoices=[{geometry,label:item.name}];textureImage=null;activeGeometry=null;
  const file=new File([textureBlob],item.id+".png",{type:"image/png"});
  await loadTexture(file);chooseGeometry(0);fitCamera();
- setStatus("loadStatus",item.name+" を読み込みました。\nAttachable: "+desc.identifier+"\nGeometry: "+item.geometryId+" / Bone: "+item.bone+"\nCube: "+cubeMeshes.length,"ok");
+ setStatus("loadStatus",item.name+" を読み込みました。\nAttachable: "+resolved.attachable.identifier+"\nGeometry: "+resolved.geometryRef+"\nBone: "+geometry.bones.length+" / Cube: "+cubeMeshes.length,"ok");
 }
 $("itemSearch").addEventListener("input",e=>populateItemCatalog(e.target.value));
 $("itemCategories").addEventListener("click",e=>{const button=e.target.closest("[data-item-category]");if(!button)return;activeItemCategory=button.dataset.itemCategory;$("itemCategories").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===button));populateItemCatalog($("itemSearch").value);});

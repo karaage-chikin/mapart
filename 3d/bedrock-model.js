@@ -71,17 +71,26 @@ function chooseGeometry(index){
 }
 function makeFaceMaterials(cube){
   const color=textureImage?0xffffff:0x9aa3b2;const mats=[];
-  for(const face of FACE_NAMES){
+  const size=number3(cube.size),uv=Array.isArray(cube.uv)?cube.uv:null;
+  const faceRects=uv?[
+    [uv[0],uv[1]+size[2],size[2],size[1]],
+    [uv[0]+size[2]+size[0],uv[1]+size[2],size[2],size[1]],
+    [uv[0]+size[2],uv[1],size[0],size[2]],
+    [uv[0]+size[2]+size[0],uv[1],size[0],size[2]],
+    [uv[0]+size[2],uv[1]+size[2],size[0],size[1]],
+    [uv[0]+size[2]+size[0]+size[2],uv[1]+size[2],size[0],size[1]]
+  ]:null;
+  FACE_NAMES.forEach((face,index)=>{
     const mat=new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide});
-    if(textureImage){const texture=new THREE.Texture(textureImage);texture.colorSpace=THREE.SRGBColorSpace;texture.needsUpdate=true;
-      const uv=Array.isArray(cube.uv)?cube.uv:null;const faceUv=cube.uv&&typeof cube.uv==="object"&&!Array.isArray(cube.uv)?cube.uv[face]:null;
-      let u=0,v=0,w=textureImage.width,h=textureImage.height;
-      if(faceUv){u=Number(faceUv.uv?.[0]??faceUv[0]??0);v=Number(faceUv.uv?.[1]??faceUv[1]??0);w=Number(faceUv.uv_size?.[0]??faceUv[2]??w);h=Number(faceUv.uv_size?.[1]??faceUv[3]??h);}
-      else if(uv){u=Number(uv[0]||0);v=Number(uv[1]||0);w=textureImage.width/2;h=textureImage.height/2;}
-      texture.offset.set(u/textureImage.width,1-(v+h)/textureImage.height);texture.repeat.set(w/textureImage.width,h/textureImage.height);mat.map=texture;mat.color.set(0xffffff);mat.needsUpdate=true;
+    if(textureImage){
+      const texture=new THREE.Texture(textureImage);texture.colorSpace=THREE.SRGBColorSpace;texture.needsUpdate=true;
+      const faceUv=cube.uv&&typeof cube.uv==="object"&&!Array.isArray(cube.uv)?cube.uv[face]:null;
+      let rect=faceRects?.[index]||[0,0,textureImage.width,textureImage.height];
+      if(faceUv){const pos=faceUv.uv||faceUv,sz=faceUv.uv_size||[faceUv[2]||textureImage.width,faceUv[3]||textureImage.height];rect=[Number(pos[0]||0),Number(pos[1]||0),Number(sz[0]||1),Number(sz[1]||1)];}
+      const [u,v,w,h]=rect;texture.offset.set(u/textureImage.width,1-(v+h)/textureImage.height);texture.repeat.set(w/textureImage.width,h/textureImage.height);mat.map=texture;mat.color.set(0xffffff);mat.needsUpdate=true;
     }
     mats.push(mat);
-  }
+  });
   return mats;
 }
 function buildModel(geometry){
@@ -209,12 +218,22 @@ async function loadCatalogItem(){
  const desc=attachData["minecraft:attachable"]?.description;
  if(!desc?.geometry?.default)throw new Error("AttachableにGeometry参照がありません。");
  const source=geoData[item.geometryId];if(!source?.bones)throw new Error("参照Geometry "+item.geometryId+" が見つかりません。");
- const baseBone=source.bones.find(b=>b.name===item.bone);if(!baseBone?.cubes?.length)throw new Error("表示対象のGeometryがありません。");
- const head=JSON.parse(JSON.stringify(baseBone));head.cubes=head.cubes.map(c=>({...c,inflate:Number(c.inflate||0)+1.0}));
- const bones=[head];
- const hat=source.bones.find(b=>b.name==="hat");
- if(hat?.cubes?.length){const outer=JSON.parse(JSON.stringify(hat));outer.cubes=outer.cubes.map(c=>({...c,inflate:1.5}));outer.neverRender=false;bones.push(outer);}
- const resolved={description:{identifier:desc.identifier+" / "+desc.geometry.default},bones};
+ const bones=source.bones.map(b=>JSON.parse(JSON.stringify(b)));
+ const variants=Object.entries(geoData).filter(([key])=>key.includes(":"));
+ const applyVariant=(variantId)=>{
+  const entry=variants.find(([key])=>key.split(":")[0]===variantId);
+  if(!entry)return;
+  for(const patch of entry[1].bones||[]){
+   const index=bones.findIndex(b=>b.name===patch.name);
+   if(patch.reset){if(index>=0)bones.splice(index,1);continue;}
+   if(index>=0){const target=bones[index];if(patch.inflate!==undefined)target.cubes=(target.cubes||[]).map(c=>({...c,inflate:Number(c.inflate||0)+Number(patch.inflate)}));if(patch.neverRender!==undefined)target.neverRender=patch.neverRender;}
+  }
+ };
+ applyVariant("geometry.player.armor1");
+ applyVariant("geometry.player.armor.helmet");
+ const visibleBones=bones.filter(b=>b.name===item.bone||b.name==="hat").filter(b=>!b.neverRender&&b.cubes?.length);
+ if(!visibleBones.some(b=>b.name===item.bone))throw new Error("AttachableのGeometryから頭部モデルを構成できません。");
+ const resolved={description:{identifier:desc.identifier+" / "+desc.geometry.default},bones:visibleBones};
  geometryChoices=[{geometry:resolved,label:item.name}];textureImage=null;
  const file=new File([textureBlob],item.id+".png",{type:"image/png"});
  await loadTexture(file);chooseGeometry(0);fitCamera();

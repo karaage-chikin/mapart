@@ -97,7 +97,7 @@ function buildModel(geometry){
       const geo=new THREE.BoxGeometry(dims[0],dims[1],dims[2]);const mesh=new THREE.Mesh(geo,makeFaceMaterials(cube));
       const center=origin.map((v,i)=>v+size[i]/2-pivot[i]);mesh.position.set(center[0],center[1],center[2]);
       if(cube.pivot&&cube.rotation){const cp=number3(cube.pivot).map((v,i)=>v-pivot[i]);const pivotGroup=new THREE.Group();pivotGroup.position.set(...cp);pivotGroup.add(mesh);mesh.position.sub(new THREE.Vector3(...cp));const rr=number3(cube.rotation).map(v=>THREE.MathUtils.degToRad(v));pivotGroup.rotation.set(rr[0],rr[1],rr[2],"ZYX");group.add(pivotGroup);}else group.add(mesh);
-      mesh.userData.rawSize=dims;mesh.userData.baseColor=textureImage?averageTextureColor():0x9aa3b2;cubeMeshes.push(mesh);
+      mesh.userData.rawSize=dims;mesh.userData.baseColor=textureImage?averageTextureColor(cube):0x9aa3b2;cubeMeshes.push(mesh);
     }
     for(const child of children.get(bone.name)||[])addBone(child,group);
   }
@@ -106,7 +106,17 @@ function buildModel(geometry){
   const center=rawBox.getCenter(new THREE.Vector3());modelRoot.scale.setScalar(1/16);modelRoot.position.set(-center.x/16,-center.y/16,-center.z/16);
   orientation.rotation.set(0,0,0);orientation.scale.setScalar(1);fitCamera();
 }
-function averageTextureColor(){if(!textureImage)return 0x9aa3b2;try{const c=document.createElement("canvas");c.width=16;c.height=16;const ctx=c.getContext("2d",{willReadFrequently:true});ctx.drawImage(textureImage,0,0,16,16);const d=ctx.getImageData(0,0,16,16).data;let r=0,g=0,b=0,n=0;for(let i=0;i<d.length;i+=4){if(d[i+3]<32)continue;r+=d[i];g+=d[i+1];b+=d[i+2];n++;}return n?new THREE.Color(r/n/255,g/n/255,b/n/255).getHex():0x9aa3b2;}catch{return 0x9aa3b2;}}
+function averageTextureColor(cube){if(!textureImage)return 0x9aa3b2;try{
+  const canvas=document.createElement("canvas");canvas.width=textureImage.width;canvas.height=textureImage.height;
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});ctx.drawImage(textureImage,0,0);
+  const regions=[];const uv=cube.uv;
+  if(uv&&typeof uv==="object"&&!Array.isArray(uv)){for(const value of Object.values(uv)){const pos=value?.uv||value;const size=value?.uv_size||[4,4];if(Array.isArray(pos))regions.push([pos[0],pos[1],size[0]||4,size[1]||4]);}}
+  else if(Array.isArray(uv))regions.push([uv[0],uv[1],Math.max(1,Number(cube.size?.[0]||4)),Math.max(1,Number(cube.size?.[1]||4))]);
+  if(!regions.length)regions.push([0,0,textureImage.width,textureImage.height]);
+  let r=0,g=0,b=0,n=0;
+  for(const [x,y,w,h] of regions){const sx=Math.max(0,Math.floor(x)),sy=Math.max(0,Math.floor(y)),ex=Math.min(textureImage.width,Math.ceil(x+w)),ey=Math.min(textureImage.height,Math.ceil(y+h));if(ex<=sx||ey<=sy)continue;const data=ctx.getImageData(sx,sy,ex-sx,ey-sy).data;for(let i=0;i<data.length;i+=4){if(data[i+3]<32)continue;r+=data[i];g+=data[i+1];b+=data[i+2];n++;}}
+  return n?new THREE.Color(r/n/255,g/n/255,b/n/255).getHex():0x9aa3b2;
+}catch{return 0x9aa3b2;}}
 function loadTexture(file){
   if(textureObjectUrl)URL.revokeObjectURL(textureObjectUrl);textureObjectUrl=URL.createObjectURL(file);
   return new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>{textureImage=img;if(activeGeometry)buildModel(activeGeometry);resolve();};img.onerror=()=>reject(new Error("テクスチャ画像を読み込めません。"));img.src=textureObjectUrl;});
@@ -121,14 +131,14 @@ async function loadZip(file){
   if(png){const blob=await png.async("blob");await loadTexture(new File([blob],png.name,{type:"image/png"}));}
   chooseGeometry(0);setStatus("loadStatus","ZIP読み込み成功。Geometry "+choices.length+"件"+(png?" / PNGテクスチャを1件読み込み":" / PNGテクスチャなし"),"ok");
 }
-function setOrientationFromControls(){for(const axis of ["x","y","z"]){const v=Number($(axis==="x"?"rx":axis==="y"?"ry":"rz").value);$(axis+"Out").textContent=v+"°";orientation.rotation[axis]=THREE.MathUtils.degToRad(v);}const scale=Number($("scale").value);orientation.scale.setScalar(scale);$("scaleOut").textContent=scale.toFixed(2)+"×";if(voxels.length)renderVoxelBlueprint();}
+function setOrientationFromControls(){for(const axis of ["x","y","z"]){const v=Number($(axis==="x"?"rx":axis==="y"?"ry":"rz").value);$(axis+"Out").textContent=v+"°";orientation.rotation[axis]=THREE.MathUtils.degToRad(v);}const scale=Number($("scale").value);orientation.scale.setScalar(scale);$("scaleOut").textContent=scale.toFixed(2)+"×";if(voxels.length){voxels=[];dimensions={x:0,y:0,z:0};if(voxelGroup)voxelGroup.visible=false;for(const child of modelRoot.children)child.visible=true;$("blueprintUI").classList.add("hidden");$("blueprintEmpty").classList.remove("hidden");$("blueprintEmpty").textContent="向きまたは倍率が変更されました。新しい設定で再変換してください。";setStatus("convertStatus","設定変更により以前の変換結果を破棄しました。再変換してください。");}}
 function rgb(hex){return {r:(hex>>16)&255,g:(hex>>8)&255,b:hex&255};}
 function nearestBlock(hex){const c=rgb(hex);let best=null,bestD=Infinity;for(const b of PALETTE){if(!selectedBlocks.has(b.id))continue;const p=parseInt(b.hex.slice(1),16),q=rgb(p);const d=(c.r-q.r)**2+(c.g-q.g)**2+(c.b-q.b)**2;if(d<bestD){bestD=d;best=b;}}return best;}
 function voxelize(){
   if(!cubeMeshes.length)throw new Error("変換できるCubeがありません。");if(!selectedBlocks.size)throw new Error("使用するブロックを1種類以上選択してください。");
   orientation.updateMatrixWorld(true);const box=new THREE.Box3().setFromObject(orientation);const scale=Number($("scale").value);const cell=Number($("voxelSize").value)/16*scale;const min=box.min.clone().addScalar(-cell*.001),max=box.max.clone().addScalar(cell*.001);
   const nx=Math.max(1,Math.ceil((max.x-min.x)/cell)),ny=Math.max(1,Math.ceil((max.y-min.y)/cell)),nz=Math.max(1,Math.ceil((max.z-min.z)/cell));
-  if(nx*ny*nz>180000)throw new Error("変換範囲が大きすぎます（最大180,000マス）。倍率またはブロック単位を大きくしてください。");
+  if(nx*ny*nz>180000)throw new Error("変換範囲が大きすぎます（最大180,000マス）。倍率またはブロック単位を大きくしてください。");\n  if(nx*ny*nz*cubeMeshes.length>12000000)throw new Error("モデルが複雑なため、この設定では処理量が大きすぎます。ブロック単位を大きくしてください。");
   const inverse=[],records=[];
   for(const mesh of cubeMeshes){mesh.updateWorldMatrix(true,false);const inv=mesh.matrixWorld.clone().invert();const half=mesh.userData.rawSize.map(v=>v/2);records.push({mesh,inv,half,color:mesh.userData.baseColor||0x9aa3b2});}
   const out=[];const solid=$("fillMode").value==="solid";
@@ -141,7 +151,7 @@ function voxelize(){
     if(chosen){const block=nearestBlock(chosen.color);if(block)out.push({x,y,z,block:block.id,hex:block.hex});}
   }
   if(!out.length)throw new Error("ブロックが生成されませんでした。倍率・ブロック単位を変更してください。");
-  const minX=Math.min(...out.map(v=>v.x)),maxX=Math.max(...out.map(v=>v.x)),minY=Math.min(...out.map(v=>v.y)),maxY=Math.max(...out.map(v=>v.y)),minZ=Math.min(...out.map(v=>v.z)),maxZ=Math.max(...out.map(v=>v.z));
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,minZ=Infinity,maxZ=-Infinity;for(const v of out){minX=Math.min(minX,v.x);maxX=Math.max(maxX,v.x);minY=Math.min(minY,v.y);maxY=Math.max(maxY,v.y);minZ=Math.min(minZ,v.z);maxZ=Math.max(maxZ,v.z);}
   const compact=out.map(v=>({...v,x:v.x-minX,y:v.y-minY,z:v.z-minZ}));dimensions={x:maxX-minX+1,y:maxY-minY+1,z:maxZ-minZ+1};return compact;
 }
 function renderVoxelPreview(){

@@ -180,7 +180,7 @@ function renderLayer(){
 async function handleZip(file){try{setStatus("loadStatus","ZIPを解析しています…");await loadZip(file);}catch(error){setStatus("loadStatus",error.message||String(error),"error");}}
 
 const ITEM_CATALOG = [
- {id:"turtle_helmet",name:"カメの甲羅",category:"防具・装飾",attachable:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/attachables/turtle_shell_helmet.json",geometry:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/models/entity/player_armor.json",texture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/models/armor/turtle_1.png",geometryId:"geometry.player.armor.base",bone:"head"}
+ {id:"turtle_helmet",name:"カメの甲羅",category:"防具・装飾",attachable:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/attachables/turtle_shell_helmet.player.json",geometry:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/models/entity/player_armor.json",texture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/models/armor/turtle_1.png",geometryId:"geometry.player.armor.base",bone:"head"}
 ];
 function populateItemCatalog(filter=""){
  const select=$("itemSelect");const q=filter.trim().toLowerCase();select.innerHTML="";
@@ -199,7 +199,8 @@ async function loadCatalogItem(){
  if(!desc?.geometry?.default)throw new Error("AttachableにGeometry参照がありません。");
  const source=geoData[item.geometryId];if(!source?.bones)throw new Error("参照Geometryが見つかりません。");
  const bone=source.bones.find(b=>b.name===item.bone);if(!bone?.cubes?.length)throw new Error("表示対象のGeometryがありません。");
- const resolved={description:{identifier:desc.identifier},bones:[JSON.parse(JSON.stringify(bone))]};
+ const bones=[JSON.parse(JSON.stringify(bone))];const hat=source.bones.find(b=>b.name==="hat");if(hat?.cubes?.length){const outer=JSON.parse(JSON.stringify(hat));outer.inflate=1.5;delete outer.neverRender;bones.push(outer);}
+ const resolved={description:{identifier:desc.identifier+" / "+desc.geometry.default},bones};
  geometryChoices=[{geometry:resolved,label:item.name}];fillGeometrySelect();textureImage=null;
  const file=new File([textureBlob],item.id+".png",{type:"image/png"});await loadTexture(file);chooseGeometry(0);
  setStatus("loadStatus",item.name+" を読み込みました。Attachable参照: "+desc.geometry.default+"\nGeometry: "+item.geometryId+" / Bone: "+item.bone+"\n公式Bedrockサンプルの実データを使用しています。","ok");

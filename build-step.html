@@ -77,7 +77,7 @@ const SIZE=128, STEP=4, BASE="https://raw.githubusercontent.com/Mojang/bedrock-s
 const ALIASES={grass_block:"grass",snow_block:"snow",cobweb:"web",terracotta:"hardened_clay"};
 const $=id=>document.getElementById(id);
 const status=$("status"),progress=$("progress"),fill=$("progressFill"),blocks=$("blocks");
-let indices=null,placed=0, direction="left", images=new Map(), progressKey="";
+let indices=null,placed=0,skippedCount=0, direction="left", images=new Map(), progressKey="";
 function bytesFromBase64(value){
  const normalized=value.replace(/-/g,"+").replace(/_/g,"/");
  const binary=atob(normalized+"=".repeat((4-normalized.length%4)%4));
@@ -87,9 +87,9 @@ function bytesFromBase64(value){
 }
 async function decode(){
  const hash=location.hash.slice(1); progressKey="mapart_progress_"+(()=>{let h1=2166136261,h2=2246822519;for(let i=0;i<hash.length;i++){const c=hash.charCodeAt(i);h1=Math.imul(h1^c,16777619);h2=Math.imul(h2^c,3266489917);}return (h1>>>0).toString(36)+"_"+(h2>>>0).toString(36);})();
- const isV2=hash.startsWith("2d")||hash.startsWith("2p");
- const mode=isV2?hash[1]:hash[0];
- const encoded=isV2?hash.slice(2):hash.slice(1);
+ const isVersioned=hash.startsWith("2d")||hash.startsWith("2p")||hash.startsWith("3d")||hash.startsWith("3p");
+ const mode=isVersioned?hash[1]:hash[0];
+ const encoded=isVersioned?hash.slice(2):hash.slice(1);
  if(!encoded||!["d","p"].includes(mode))throw new Error("URLに設計図データがありません。元のサイトで「設置手順を別タブで開く」を押してください。");
  let bytes=bytesFromBase64(encoded);
  if(mode==="d"){
@@ -100,9 +100,9 @@ async function decode(){
  if(bytes.length!==SIZE*SIZE+1)throw new Error("設計図データのサイズが正しくありません。URLが切れていないか確認してください。");
  direction=bytes[0]===1?"right":"left";
  $("direction").value=direction;
- try{const saved=JSON.parse(localStorage.getItem(progressKey)||"null");if(saved&&["left","right"].includes(saved.direction)){direction=saved.direction;$("direction").value=direction;if(Number.isFinite(saved.placed))placed=Math.max(0,Math.min(SIZE*SIZE,Math.floor(saved.placed/STEP)*STEP));}}catch(_){placed=0;}
+ try{const saved=JSON.parse(localStorage.getItem(progressKey)||"null");if(saved&&["left","right"].includes(saved.direction)){direction=saved.direction;$("direction").value=direction;if(Number.isFinite(saved.placed))placed=Math.max(0,Math.min(SIZE*SIZE,Math.floor(saved.placed/STEP)*STEP));if(Number.isFinite(saved.skippedCount))skippedCount=Math.max(0,Math.min(placed,Math.floor(saved.skippedCount/SIZE)*SIZE));}}catch(_){placed=0;}
  const raw=bytes.slice(1);
- if(isV2){
+ if(isVersioned){
   indices=new Uint8Array(raw.length);
   for(let i=0;i<raw.length;i++){
    const id=URL_BLOCK_IDS[raw[i]],index=PALETTE_INDEX.get(id);
@@ -139,9 +139,10 @@ function position(order){
 }
 function draw(){
  const total=SIZE*SIZE,first=Math.min(placed,total),last=Math.min(first+STEP,total);
- progress.textContent=first>=total?"設置完了！ "+total.toLocaleString()+" / "+total.toLocaleString()+" 個":
-  "設置済み "+first.toLocaleString()+" / "+total.toLocaleString()+" 個　・　次の4ブロック";
- fill.style.width=(first/total*100)+"%";
+ const completed=Math.max(0,first-skippedCount);
+ progress.textContent=first>=total?"手順完了！ 設置済み "+completed.toLocaleString()+" / "+total.toLocaleString()+" 個":
+  "設置済み "+completed.toLocaleString()+" / "+total.toLocaleString()+" 個　・　次の4ブロック";
+ fill.style.width=(completed/total*100)+"%";
  blocks.replaceChildren();
  if(first>=total){
   const done=document.createElement("p");done.textContent="すべてのブロックを置き終わりました！";blocks.append(done);
@@ -188,12 +189,12 @@ function drawMiniMap(first,last){
  if(first<SIZE*SIZE){const pos=position(first);ctx.lineWidth=2;ctx.strokeStyle="#ffcf45";ctx.strokeRect(pos.x*scale+1,pos.y*scale+1,scale-2,scale-2);$("miniMapPosition").textContent="現在位置："+(pos.x+1)+"列目・"+(pos.y+1)+"行目";}
  else $("miniMapPosition").textContent="現在位置：設置完了";
 }
-function saveProgress(){try{localStorage.setItem(progressKey,JSON.stringify({placed,direction,updatedAt:Date.now()}));}catch(error){console.warn("設置進捗を保存できません:",error);status.textContent="進捗を保存できませんでした。ブラウザの保存容量を確認してください。";}}
-function setPosition(value){placed=Math.max(0,Math.min(SIZE*SIZE,Math.floor(value/STEP)*STEP));saveProgress();draw();}
+function saveProgress(){try{localStorage.setItem(progressKey,JSON.stringify({placed,skippedCount,direction,updatedAt:Date.now()}));}catch(error){console.warn("設置進捗を保存できません:",error);status.textContent="進捗を保存できませんでした。ブラウザの保存容量を確認してください。";}}
+function setPosition(value){placed=Math.max(0,Math.min(SIZE*SIZE,Math.floor(value/STEP)*STEP));if(placed===0)skippedCount=0;else skippedCount=Math.min(skippedCount,Math.floor(placed/SIZE)*SIZE);saveProgress();draw();}
 $("first").addEventListener("click",()=>{if(placed>0&&!confirm("設置済みの進捗表示を最初に戻しますか？"))return;setPosition(0);});
 $("back").addEventListener("click",()=>setPosition(placed-STEP));
 $("next").addEventListener("click",()=>setPosition(placed+STEP));
-$("skipRow").addEventListener("click",()=>setPosition(Math.ceil((placed+1)/SIZE)*SIZE));
+$("skipRow").addEventListener("click",()=>{const nextRow=Math.min(SIZE*SIZE,Math.ceil((placed+1)/SIZE)*SIZE);skippedCount+=Math.max(0,nextRow-placed);setPosition(nextRow);});
 $("direction").addEventListener("change",()=>{
  const next=$("direction").value;
  if(placed>0&&next!==direction){

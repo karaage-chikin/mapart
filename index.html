@@ -737,9 +737,9 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.45</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.46</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.45</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.46</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
       <li>必要数のスタック・シュルカー換算で、該当しない単位も0として表示</li>
@@ -871,7 +871,7 @@
           </div>
         </div></section>
         <section class="tab-panel" role="tabpanel" data-panel="quality"><div class="box">
-          <h2>追加の画質・色調補正</h2><p class="muted">追加補正は手動変換専用です。自動最適化の候補・評価・スコアには使用しません。</p>
+          <h2>追加の画質・色調補正</h2><p class="muted">追加補正は自動最適化でも探索します。評価式・評価比率は従来のままです。</p>
 <div class="field"><h3>色温度・彩度</h3><label><span>色温度（寒色 ↔ 暖色）</span><span id="temperatureVal">0</span></label><input type="range" id="temperature" min="-50" max="50" value="0"><label><span>自然な彩度</span><span id="vibranceVal">100%</span></label><input type="range" id="vibrance" min="0" max="200" value="100"></div>
 <div class="field"><h3>明暗・色相</h3><label><span>ハイライト</span><span id="highlightsVal">0</span></label><input type="range" id="highlights" min="-100" max="100" value="0"><label><span>シャドウ</span><span id="shadowsVal">0</span></label><input type="range" id="shadows" min="-100" max="100" value="0"><label><span>白レベル</span><span id="whitesVal">0</span></label><input type="range" id="whites" min="-100" max="100" value="0"><label><span>黒レベル</span><span id="blacksVal">0</span></label><input type="range" id="blacks" min="-100" max="100" value="0"><label><span>色相</span><span id="hueVal">0°</span></label><input type="range" id="hue" min="-180" max="180" value="0"></div>
 <div class="field"><h3>ディテール</h3><label><span>明瞭度（中間調コントラスト）</span><span id="clarityVal">0%</span></label><input type="range" id="clarity" min="0" max="100" value="0"><label><span>ノイズ軽減</span><span id="denoiseVal">0%</span></label><input type="range" id="denoise" min="0" max="100" value="0"></div>
@@ -2032,6 +2032,7 @@
           if (el) el.textContent = "使用するブロックを1種類以上選択してください。";
         });
         els.statsBody.innerHTML = '<tr><td colspan="4" class="muted">ブロックを1種類以上選択してください。</td></tr>';
+        if (typeof updateCoordinateTools === "function") updateCoordinateTools();
         return true;
       }
       drawFittedImage(loadedImage);
@@ -2102,6 +2103,7 @@
       renderStats(counts);
       renderErrorHeatmap();
       renderOutlineCheck();
+      if (typeof updateCoordinateTools === "function") updateCoordinateTools();
       if (conversionStatus) conversionStatus.textContent = "画像変換完了：128×128・16,384マスを処理しました。";
       return true;
     }
@@ -2625,8 +2627,8 @@
       r=luma+(r-luma)*(p.saturation/100);
       g=luma+(g-luma)*(p.saturation/100);
       b=luma+(b-luma)*(p.saturation/100);
-      const exponent=100/p.gamma;let rr=255*Math.pow(clamp(r)/255,exponent),gg=255*Math.pow(clamp(g)/255,exponent),bb=255*Math.pow(clamp(b)/255,exponent);rr=clamp(rr+p.temperature*.72);bb=clamp(bb-p.temperature*.72);const ch=Math.max(rr,gg,bb)-Math.min(rr,gg,bb),vf=1+(p.vibrance/100-1)*(1-ch/255),vl=.2126*rr+.7152*gg+.0722*bb;
-          const y=vl/255,u=v=>Math.max(0,Math.min(1,v)),d=(p.shadows||0)/100*(1-u(y*1.7))*(1-y)*105+(p.highlights||0)/100*u((y-.3)/.7)*y*105+(p.blacks||0)/100*(1-y)*75+(p.whites||0)/100*y*75;
+      const exponent=100/p.gamma;let rr=255*Math.pow(clamp(r)/255,exponent),gg=255*Math.pow(clamp(g)/255,exponent),bb=255*Math.pow(clamp(b)/255,exponent);rr=clamp(rr+p.temperature*.72);bb=clamp(bb-p.temperature*.72);const ch=Math.max(rr,gg,bb)-Math.min(rr,gg,bb),vf=1+(p.vibrance/100-1)*(1-ch/255),vl=.2126*rr+.7152*gg+.0722*bb;rr=vl+(rr-vl)*vf;gg=vl+(gg-vl)*vf;bb=vl+(bb-vl)*vf;
+          rr=vl+(rr-vl)*vf;gg=vl+(gg-vl)*vf;bb=vl+(bb-vl)*vf;const y=vl/255,u=v=>Math.max(0,Math.min(1,v)),d=(p.shadows||0)/100*(1-u(y*1.7))*(1-y)*105+(p.highlights||0)/100*u((y-.3)/.7)*y*105+(p.blacks||0)/100*(1-y)*75+(p.whites||0)/100*y*75;
           rr=clamp(rr+d);gg=clamp(gg+d);bb=clamp(bb+d);
           if(p.hue){const mx=Math.max(rr,gg,bb),mn=Math.min(rr,gg,bb),df=mx-mn,s=mx?df/mx:0;let h=0;if(df){if(mx===rr)h=((gg-bb)/df)%6;else if(mx===gg)h=(bb-rr)/df+2;else h=(rr-gg)/df+4;h=(h*60+360)%360;}h=(h+p.hue+360)%360;const c=mx*s,x=c*(1-Math.abs((h/60)%2-1)),m=mx-c;let a=0,b=0,c2=0;if(h<60){a=c;b=x;}else if(h<120){a=x;b=c;}else if(h<180){b=c;c2=x;}else if(h<240){b=x;c2=c;}else if(h<300){a=x;c2=c;}else{a=c;c2=x;}rr=a+m;gg=b+m;bb=c2+m;}
           return [Math.round(clamp(rr)),Math.round(clamp(gg)),Math.round(clamp(bb))];
@@ -2813,14 +2815,17 @@
     }
 
     let optimizationWorkerInstances=[],optimizationCancelled=false;
-    function stopOptimizationWorkers(){optimizationWorkerInstances.forEach(w=>w.terminate());optimizationWorkerInstances=[];}
+    const optimizationCancelResolvers=new Set();
+    function stopOptimizationWorkers(){optimizationCancelResolvers.forEach(resolve=>{try{resolve(null);}catch(_){}});optimizationCancelResolvers.clear();optimizationWorkerInstances.forEach(w=>{try{w.terminate();}catch(_){}});optimizationWorkerInstances=[];}
     async function runWorkerBatch(source,blocks,candidates,runId,progress){
       if(typeof Worker==="undefined"||typeof Blob==="undefined"||!URL.createObjectURL)return null;
       const count=candidates.length<24?1:Math.min(4,Math.max(1,(navigator.hardwareConcurrency||2)-1),candidates.length),url=URL.createObjectURL(new Blob(["("+optimizationWorkerMain.toString()+")()"],{type:"text/javascript"}));
       const jobs=Array.from({length:count},(_,k)=>candidates.filter((_,i)=>i%count===k)),progressByWorker=new Array(count).fill(0);
-      try{const results=await Promise.all(jobs.map((chunk,k)=>new Promise((resolve,reject)=>{const w=new Worker(url);optimizationWorkerInstances.push(w);w.onmessage=e=>{if(optimizationCancelled||runId!==window.__mapartOptimizationRun){w.terminate();resolve(null);}else if(e.data.type==="progress"){progressByWorker[k]=e.data.tested;progress(progressByWorker.reduce((a,b)=>a+b,0));}else if(e.data.type==="done"){w.terminate();resolve(e.data);}};w.onerror=reject;const src=new Uint8Array(source);const safeBlocks=blocks.map(b=>({rgb:Array.from(b.rgb||[],v=>Number(v)),lab:Array.from(b.lab||[],v=>Number(v))}));const candidateKeys=["brightness","contrast","saturation","gamma","sharpness","temperature","vibrance","highlights","shadows","whites","blacks","hue","clarity","denoise","ditherMethod","ditherStrength"];const safeCandidates=chunk.map(p=>{const q={};for(const key of candidateKeys){const v=p[key];if(typeof v==="number"&&Number.isFinite(v)||typeof v==="string"||typeof v==="boolean")q[key]=v;}return q;});w.postMessage({source:src.buffer,blocks:safeBlocks,candidates:safeCandidates},[src.buffer]);})));
+      const cancelPromise=new Promise(resolve=>optimizationCancelResolvers.add(resolve));
+      try{const jobsPromise=Promise.all(jobs.map((chunk,k)=>new Promise((resolve,reject)=>{const w=new Worker(url);optimizationWorkerInstances.push(w);w.onmessage=e=>{if(optimizationCancelled||runId!==window.__mapartOptimizationRun){w.terminate();resolve(null);}else if(e.data.type==="progress"){progressByWorker[k]=e.data.tested;progress(progressByWorker.reduce((a,b)=>a+b,0));}else if(e.data.type==="done"){w.terminate();resolve(e.data);}};w.onerror=reject;const src=new Uint8Array(source);const safeBlocks=blocks.map(b=>({rgb:Array.from(b.rgb||[],v=>Number(v)),lab:Array.from(b.lab||[],v=>Number(v))}));const candidateKeys=["brightness","contrast","saturation","gamma","sharpness","temperature","vibrance","highlights","shadows","whites","blacks","hue","clarity","denoise","ditherMethod","ditherStrength"];const safeCandidates=chunk.map(p=>{const q={};for(const key of candidateKeys){const v=p[key];if(typeof v==="number"&&Number.isFinite(v)||typeof v==="string"||typeof v==="boolean")q[key]=v;}return q;});w.postMessage({source:src.buffer,blocks:safeBlocks,candidates:safeCandidates},[src.buffer]);})));
+      const results=await Promise.race([jobsPromise,cancelPromise]);if(!results)return null;
       return results.filter(Boolean).reduce((a,x)=>{if(x.bestScore<a.score){a.best=x.best;a.score=x.bestScore;}a.tested+=x.tested;(x.top||[]).forEach(t=>a.top.push(t));a.top.sort((u,v)=>u.score-v.score);a.top=a.top.slice(0,10);return a;},{best:null,score:Infinity,tested:0,top:[]});}
-      finally{stopOptimizationWorkers();URL.revokeObjectURL(url);}
+      finally{optimizationCancelResolvers.clear();stopOptimizationWorkers();URL.revokeObjectURL(url);}
     }
     function buildQualityAxisCandidates(base,key,values){
       const limits={
@@ -2850,10 +2855,11 @@
       }
       return {best,score,tested:candidates.length};
     }
+    function optimizationSettingsSignature(){const ids=["fitMode","bgFillToggle","bgColorInput","ditherMethod","ditherStrength","brightness","contrast","saturation","gamma","sharpness","temperature","vibrance","highlights","shadows","whites","blacks","hue","clarity","denoise"];return JSON.stringify(ids.map(id=>{const e=document.getElementById(id);return e?(e.type==="checkbox"?e.checked:e.value):null;}));}
     async function optimizeImageAutomatically(){
       const status=document.getElementById("optimizationStatus"),btn=document.getElementById("autoImageOptimizeBtn"),cancel=document.getElementById("cancelOptimizationBtn"),bar=document.getElementById("optimizationProgress"),pt=document.getElementById("optimizationProgressText"),stats=analyzeImageForAutoCorrection();
       if(!stats){status.textContent="先に画像をアップロードしてください。";return;}const active=BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab);if(!active.length||btn.disabled)return;
-      btn.disabled=true;cancel.hidden=false;bar.hidden=false;bar.value=0;optimizationCancelled=false;const runId=(window.__mapartOptimizationRun=(window.__mapartOptimizationRun||0)+1),started=performance.now(),imageAtStart=loadedImage,ids=active.map(b=>b.id).sort().join("|");
+      btn.disabled=true;cancel.hidden=false;bar.hidden=false;bar.value=0;optimizationCancelled=false;const runId=(window.__mapartOptimizationRun=(window.__mapartOptimizationRun||0)+1),started=performance.now(),imageAtStart=loadedImage,ids=active.map(b=>b.id).sort().join("|"),settingsAtStart=optimizationSettingsSignature();
       const progress=(n,total,label)=>{bar.value=Math.min(100,n/total*100);pt.textContent=label+" "+Math.round(bar.value)+"%・"+optimizationWorkerInstances.length+" Worker・"+((performance.now()-started)/1000).toFixed(1)+"秒";};
       cancel.onclick=()=>{optimizationCancelled=true;window.__mapartOptimizationRun++;stopOptimizationWorkers();btn.disabled=false;cancel.hidden=true;bar.hidden=true;status.textContent="最適化を中止しました。";};
       try{
@@ -2898,7 +2904,7 @@
           qualityTested+=local.tested;
           if(local.score<score){best=local.best;score=local.score;}
         }
-        if(loadedImage!==imageAtStart||BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab).map(b=>b.id).sort().join("|")!==ids){status.textContent="画像または使用ブロックが変更されたため、結果を適用しませんでした。";return;}
+        if(loadedImage!==imageAtStart||BLOCK_DATA.filter(b=>b.checked&&b.mapRgb&&b.lab).map(b=>b.id).sort().join("|")!==ids||optimizationSettingsSignature()!==settingsAtStart){status.textContent="画像・使用ブロック・補正設定が最適化中に変更されたため、結果を適用しませんでした。";return;}
         setOptimizationControls(best);const name=({none:"なし",atkinson:"Atkinson",floyd:"Floyd–Steinberg",jarvis:"Jarvis–Judice–Ninke",sierra:"Sierra Lite",ordered:"Bayer 4×4"})[best.ditherMethod]||best.ditherMethod;
         status.textContent="最適化完了："+(coarse.tested+fine.tested+qualityTested)+"候補（粗探索"+coarse.tested+"＋精密探索"+fine.tested+"＋追加補正"+qualityTested+"）。追加補正：ハイライト"+(best.highlights||0)+"／シャドウ"+(best.shadows||0)+"／白"+(best.whites||0)+"／黒"+(best.blacks||0)+"／色相"+(best.hue||0)+"°／明瞭度"+(best.clarity||0)+"%／ノイズ軽減"+(best.denoise||0)+"%／スコア "+score.toFixed(2)+"・"+((performance.now()-started)/1000).toFixed(1)+"秒";runConversion();
       }catch(err){status.textContent="最適化エラー："+(err.message||"Worker error");}
@@ -3363,6 +3369,11 @@
       if (!lastGrid || els.onlineBlueprintBtn.disabled) return;
       const button = els.onlineBlueprintBtn;
       const originalText = button.textContent;
+      const gridSnapshot = lastGrid.slice();
+      const blueprintSnapshot = document.createElement("canvas");
+      blueprintSnapshot.width = els.blueprintPreviewCanvas.width;
+      blueprintSnapshot.height = els.blueprintPreviewCanvas.height;
+      blueprintSnapshot.getContext("2d").drawImage(els.blueprintPreviewCanvas, 0, 0);
       const opened = window.open("about:blank", "_blank");
       if (!opened) { setPngStatus("新しいタブを開けませんでした。ポップアップを許可してください。", "error"); return; }
       opened.document.title = "MapArt - クラウド保存中";
@@ -3378,7 +3389,7 @@
         }
         setPngStatus("クラウドサーバー・D1接続を確認しました。PNGを作成しています…", "progress");
         const blob = await new Promise((resolve, reject) => {
-          els.blueprintPreviewCanvas.toBlob(value => value ? resolve(value) : reject(new Error("PNG画像を作成できませんでした。")), "image/png");
+          blueprintSnapshot.toBlob(value => value ? resolve(value) : reject(new Error("PNG画像を作成できませんでした。")), "image/png");
         });
         if (blob.size > 1850000) throw new Error("設計図画像が大きすぎます（上限約1.85MB）。画像を小さくせずに保存できる範囲を超えています。");
         setPngStatus("PNGを作成しました。クラウドへ送信しています…", "progress");
@@ -3400,8 +3411,8 @@
         // 設置手順データも共有URLに同梱する。
         const stepPayload = new Uint8Array(MAP_SIZE * MAP_SIZE + 1);
         stepPayload[0] = 0;
-        for (let i = 0; i < lastGrid.length; i++) {
-          const stableIndex = URL_BLOCK_IDS.indexOf(lastGrid[i].id);
+        for (let i = 0; i < gridSnapshot.length; i++) {
+          const stableIndex = URL_BLOCK_IDS.indexOf(gridSnapshot[i].id);
           if (stableIndex < 0 || stableIndex > 255) throw new Error("設計図に未対応のブロックが含まれています。");
           stepPayload[i + 1] = stableIndex;
         }

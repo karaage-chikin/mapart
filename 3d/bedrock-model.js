@@ -1,4 +1,4 @@
-import { extractGeometryDefinitions, validateGeometry, resolveAttachableGeometry } from "./bedrock-parser.js?v=0.2.0";
+import { extractGeometryDefinitions, validateGeometry, resolveAttachableGeometry } from "./bedrock-parser.js?v=0.2.2";
 
 const $ = id => document.getElementById(id);
 const THREE = window.THREE;
@@ -140,7 +140,29 @@ async function loadZip(file){
   if(png){const blob=await png.async("blob");await loadTexture(new File([blob],png.name,{type:"image/png"}));}
   chooseGeometry(0);setStatus("loadStatus","ZIP読み込み成功。Geometry "+choices.length+"件"+(png?" / PNGテクスチャを1件読み込み":" / PNGテクスチャなし"),"ok");
 }
-function setOrientationFromControls(){for(const axis of ["x","y","z"]){const v=Number($(axis==="x"?"rx":axis==="y"?"ry":"rz").value);$(axis+"Out").textContent=v+"°";orientation.rotation[axis]=THREE.MathUtils.degToRad(v);}const scale=Number($("scale").value);orientation.scale.setScalar(scale);$("scaleOut").textContent=scale.toFixed(2)+"×";if(voxels.length){voxels=[];dimensions={x:0,y:0,z:0};if(voxelGroup)voxelGroup.visible=false;for(const child of modelRoot.children)child.visible=true;$("blueprintUI").classList.add("hidden");$("blueprintEmpty").classList.remove("hidden");$("blueprintEmpty").textContent="向きまたは倍率が変更されました。新しい設定で再変換してください。";setStatus("convertStatus","設定変更により以前の変換結果を破棄しました。再変換してください。");}}
+function setOrientationFromControls(){
+  const values={x:Number($("rx").value),y:Number($("ry").value),z:Number($("rz").value)};
+  for(const axis of ["x","y","z"]){$(axis+"Out").textContent=values[axis]+"°";}
+  const scale=Number($("scale").value);
+  $("scaleOut").textContent=scale.toFixed(2)+"×";
+  if(!orientation||!THREE)return;
+  orientation.rotation.set(
+    THREE.MathUtils.degToRad(values.x),
+    THREE.MathUtils.degToRad(values.y),
+    THREE.MathUtils.degToRad(values.z),
+    "XYZ"
+  );
+  orientation.scale.setScalar(scale);
+  orientation.updateMatrixWorld(true);
+  if(voxels.length){
+    voxels=[];dimensions={x:0,y:0,z:0};
+    if(voxelGroup)voxelGroup.visible=false;
+    if(modelRoot)for(const child of modelRoot.children)child.visible=true;
+    $("blueprintUI").classList.add("hidden");$("blueprintEmpty").classList.remove("hidden");
+    $("blueprintEmpty").textContent="向きまたは倍率が変更されました。新しい設定で再変換してください。";
+    setStatus("convertStatus","設定変更により以前の変換結果を破棄しました。再変換してください。");
+  }
+}
 function rgb(hex){return {r:(hex>>16)&255,g:(hex>>8)&255,b:hex&255};}
 function nearestBlock(hex){const c=rgb(hex);let best=null,bestD=Infinity;for(const b of PALETTE){if(!selectedBlocks.has(b.id))continue;const p=parseInt(b.hex.slice(1),16),q=rgb(p);const d=(c.r-q.r)**2+(c.g-q.g)**2+(c.b-q.b)**2;if(d<bestD){bestD=d;best=b;}}return best;}
 function voxelize(){
@@ -189,11 +211,18 @@ function renderLayer(){
 async function handleZip(file){try{setStatus("loadStatus","ZIPを解析しています…");await loadZip(file);}catch(error){setStatus("loadStatus",error.message||String(error),"error");}}
 
 const TOTEM_TEXTURE_URL="https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/items/totem.png";
-const TOTEM_FACES=Object.fromEntries(FACE_NAMES.map(face=>[face,{uv:[0,0],uv_size:[16,16]}]));
+const TOTEM_FACES={
+ east:{uv:[7,0],uv_size:[1,16]},
+ west:{uv:[8,0],uv_size:[1,16]},
+ up:{uv:[0,0],uv_size:[16,1]},
+ down:{uv:[0,15],uv_size:[16,1]},
+ south:{uv:[0,0],uv_size:[16,16]},
+ north:{uv:[0,0],uv_size:[16,16]}
+};
 const ITEM_CATALOG = [
  {id:"totem_of_undying",name:"不死のトーテム",category:"other",iconTexture:TOTEM_TEXTURE_URL,available:true,texture:TOTEM_TEXTURE_URL,geometryData:{description:{identifier:"geometry.custom.totem_of_undying"},texturewidth:16,textureheight:16,bones:[{name:"root",pivot:[0,0,0],cubes:[{origin:[-6,0,-1],size:[12,16,2],uv:TOTEM_FACES}]}]}}
 ];
-let selectedCatalogItem="turtle_helmet",activeItemCategory="all";
+let selectedCatalogItem="totem_of_undying",activeItemCategory="all";
 function populateItemCatalog(filter=""){
  const grid=$("itemGrid");if(!grid)return;grid.innerHTML="";
  const q=filter.trim().toLowerCase();

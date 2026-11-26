@@ -90,8 +90,8 @@ function buildModel(geometry){
   for(const bone of bones){byName.set(bone.name,bone);children.set(bone.name,[]);}
   for(const bone of bones){if(bone.parent&&children.has(bone.parent))children.get(bone.parent).push(bone);else children.get("__root")?.push(bone);}
   const roots=bones.filter(b=>!b.parent||!byName.has(b.parent));
-  function addBone(bone,parentGroup){
-    const pivot=number3(bone.pivot);const group=new THREE.Group();group.position.set(...pivot);if(bone.rotation){const rot=number3(bone.rotation).map(v=>THREE.MathUtils.degToRad(v));group.rotation.set(rot[0],rot[1],rot[2],"ZYX");}parentGroup.add(group);
+  function addBone(bone,parentGroup,parentPivot=[0,0,0]){
+    const pivot=number3(bone.pivot);const group=new THREE.Group();group.position.set(pivot[0]-parentPivot[0],pivot[1]-parentPivot[1],pivot[2]-parentPivot[2]);if(bone.rotation){const rot=number3(bone.rotation).map(v=>THREE.MathUtils.degToRad(v));group.rotation.set(rot[0],rot[1],rot[2],"ZYX");}parentGroup.add(group);
     for(const cube of bone.cubes||[]){
       const origin=number3(cube.origin),size=number3(cube.size);const inflate=Number(cube.inflate||0);const dims=size.map(v=>Math.max(.001,v+inflate*2));
       const geo=new THREE.BoxGeometry(dims[0],dims[1],dims[2]);const mesh=new THREE.Mesh(geo,makeFaceMaterials(cube));
@@ -99,7 +99,7 @@ function buildModel(geometry){
       if(cube.pivot&&cube.rotation){const cp=number3(cube.pivot).map((v,i)=>v-pivot[i]);const pivotGroup=new THREE.Group();pivotGroup.position.set(...cp);pivotGroup.add(mesh);mesh.position.sub(new THREE.Vector3(...cp));const rr=number3(cube.rotation).map(v=>THREE.MathUtils.degToRad(v));pivotGroup.rotation.set(rr[0],rr[1],rr[2],"ZYX");group.add(pivotGroup);}else group.add(mesh);
       mesh.userData.rawSize=dims;mesh.userData.baseColor=textureImage?averageTextureColor(cube):0x9aa3b2;cubeMeshes.push(mesh);
     }
-    for(const child of children.get(bone.name)||[])addBone(child,group);
+    for(const child of children.get(bone.name)||[])addBone(child,group,pivot);
   }
   for(const root of roots)addBone(root,modelRoot);
   const rawBox=new THREE.Box3().setFromObject(modelRoot);if(rawBox.isEmpty())throw new Error("モデルにCubeがありません。");

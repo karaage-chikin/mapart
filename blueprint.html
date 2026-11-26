@@ -19,7 +19,7 @@ small{color:#b8b8cc}
 </style>
 </head>
 <body>
-<header><h1>Minecraft MapArt 設計図</h1><div class="actions"><button id="download" disabled>PNGを保存</button><button id="copy">このURLをコピー</button></div></header>
+<header><h1>Minecraft MapArt 設計図</h1><div class="actions"><button id="download" disabled>PNGを保存</button><button id="openBuildStep" disabled>設置手順を開く</button><button id="copy">このURLをコピー</button></div></header>
 <main><div><div id="message">設計図を読み込んでいます…</div><small id="storageNote">共有リンクはクラウドに保存されます。保存期間は30日です。</small><img id="blueprint" alt="Minecraft MapArt 座標付き設計図" hidden></div></main>
 <script src="mapart-shared.js"></script>
 <script>
@@ -28,6 +28,11 @@ small{color:#b8b8cc}
   const message = document.getElementById("message");
   const download = document.getElementById("download");
   const hash = location.hash.slice(1);
+  let buildStepHash = "";
+  const stepMatch = hash.match(/(?:^|&)step=([dp][A-Za-z0-9_-]+)(?:&|$)/);
+  if (stepMatch) buildStepHash = stepMatch[1];
+  const openBuildStep = document.getElementById("openBuildStep");
+  if (buildStepHash) openBuildStep.disabled = false;
   let dataUrl = "";
   const DB_NAME = "mapart-share-v1", STORE = "payloads";
   function openShareDb() { return new Promise((resolve,reject)=>{ const req=indexedDB.open(DB_NAME,1); req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(STORE))req.result.createObjectStore(STORE,{keyPath:"id"});}; req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); }
@@ -83,7 +88,7 @@ small{color:#b8b8cc}
   async function loadBlueprint() {
     try {
       let pngBytes;
-      const cloudMatch = hash.match(/^id=cloud_([a-f0-9]{32})$/);
+      const cloudMatch = hash.match(/^id=cloud_([a-f0-9]{32})(?:&step=[dp][A-Za-z0-9_-]+)?$/);
       const sharedMatch = hash.match(/^id=([a-zA-Z0-9_-]{8,80})$/);
       if (cloudMatch) {
         const response = await fetchWithTimeout("https://mapart-api.karaage-chikin-029.workers.dev/api/blueprints/" + encodeURIComponent(cloudMatch[1]), { cache: "no-store" }, 25000);
@@ -122,6 +127,11 @@ small{color:#b8b8cc}
     } catch (error) { message.textContent = error && error.message ? error.message : "設計図を読み込めませんでした。"; }
   }
   loadBlueprint();
+  openBuildStep.addEventListener("click", () => {
+    if (!buildStepHash) return;
+    const target = new URL("build-step.html", window.location.href);
+    window.open(target.href + "#" + buildStepHash, "_blank", "noopener");
+  });
   download.addEventListener("click", () => {
     if (!dataUrl) return;
     const a = document.createElement("a");

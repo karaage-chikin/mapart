@@ -81,9 +81,9 @@ function makeFaceMaterials(cube){
     [uv[0]+size[2]+size[0]+size[2],uv[1]+size[2],size[0],size[1]]
   ]:null;
   FACE_NAMES.forEach((face,index)=>{
-    const mat=new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide});
+    const mat=new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,transparent:true,alphaTest:0.02,depthWrite:true});
     if(textureImage){
-      const texture=new THREE.Texture(textureImage);texture.colorSpace=THREE.SRGBColorSpace;texture.needsUpdate=true;
+      const texture=new THREE.Texture(textureImage);texture.colorSpace=THREE.SRGBColorSpace;texture.magFilter=THREE.NearestFilter;texture.minFilter=THREE.NearestFilter;texture.needsUpdate=true;
       const faceUv=cube.uv&&typeof cube.uv==="object"&&!Array.isArray(cube.uv)?cube.uv[face]:null;
       let rect=faceRects?.[index]||[0,0,textureImage.width,textureImage.height];
       if(faceUv){const pos=faceUv.uv||faceUv,sz=faceUv.uv_size||[faceUv[2]||textureImage.width,faceUv[3]||textureImage.height];rect=[Number(pos[0]||0),Number(pos[1]||0),Number(sz[0]||1),Number(sz[1]||1)];}
@@ -188,9 +188,10 @@ function renderLayer(){
 }
 async function handleZip(file){try{setStatus("loadStatus","ZIPを解析しています…");await loadZip(file);}catch(error){setStatus("loadStatus",error.message||String(error),"error");}}
 
+const TOTEM_TEXTURE_URL="https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/items/totem.png";
+const TOTEM_FACES=Object.fromEntries(FACE_NAMES.map(face=>[face,{uv:[0,0],uv_size:[16,16]}]));
 const ITEM_CATALOG = [
- {id:"turtle_helmet",name:"カメの甲羅",category:"wearable",iconTexture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/items/turtle_helmet.png",available:true,attachable:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/attachables/turtle_shell_helmet.player.json",geometry:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/models/entity/player_armor.json",texture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/models/armor/turtle_1.png",geometryKey:"default",visibleBones:["head","hat"]},
- {id:"elytra",name:"エリトラ",category:"wearable",iconTexture:"",available:false,reason:"公式サンプルに対応Geometryが含まれていません"}
+ {id:"totem_of_undying",name:"不死のトーテム",category:"other",iconTexture:TOTEM_TEXTURE_URL,available:true,texture:TOTEM_TEXTURE_URL,geometryData:{description:{identifier:"geometry.custom.totem_of_undying"},texturewidth:16,textureheight:16,bones:[{name:"root",pivot:[0,0,0],cubes:[{origin:[-6,0,-1],size:[12,16,2],uv:TOTEM_FACES}]}]}}
 ];
 let selectedCatalogItem="turtle_helmet",activeItemCategory="all";
 function populateItemCatalog(filter=""){
@@ -212,10 +213,12 @@ function populateItemCatalog(filter=""){
 async function loadCatalogItem(){
  const item=ITEM_CATALOG.find(x=>x.id===selectedCatalogItem&&x.available);if(!item)throw new Error("読み込めるアイテムを選択してください。");
  setStatus("loadStatus",item.name+" のAttachable・Geometry・テクスチャを取得しています…");
- const [a,g,t]=await Promise.all([fetch(item.attachable),fetch(item.geometry),fetch(item.texture)]);
- if(!a.ok||!g.ok||!t.ok)throw new Error("公式モデルデータの取得に失敗しました。HTTP "+[a.status,g.status,t.status].join("/"));
- const [attachData,geoData,textureBlob]=await Promise.all([a.json(),g.json(),t.blob()]);
- const resolved=resolveAttachableGeometry(attachData,geoData,item.geometryKey||"default");
+ const [a,g,t]=await Promise.all([item.attachable?fetch(item.attachable):Promise.resolve(null),item.geometry?fetch(item.geometry):Promise.resolve(null),fetch(item.texture)]);
+ if((a&&!a.ok)||(g&&!g.ok)||!t.ok)throw new Error("モデルデータの取得に失敗しました。HTTP "+[a?.status||"-",g?.status||"-",t.status].join("/"));
+ const [attachData,geoData,textureBlob]=await Promise.all([a?a.json():Promise.resolve(null),g?g.json():Promise.resolve(null),t.blob()]);
+ const resolved=item.geometryData
+  ?{geometry:item.geometryData,geometryRef:item.geometryData.description?.identifier||"custom",attachable:{identifier:"custom.totem_of_undying"}}
+  :resolveAttachableGeometry(attachData,geoData,item.geometryKey||"default");
  let geometry=resolved.geometry;
  if(item.visibleBones?.length)geometry={...geometry,bones:geometry.bones.filter(b=>item.visibleBones.includes(b.name))};
  if(!geometry.bones.some(b=>!b.neverRender&&(b.cubes||[]).length))throw new Error("表示可能なCubeがありません。");

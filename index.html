@@ -2248,13 +2248,13 @@
       const parts = [];
       if (includeShulker) {
         const shulkers = Math.floor(remaining / 1728);
-        parts.push(shulkers.toLocaleString() + "sh");
+        if (shulkers > 0) parts.push(shulkers.toLocaleString() + "sh");
         remaining %= 1728;
       }
       const stacks = Math.floor(remaining / 64);
-      parts.push(stacks.toLocaleString() + "st");
+      if (stacks > 0) parts.push(stacks.toLocaleString() + "st");
       remaining %= 64;
-      parts.push(remaining.toLocaleString());
+      if (remaining > 0 || parts.length === 0) parts.push(remaining.toLocaleString());
       return parts.join(" + ");
     }
 

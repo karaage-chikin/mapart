@@ -189,7 +189,7 @@ function renderLayer(){
 async function handleZip(file){try{setStatus("loadStatus","ZIPを解析しています…");await loadZip(file);}catch(error){setStatus("loadStatus",error.message||String(error),"error");}}
 
 const ITEM_CATALOG = [
- {id:"turtle_helmet",name:"カメの甲羅",category:"wearable",iconTexture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/items/turtle_helmet.png",available:true,attachable:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/attachables/turtle_shell_helmet.player.json",geometry:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/models/entity/player_armor.json",texture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/models/armor/turtle_1.png",geometryId:"geometry.player.armor.base",bone:"head"},
+ {id:"turtle_helmet",name:"カメの甲羅",category:"wearable",iconTexture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/items/turtle_helmet.png",available:true,attachable:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/attachables/turtle_shell_helmet.player.json",geometry:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/models/entity/player_armor.json",texture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/models/armor/turtle_1.png",geometryKey:"default",visibleBones:["head","hat"]},
  {id:"elytra",name:"エリトラ",category:"wearable",iconTexture:"",available:false,reason:"公式サンプルに対応Geometryが含まれていません"}
 ];
 let selectedCatalogItem="turtle_helmet",activeItemCategory="all";

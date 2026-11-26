@@ -63,7 +63,7 @@ function geometryFromJson(data,label){
   geometryChoices=list.map((geometry,index)=>({geometry,label:(geometry.description?.identifier||"geometry_"+index)+" ("+index+")"}));
   fillGeometrySelect();chooseGeometry(0);setStatus("loadStatus",label+" を読み込みました。Geometry: "+list.length+"件。","ok");
 }
-function fillGeometrySelect(){const select=$("geometrySelect");select.innerHTML="";geometryChoices.forEach((item,index)=>{const option=document.createElement("option");option.value=index;option.textContent=item.label;select.append(option);});$("geometrySelectWrap").hidden=geometryChoices.length<2;}
+function fillGeometrySelect(){const select=$("geometrySelect");if(select){select.innerHTML="";geometryChoices.forEach((item,index)=>{const option=document.createElement("option");option.value=index;option.textContent=item.label;select.append(option);});}const wrap=$("geometrySelectWrap");if(wrap)wrap.hidden=geometryChoices.length<2;}
 function chooseGeometry(index){
   const choice=geometryChoices[index];if(!choice)return;const check=validateGeometry(choice.geometry);if(!check.valid)throw new Error(check.errors.join("\n"));
   activeGeometry=choice.geometry;buildModel(activeGeometry);$("convertBtn").disabled=false;

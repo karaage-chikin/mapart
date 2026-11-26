@@ -3395,8 +3395,27 @@
           if (response.status >= 500) throw new Error("クラウドサーバー側でエラーが発生しました（HTTP " + response.status + "）。詳細：" + detail);
           throw new Error("保存に失敗しました（HTTP " + response.status + "）。" + detail);
         }
+        // 設置手順データも共有URLに同梱する。
+        const stepPayload = new Uint8Array(MAP_SIZE * MAP_SIZE + 1);
+        stepPayload[0] = 0;
+        for (let i = 0; i < lastGrid.length; i++) {
+          const stableIndex = URL_BLOCK_IDS.indexOf(lastGrid[i].id);
+          if (stableIndex < 0 || stableIndex > 255) throw new Error("設計図に未対応のブロックが含まれています。");
+          stepPayload[i + 1] = stableIndex;
+        }
+        let stepBytes = stepPayload, stepMode = "p";
+        if (typeof CompressionStream === "function") {
+          try {
+            const stream = new Blob([stepPayload]).stream().pipeThrough(new CompressionStream("deflate"));
+            const compressed = new Uint8Array(await new Response(stream).arrayBuffer());
+            if (compressed.length < stepPayload.length) { stepBytes = compressed; stepMode = "d"; }
+          } catch (compressionError) { console.warn("設置手順データの圧縮を利用できません。", compressionError); }
+        }
+        let stepBinary = "";
+        for (let i = 0; i < stepBytes.length; i += 0x8000) stepBinary += String.fromCharCode(...stepBytes.subarray(i, i + 0x8000));
+        const stepHash = stepMode + btoa(stepBinary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/, "");
         const target = new URL("blueprint.html", window.location.href);
-        const shareUrl = target.href + "#id=cloud_" + encodeURIComponent(result.id);
+        const shareUrl = target.href + "#id=cloud_" + encodeURIComponent(result.id) + "&step=" + stepHash;
         if (opened.closed) throw new Error("保存は完了しましたが、新しいタブが閉じられています。共有URLを再度開いてください：" + shareUrl);
         opened.location.replace(shareUrl);
         setPngStatus("クラウド保存に成功しました。有効期限は30日です。共有URLを開いて確認してください。", "success");

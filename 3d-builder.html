@@ -9,20 +9,20 @@
 *{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,"Yu Gothic",sans-serif}.wrap{max-width:1440px;margin:auto}header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:16px}h1{font-size:1.45rem;margin:0}h2{font-size:1rem;margin:0 0 10px}.badge{border:1px solid var(--border);border-radius:99px;padding:4px 10px;color:var(--accent)}a{color:var(--accent)}.layout{display:grid;grid-template-columns:minmax(280px,350px) minmax(0,1fr);gap:14px}.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;min-width:0}.field{margin:10px 0}.field label{display:flex;justify-content:space-between;gap:10px;margin-bottom:5px}.field input[type=file],select,input[type=number]{width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);padding:9px;border-radius:7px}.field input[type=range]{width:100%}button{background:var(--accent);color:#11111b;border:0;border-radius:7px;padding:9px 12px;font-weight:700;cursor:pointer}button.secondary{background:var(--card);color:var(--text);border:1px solid var(--border)}button:disabled{opacity:.45;cursor:not-allowed}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:1}.viewer{height:540px;min-height:340px;background:#11111b;border:1px solid var(--border);border-radius:10px;position:relative;overflow:hidden}.viewer canvas{display:block;width:100%;height:100%}.hint,.muted{color:var(--muted);font-size:.82rem}.status{padding:9px 11px;border-radius:8px;background:var(--card);margin-top:10px;white-space:pre-wrap;overflow-wrap:anywhere}.status.error{color:var(--bad)}.status.ok{color:var(--good)}.statgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.stat{background:var(--card);padding:9px;border-radius:8px}.stat b{display:block;font-size:1.1rem}.layers{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}.layer-canvas{width:100%;max-width:620px;aspect-ratio:1;image-rendering:pixelated;background:#111;border:1px solid var(--border);display:block}.palette{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.palette label{background:var(--card);padding:6px;border-radius:6px;font-size:.8rem;display:flex;gap:6px;align-items:center}.swatch{width:17px;height:17px;border-radius:3px;display:inline-block;border:1px solid #fff4}.hidden{display:none!important}@media(max-width:850px){.layout{grid-template-columns:1fr}.viewer{height:420px}.layers{grid-template-columns:1fr}}@media(max-width:500px){body{padding:9px}.viewer{height:340px}.statgrid{grid-template-columns:1fr 1fr}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
 </head>
 <body>
 <div class="wrap">
-<header><div><h1>3Dアイテム建築</h1><div class="muted">Minecraft 統合版 / Geometry JSON → 3Dモデル → ブロック設計図</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">⌂ ホームへ戻る</a><span class="badge">開発版 v0.1</span></div></header>
+<header><div><h1>3Dアイテム建築</h1><div class="muted">Minecraft 統合版 / アイテム選択 → 実際の3Dモデル → ブロック設計図</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">⌂ ホームへ戻る</a><span class="badge">開発版 v0.1</span></div></header>
 <div class="layout">
 <aside>
-<section class="panel"><h2>1. モデルを読み込む</h2>
-<div class="field"><label>リソースパック ZIP</label><input id="zipInput" type="file" accept=".zip,application/zip"><div class="hint">ZIP内のGeometry JSONとPNGテクスチャを探します。</div></div>
-<div class="field"><label>Geometry JSON（単体）</label><input id="jsonInput" type="file" accept=".json,application/json"></div>
-<div class="field"><label>テクスチャ PNG（任意）</label><input id="textureInput" type="file" accept="image/png"></div>
-<div class="field" id="geometrySelectWrap" hidden><label>モデル</label><select id="geometrySelect"></select></div>
+<section class="panel"><h2>1. アイテムを選ぶ</h2>
+<div class="field"><label for="itemSearch">アイテム検索</label><input id="itemSearch" type="search" placeholder="アイテム名で検索" style="width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);padding:9px;border-radius:7px"></div>
+<div class="field"><label for="itemSelect">対応アイテム</label><select id="itemSelect"><option value="">読み込み中...</option></select></div>
+<div class="hint">実際のGeometry・Attachable・テクスチャが確認できたアイテムのみ選択できます。未対応アイテムは追加待ちとして表示します。</div>
+<div class="row"><button id="loadItem" type="button">選択したアイテムを読み込む</button></div>
 <div class="row"><button id="resetView" class="secondary" type="button">視点リセット</button><button id="fitView" class="secondary" type="button">モデルに合わせる</button></div>
-<div id="loadStatus" class="status" role="status" aria-live="polite">ZIPまたはGeometry JSONを読み込んでください。</div></section>
+<div id="loadStatus" class="status" role="status" aria-live="polite">アイテムを選択してください。</div></section>
 <section class="panel"><h2>2. 向き・サイズ</h2>
 <div class="field"><label>X回転 <output id="rxOut">0°</output></label><input id="rx" type="range" min="-180" max="180" value="0"></div>
 <div class="field"><label>Y回転 <output id="ryOut">0°</output></label><input id="ry" type="range" min="-180" max="180" value="0"></div>

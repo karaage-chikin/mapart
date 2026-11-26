@@ -138,7 +138,8 @@ function voxelize(){
   if(!cubeMeshes.length)throw new Error("変換できるCubeがありません。");if(!selectedBlocks.size)throw new Error("使用するブロックを1種類以上選択してください。");
   orientation.updateMatrixWorld(true);const box=new THREE.Box3().setFromObject(orientation);const scale=Number($("scale").value);const cell=Number($("voxelSize").value)/16*scale;const min=box.min.clone().addScalar(-cell*.001),max=box.max.clone().addScalar(cell*.001);
   const nx=Math.max(1,Math.ceil((max.x-min.x)/cell)),ny=Math.max(1,Math.ceil((max.y-min.y)/cell)),nz=Math.max(1,Math.ceil((max.z-min.z)/cell));
-  if(nx*ny*nz>180000)throw new Error("変換範囲が大きすぎます（最大180,000マス）。倍率またはブロック単位を大きくしてください。");\n  if(nx*ny*nz*cubeMeshes.length>12000000)throw new Error("モデルが複雑なため、この設定では処理量が大きすぎます。ブロック単位を大きくしてください。");
+  if(nx*ny*nz>180000)throw new Error("変換範囲が大きすぎます（最大180,000マス）。倍率またはブロック単位を大きくしてください。");
+  if(nx*ny*nz*cubeMeshes.length>12000000)throw new Error("モデルが複雑なため、この設定では処理量が大きすぎます。ブロック単位を大きくしてください。");
   const records=[];
   for(const mesh of cubeMeshes){mesh.updateWorldMatrix(true,false);const inv=mesh.matrixWorld.clone().invert();const half=mesh.userData.rawSize.map(v=>v/2);records.push({mesh,inv,half,color:mesh.userData.baseColor||0x9aa3b2});}
   const out=[];const solid=$("fillMode").value==="solid";

@@ -52,17 +52,17 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:not-allowed}
  <canvas id="miniMap" width="128" height="128" aria-label="128×128マスのミニマップ。設置済み範囲と現在位置を表示"></canvas>
  <div class="minimap-legend">
   <div class="legend-item"><span class="legend-swatch legend-done"></span>設置済み</div>
-  <div class="legend-item"><span class="legend-swatch legend-current"></span>今置く4マス</div>
+  <div class="legend-item"><span class="legend-swatch legend-current"></span>今置く8マス</div>
   <div id="miniMapPosition">現在位置：—</div>
 </div>
 <div class="settings"><label for="direction">2行目以降の進行方向</label><select id="direction"><option value="left">毎行、左端から右へ</option><option value="right">左右交互（2行目は右端から）</option></select></div>
-<div class="zoom-title">今回置く4マス</div>
+<div class="zoom-title">今回置く8マス</div>
 <div class="blocks" id="blocks"></div>
 <div class="controls">
 <button id="first" disabled>最初へ</button>
 <button id="back" disabled>前へ</button>
 <button id="skipRow" disabled>次の行へ（1行飛ばす）</button>
-<button id="next" class="primary" disabled>次へ（4ブロック）</button>
+<button id="next" class="primary" disabled>次へ（8ブロック）</button>
 </div>
 </section>
 </main>
@@ -73,7 +73,7 @@ button{cursor:pointer}button:disabled{opacity:.4;cursor:not-allowed}
 const PALETTE=window.MAPART_SHARED.PALETTE;
 const URL_BLOCK_IDS=window.MAPART_SHARED.URL_BLOCK_IDS;
 const PALETTE_INDEX=new Map(PALETTE.map((b,i)=>[b.id,i]));
-const SIZE=128, STEP=4, BASE="https://raw.githubusercontent.com/Mojang/bedrock-samples/15701fa9c13923f12662984c32c124327e40e3d3/resource_pack/";
+const SIZE=128, STEP=8, BASE="https://raw.githubusercontent.com/Mojang/bedrock-samples/15701fa9c13923f12662984c32c124327e40e3d3/resource_pack/";
 const ALIASES={grass_block:"grass",snow_block:"snow",cobweb:"web",terracotta:"hardened_clay"};
 const $=id=>document.getElementById(id);
 const status=$("status"),progress=$("progress"),fill=$("progressFill"),blocks=$("blocks");
@@ -141,7 +141,7 @@ function draw(){
  const total=SIZE*SIZE,first=Math.min(placed,total),last=Math.min(first+STEP,total);
  const completed=Math.max(0,first-skippedCount);
  progress.textContent=first>=total?"手順完了！ 設置済み "+completed.toLocaleString()+" / "+total.toLocaleString()+" 個":
-  "設置済み "+completed.toLocaleString()+" / "+total.toLocaleString()+" 個　・　次の4ブロック";
+  "設置済み "+completed.toLocaleString()+" / "+total.toLocaleString()+" 個　・　次の8ブロック";
  fill.style.width=(completed/total*100)+"%";
  blocks.replaceChildren();
  if(first>=total){
@@ -165,7 +165,7 @@ function draw(){
  $("back").disabled=first===0;
  $("skipRow").disabled=first>=total||Math.floor(first/SIZE+1)*SIZE>=total;
  $("next").disabled=first>=total;
- $("next").textContent=first+STEP>=total?"完了":"次へ（4ブロック）";
+ $("next").textContent=first+STEP>=total?"完了":"次へ（8ブロック）";
 }
 let miniMapBaseCanvas=null,miniMapProgressCanvas=null,miniMapDrawnPlaced=0,miniMapNeedsReset=true;
 function prepareMiniMap(){

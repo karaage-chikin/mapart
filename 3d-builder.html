@@ -11,7 +11,7 @@
 </style>
 </head>
 <body><div class="wrap">
-<header><div><h1>アイテムドット絵建築</h1><div class="muted">Minecraftアイテムのテクスチャをブロックのドット絵に変換</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">⌂ ホームへ戻る</a><span class="badge">開発版 v0.5.0</span></div></header>
+<header><div><h1>アイテムドット絵建築</h1><div class="muted">Minecraftアイテムのテクスチャをブロックのドット絵に変換</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">⌂ ホームへ戻る</a><span class="badge">開発版 v0.5.1</span></div></header>
 <div class="layout">
 <aside>
 <section class="panel"><h2>1. アイテムを選ぶ</h2><div class="field"><label for="itemSearch">アイテム検索</label><input id="itemSearch" type="search" placeholder="アイテム名で検索"></div><div id="itemGrid" class="item-grid"></div><div id="itemCount" class="item-count">公式アイテム一覧を準備中…</div><button type="button" id="loadMoreItems" class="secondary load-more" hidden>さらに表示</button><div id="loadStatus" class="status" role="status">テクスチャを読み込み中...</div></section>
@@ -27,5 +27,5 @@
 <section class="panel"><h2>6. プレビュー</h2><div class="preview-grid"><div><h2 style="text-align:center">元のアイテム</h2><canvas id="sourceCanvas" class="pixel-canvas" width="256" height="256"></canvas></div><div><h2 style="text-align:center">ブロック変換後</h2><canvas id="resultCanvas" class="pixel-canvas" width="256" height="256"></canvas></div></div><div class="hint" style="text-align:center;margin-top:8px">1ドット＝Minecraftのブロック1個。透明部分は空けます。</div></section>
 <section class="panel"><h2>7. 設置サイズ・必要素材</h2><div class="statgrid"><div class="stat"><span class="muted">横幅</span><b id="dimX">-</b></div><div class="stat"><span class="muted" id="depthLabel">高さ</span><b id="dimY">-</b></div><div class="stat"><span class="muted">ブロック数</span><b id="blockTotal">-</b></div></div><div class="row" style="margin-top:12px"><button id="savePng" type="button" disabled>設計図PNGを保存</button></div><div id="materials" class="status">変換すると必要素材が表示されます。</div><p class="hint" id="axisHint">壁画：左から右がX、下から上がYです。</p></section>
 </main></div></div>
-<script type="module" src="3d/bedrock-model.js?v=0.5.0"></script>
+<script type="module" src="3d/bedrock-model.js?v=0.5.1"></script>
 </body></html>

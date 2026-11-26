@@ -737,9 +737,9 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.47</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.48</button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.47</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.48</span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
     <ul id="updateNoticeChanges">
       <li>必要数のスタック・シュルカー換算で、該当しない単位も0として表示</li>
@@ -3423,7 +3423,7 @@
           if (response.status >= 500) throw new Error("クラウドサーバー側でエラーが発生しました（HTTP " + response.status + "）。詳細：" + detail);
           throw new Error("保存に失敗しました（HTTP " + response.status + "）。" + detail);
         }
-        // 設置手順データも共有URLに同梱する。
+        // 設置手順はクラウドに保存し、共有URLには設計図IDだけを含める。
         const stepPayload = new Uint8Array(MAP_SIZE * MAP_SIZE + 1);
         stepPayload[0] = 0;
         for (let i = 0; i < gridSnapshot.length; i++) {
@@ -3442,8 +3442,13 @@
         let stepBinary = "";
         for (let i = 0; i < stepBytes.length; i += 0x8000) stepBinary += String.fromCharCode(...stepBytes.subarray(i, i + 0x8000));
         const stepHash = stepMode + btoa(stepBinary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+        const stepSave = await fetchWithTimeout("https://mapart-api.karaage-chikin-029.workers.dev/api/blueprints/" + encodeURIComponent(result.id) + "/step", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ step: stepHash })
+        }, 25000);
+        const stepResult = await stepSave.json().catch(() => ({}));
+        if (!stepSave.ok || stepResult.ok !== true) throw new Error(stepResult.error || "設置手順をクラウドに保存できませんでした。");
         const target = new URL("blueprint.html", window.location.href);
-        const shareUrl = target.href + "#id=cloud_" + encodeURIComponent(result.id) + "&step=" + stepHash;
+        const shareUrl = target.href + "#id=cloud_" + encodeURIComponent(result.id);
         if (opened.closed) throw new Error("保存は完了しましたが、新しいタブが閉じられています。共有URLを再度開いてください：" + shareUrl);
         opened.location.replace(shareUrl);
         setPngStatus("クラウド保存に成功しました。有効期限は30日です。共有URLを開いて確認してください。", "success");

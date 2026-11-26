@@ -119,6 +119,13 @@ small{color:#b8b8cc}
           pngBytes = new Uint8Array(await new Response(stream).arrayBuffer());
         }
       }
+      if (cloudMatch && !buildStepHash) {
+        try {
+          const stepResponse = await fetchWithTimeout("https://mapart-api.karaage-chikin-029.workers.dev/api/blueprints/" + encodeURIComponent(cloudMatch[1]) + "/step", { cache: "no-store" }, 15000);
+          const stepResult = await stepResponse.json().catch(() => ({}));
+          if (stepResponse.ok && typeof stepResult.step === "string") { buildStepHash = stepResult.step; openBuildStep.disabled = false; }
+        } catch (stepError) { console.warn("クラウド設置手順の読み込みに失敗:", stepError); }
+      }
       validatePngBytes(pngBytes);
       dataUrl = bytesToDataUrl(pngBytes);
       image.onload = () => { image.hidden = false; message.hidden = true; download.disabled = false; };

@@ -180,35 +180,49 @@ function renderLayer(){
 async function handleZip(file){try{setStatus("loadStatus","ZIPを解析しています…");await loadZip(file);}catch(error){setStatus("loadStatus",error.message||String(error),"error");}}
 
 const ITEM_CATALOG = [
- {id:"turtle_helmet",name:"カメの甲羅",category:"防具・装飾",attachable:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/attachables/turtle_shell_helmet.player.json",geometry:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/models/entity/player_armor.json",texture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/models/armor/turtle_1.png",geometryId:"geometry.player.armor.base",bone:"head"}
+ {id:"turtle_helmet",name:"カメの甲羅",category:"wearable",icon:"🐢",available:true,attachable:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/attachables/turtle_shell_helmet.player.json",geometry:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/models/entity/player_armor.json",texture:"https://raw.githubusercontent.com/Mojang/bedrock-samples/main/resource_pack/textures/models/armor/turtle_1.png",geometryId:"geometry.player.armor.base",bone:"head"},
+ {id:"elytra",name:"エリトラ",category:"wearable",icon:"🪽",available:false,reason:"公式サンプルに対応Geometryが含まれていません"}
 ];
+let selectedCatalogItem="turtle_helmet",activeItemCategory="all";
 function populateItemCatalog(filter=""){
- const select=$("itemSelect");const q=filter.trim().toLowerCase();select.innerHTML="";
- for(const item of ITEM_CATALOG.filter(x=>(x.name+" "+x.id+" "+x.category).toLowerCase().includes(q))){
-  const option=document.createElement("option");option.value=item.id;option.textContent=item.name+" — "+item.category;select.append(option);
+ const grid=$("itemGrid");if(!grid)return;grid.innerHTML="";
+ const q=filter.trim().toLowerCase();
+ const items=ITEM_CATALOG.filter(x=>(activeItemCategory==="all"||x.category===activeItemCategory)&&(x.name+" "+x.id).toLowerCase().includes(q));
+ for(const item of items){
+  const button=document.createElement("button");button.type="button";button.className="item-card"+(selectedCatalogItem===item.id?" selected":"");button.disabled=!item.available;button.title=item.available?item.name:item.reason;
+  const icon=document.createElement("span");icon.className="item-icon";icon.textContent=item.icon;
+  const name=document.createElement("span");name.textContent=item.name;
+  const note=document.createElement("small");note.textContent=item.available?"対応済み":"準備中";
+  button.append(icon,name,note);
+  button.addEventListener("click",()=>{selectedCatalogItem=item.id;populateItemCatalog($("itemSearch").value);$("loadItem").disabled=false;});
+  grid.append(button);
  }
- if(!select.options.length){const option=document.createElement("option");option.value="";option.textContent="該当する対応アイテムはありません";select.append(option);}
+ $("itemCount").textContent="表示 "+items.length+"件 / 読み込み対応 "+ITEM_CATALOG.filter(x=>x.available).length+"件";
+ $("loadItem").disabled=!ITEM_CATALOG.some(x=>x.id===selectedCatalogItem&&x.available);
 }
 async function loadCatalogItem(){
- const item=ITEM_CATALOG.find(x=>x.id===$("itemSelect").value);if(!item)throw new Error("読み込めるアイテムを選択してください。");
+ const item=ITEM_CATALOG.find(x=>x.id===selectedCatalogItem&&x.available);if(!item)throw new Error("読み込めるアイテムを選択してください。");
  setStatus("loadStatus",item.name+" のAttachable・Geometry・テクスチャを取得しています…");
  const [a,g,t]=await Promise.all([fetch(item.attachable),fetch(item.geometry),fetch(item.texture)]);
- if(!a.ok||!g.ok||!t.ok)throw new Error("公式サンプルのモデルデータを取得できませんでした。時間をおいて再試行してください。");
+ if(!a.ok||!g.ok||!t.ok)throw new Error("公式モデルデータの取得に失敗しました。HTTP "+[a.status,g.status,t.status].join("/"));
  const attachData=await a.json(),geoData=await g.json(),textureBlob=await t.blob();
  const desc=attachData["minecraft:attachable"]?.description;
  if(!desc?.geometry?.default)throw new Error("AttachableにGeometry参照がありません。");
- const source=geoData[item.geometryId];if(!source?.bones)throw new Error("参照Geometryが見つかりません。");
- const bone=source.bones.find(b=>b.name===item.bone);if(!bone?.cubes?.length)throw new Error("表示対象のGeometryがありません。");
- const bones=[JSON.parse(JSON.stringify(bone))];const hat=source.bones.find(b=>b.name==="hat");if(hat?.cubes?.length){const outer=JSON.parse(JSON.stringify(hat));outer.inflate=1.5;delete outer.neverRender;bones.push(outer);}
+ const source=geoData[item.geometryId];if(!source?.bones)throw new Error("参照Geometry "+item.geometryId+" が見つかりません。");
+ const baseBone=source.bones.find(b=>b.name===item.bone);if(!baseBone?.cubes?.length)throw new Error("表示対象のGeometryがありません。");
+ const bones=[JSON.parse(JSON.stringify(baseBone))];
+ const hat=source.bones.find(b=>b.name==="hat");
+ if(hat?.cubes?.length){const outer=JSON.parse(JSON.stringify(hat));outer.inflate=1.5;outer.neverRender=false;bones.push(outer);}
  const resolved={description:{identifier:desc.identifier+" / "+desc.geometry.default},bones};
- geometryChoices=[{geometry:resolved,label:item.name}];fillGeometrySelect();textureImage=null;
- const file=new File([textureBlob],item.id+".png",{type:"image/png"});await loadTexture(file);chooseGeometry(0);
- setStatus("loadStatus",item.name+" を読み込みました。Attachable参照: "+desc.geometry.default+"\nGeometry: "+item.geometryId+" / Bone: "+item.bone+"\n公式Bedrockサンプルの実データを使用しています。","ok");
+ geometryChoices=[{geometry:resolved,label:item.name}];textureImage=null;
+ const file=new File([textureBlob],item.id+".png",{type:"image/png"});
+ await loadTexture(file);chooseGeometry(0);fitCamera();
+ setStatus("loadStatus",item.name+" を読み込みました。\nAttachable: "+desc.identifier+"\nGeometry: "+item.geometryId+" / Bone: "+item.bone+"\nCube: "+cubeMeshes.length,"ok");
 }
 $("itemSearch").addEventListener("input",e=>populateItemCatalog(e.target.value));
+$("itemCategories").addEventListener("click",e=>{const button=e.target.closest("[data-item-category]");if(!button)return;activeItemCategory=button.dataset.itemCategory;$("itemCategories").querySelectorAll("button").forEach(x=>x.classList.toggle("active",x===button));populateItemCatalog($("itemSearch").value);});
 $("loadItem").addEventListener("click",async()=>{try{await loadCatalogItem();}catch(error){setStatus("loadStatus",error.message||String(error),"error");}});
 populateItemCatalog();
-
 for(const id of ["rx","ry","rz","scale"])$(id).addEventListener("input",setOrientationFromControls);
 $("resetView").addEventListener("click",()=>{if(modelRoot)for(const child of modelRoot.children)child.visible=true;if(voxelGroup)voxelGroup.visible=false;showingVoxels=false;orientation.rotation.set(0,0,0);orientation.scale.setScalar(1);for(const id of ["rx","ry","rz"])$(id).value=0;$("scale").value=1;setOrientationFromControls();fitCamera();});
 $("fitView").addEventListener("click",fitCamera);

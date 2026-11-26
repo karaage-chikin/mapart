@@ -1790,34 +1790,47 @@
     }
 
     function applyImageAdjustments(pixels) {
-      // 通常変換と自動最適化で同じ色補正関数を使い、評価結果と実出力の差をなくす。
+      // 色調補正の本体は最適化候補と同じ adjustRgbForCandidate を使用する。
       const p={brightness:Number(els.brightness.value),contrast:Number(els.contrast.value),
         saturation:Number(els.saturation.value),gamma:Number(els.gamma.value),
         sharpness:Number(els.sharpness.value),temperature:Number(els.temperature.value),
-        vibrance:Number(els.vibrance.value)};
+        vibrance:Number(els.vibrance.value),highlights:Number(els.highlights.value),
+        shadows:Number(els.shadows.value),whites:Number(els.whites.value),
+        blacks:Number(els.blacks.value),hue:Number(els.hue.value),
+        clarity:Number(els.clarity.value),denoise:Number(els.denoise.value)};
       for(let i=0;i<pixels.length;i+=4){
         const rgb=adjustRgbForCandidate(pixels[i],pixels[i+1],pixels[i+2],p);
         pixels[i]=rgb[0];pixels[i+1]=rgb[1];pixels[i+2]=rgb[2];
       }
-      // 手動変換専用の追加補正。自動最適化の候補生成・評価には接続しない。
-      const ex={hi:+els.highlights.value,sh:+els.shadows.value,wh:+els.whites.value,bl:+els.blacks.value,hue:+els.hue.value,cl:+els.clarity.value,dn:+els.denoise.value},unit=v=>Math.max(0,Math.min(1,v));
-      for(let i=0;i<pixels.length;i+=4){let r=pixels[i],g=pixels[i+1],b=pixels[i+2],y=(.2126*r+.7152*g+.0722*b)/255,d=ex.sh/100*(1-unit(y*1.7))*(1-y)*105+ex.hi/100*unit((y-.3)/.7)*y*105+ex.bl/100*(1-y)*75+ex.wh/100*y*75;r=clamp(r+d);g=clamp(g+d);b=clamp(b+d);
-        if(ex.hue){const mx=Math.max(r,g,b),mn=Math.min(r,g,b),df=mx-mn,sat=mx?df/mx:0;let h=0;if(df){if(mx===r)h=((g-b)/df)%6;else if(mx===g)h=(b-r)/df+2;else h=(r-g)/df+4;h=(h*60+360)%360;}h=(h+ex.hue+360)%360;const c=mx*sat,x=c*(1-Math.abs((h/60)%2-1)),m=mx-c;let rr=0,gg=0,bb=0;if(h<60){rr=c;gg=x;}else if(h<120){rr=x;gg=c;}else if(h<180){gg=c;bb=x;}else if(h<240){gg=x;bb=c;}else if(h<300){rr=x;bb=c;}else{rr=c;bb=x;}r=rr+m;g=gg+m;b=bb+m;}pixels[i]=clamp(Math.round(r));pixels[i+1]=clamp(Math.round(g));pixels[i+2]=clamp(Math.round(b));}
-      if(ex.dn){const src=new Uint8ClampedArray(pixels),amount=ex.dn/100*.55,w=MAP_SIZE;for(let y=0;y<w;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;for(let c=0;c<3;c++){let sum=0,ws=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const xx=Math.max(0,Math.min(w-1,x+dx)),yy=Math.max(0,Math.min(w-1,y+dy)),q=(yy*w+xx)*4,wt=Math.max(0,1-Math.abs(src[i+c]-src[q+c])/48)*(dx===0||dy===0?1:.7);sum+=src[q+c]*wt;ws+=wt;}if(ws)pixels[i+c]=clamp(Math.round(src[i+c]+(sum/ws-src[i+c])*amount));}}}
+      // Worker・代替評価と同じ順序：シャープネス → ノイズ軽減＋明瞭度。
       const sharpness=p.sharpness/100;
       if(sharpness>0){
         const source=new Uint8ClampedArray(pixels),amount=sharpness*1.15,w=MAP_SIZE;
         for(let y=0;y<w;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;
-          for(let channel=0;channel<3;channel++){let blur=0,weight=0;
+          for(let c=0;c<3;c++){let blur=0,weight=0;
             for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
               const xx=Math.max(0,Math.min(w-1,x+dx)),yy=Math.max(0,Math.min(w-1,y+dy));
-              const k=(dx===0?2:1)*(dy===0?2:1);blur+=source[(yy*w+xx)*4+channel]*k;weight+=k;
+              const wt=(dx===0?2:1)*(dy===0?2:1);blur+=source[(yy*w+xx)*4+c]*wt;weight+=wt;
             }
-            pixels[i+channel]=clamp(Math.round(source[i+channel]+(source[i+channel]-blur/weight)*amount));
+            pixels[i+c]=clamp(Math.round(source[i+c]+(source[i+c]-blur/weight)*amount));
           }
         }
       }
-      if(ex.cl){const src=new Uint8ClampedArray(pixels),amount=ex.cl/100*.65,w=MAP_SIZE;for(let y=0;y<w;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;let local=0,ws=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=Math.max(0,Math.min(w-1,x+dx)),yy=Math.max(0,Math.min(w-1,y+dy)),q=(yy*w+xx)*4,wt=(dx===0?2:1)*(dy===0?2:1);local+=(.2126*src[q]+.7152*src[q+1]+.0722*src[q+2])*wt;ws+=wt;}const lum=.2126*src[i]+.7152*src[i+1]+.0722*src[i+2],d=(lum-local/ws)*amount;for(let c=0;c<3;c++)pixels[i+c]=clamp(Math.round(src[i+c]+d));}}
+      if(p.denoise>0||p.clarity>0){
+        const source=new Uint8ClampedArray(pixels),amountD=p.denoise/100*.55,amountC=p.clarity/100*.65,w=MAP_SIZE;
+        for(let y=0;y<w;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;
+          for(let c=0;c<3;c++){let sum=0,ws=0,local=0,lw=0;
+            for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+              const xx=Math.max(0,Math.min(w-1,x+dx)),yy=Math.max(0,Math.min(w-1,y+dy)),q=(yy*w+xx)*4;
+              const wt=(dx===0?2:1)*(dy===0?2:1),edgeW=Math.max(0,1-Math.abs(source[i+c]-source[q+c])/48)*wt;
+              sum+=source[q+c]*edgeW;ws+=edgeW;local+=source[q+c]*wt;lw+=wt;
+            }
+            let value=source[i+c];if(amountD&&ws)value+=(sum/ws-value)*amountD;
+            if(amountC)value+=(source[i+c]-local/lw)*amountC;
+            pixels[i+c]=clamp(Math.round(value));
+          }
+        }
+      }
     }
 
     const nearestBlockCache = new WeakMap();
@@ -2929,14 +2942,14 @@
             for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
               const xx=Math.max(0,Math.min(N-1,x+dx)),yy=Math.max(0,Math.min(N-1,y+dy)),w=(dx===0?2:1)*(dy===0?2:1);
               blur+=original[(yy*N+xx)*3+c]*w;weight+=w;
-            }work[z+c]=clamp(original[z+c]+(original[z+c]-blur/weight)*amount);
+            }work[z+c]=clamp(Math.round(original[z+c]+(original[z+c]-blur/weight)*amount));
           }
         }
       }
       if(p.denoise>0||p.clarity>0){const old=new Float32Array(work),amountD=(p.denoise||0)/100*.55,amountC=(p.clarity||0)/100*.65;
         for(let y=0;y<N;y++)for(let x=0;x<N;x++){const i=(y*N+x)*3;
           for(let c=0;c<3;c++){let sum=0,ws=0,local=0,lw=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const xx=Math.max(0,Math.min(N-1,x+dx)),yy=Math.max(0,Math.min(N-1,y+dy)),q=(yy*N+xx)*3,w=(dx===0?2:1)*(dy===0?2:1),ew=Math.max(0,1-Math.abs(old[i+c]-old[q+c])/48)*w;sum+=old[q+c]*ew;ws+=ew;local+=old[q+c]*w;lw+=w;}
-            let v=old[i+c];if(amountD&&ws)v+=(sum/ws-v)*amountD;if(amountC)v+=(old[i+c]-local/lw)*amountC;work[i+c]=clamp(v);}}
+            let v=old[i+c];if(amountD&&ws)v+=(sum/ws-v)*amountD;if(amountC)v+=(old[i+c]-local/lw)*amountC;work[i+c]=clamp(Math.round(v));}}
       }
       for(let i=0;i<total;i++){const z=i*3;sourceL[i]=.2126*work[z]+.7152*work[z+1]+.0722*work[z+2];}
       const strength=p.ditherStrength/100;

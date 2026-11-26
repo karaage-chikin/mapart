@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
 
-const files = ["index.html", "blueprint.html", "build-step.html", "mapart-shared.js", "worker.js"];
+const files = ["index.html", "blueprint.html", "build-step.html", "mapart-shared.js", "worker.js", "3d/bedrock-model.js", "3d/bedrock-parser.js"];
 for (const file of files) {
   const source = await readFile(new URL("../" + file, import.meta.url), "utf8");
   const scripts = file.endsWith(".html")

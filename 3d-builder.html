@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3Dアイテム建築 | Minecraft</title>
+<style>
+:root{color-scheme:dark;--bg:#181825;--panel:#1e1e2e;--card:#313244;--border:#45475a;--text:#cdd6f4;--muted:#a6adc8;--accent:#89b4fa;--good:#a6e3a1;--bad:#f38ba8}
+*{box-sizing:border-box}body{margin:0;padding:16px;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,"Yu Gothic",sans-serif}.wrap{max-width:1440px;margin:auto}header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:16px}h1{font-size:1.45rem;margin:0}h2{font-size:1rem;margin:0 0 10px}.badge{border:1px solid var(--border);border-radius:99px;padding:4px 10px;color:var(--accent)}a{color:var(--accent)}.layout{display:grid;grid-template-columns:minmax(280px,350px) minmax(0,1fr);gap:14px}.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;min-width:0}.field{margin:10px 0}.field label{display:flex;justify-content:space-between;gap:10px;margin-bottom:5px}.field input[type=file],select,input[type=number]{width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);padding:9px;border-radius:7px}.field input[type=range]{width:100%}button{background:var(--accent);color:#11111b;border:0;border-radius:7px;padding:9px 12px;font-weight:700;cursor:pointer}button.secondary{background:var(--card);color:var(--text);border:1px solid var(--border)}button:disabled{opacity:.45;cursor:not-allowed}.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:1}.viewer{height:540px;min-height:340px;background:#11111b;border:1px solid var(--border);border-radius:10px;position:relative;overflow:hidden}.viewer canvas{display:block;width:100%;height:100%}.hint,.muted{color:var(--muted);font-size:.82rem}.status{padding:9px 11px;border-radius:8px;background:var(--card);margin-top:10px;white-space:pre-wrap;overflow-wrap:anywhere}.status.error{color:var(--bad)}.status.ok{color:var(--good)}.statgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.stat{background:var(--card);padding:9px;border-radius:8px}.stat b{display:block;font-size:1.1rem}.layers{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}.layer-canvas{width:100%;max-width:620px;aspect-ratio:1;image-rendering:pixelated;background:#111;border:1px solid var(--border);display:block}.palette{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.palette label{background:var(--card);padding:6px;border-radius:6px;font-size:.8rem;display:flex;gap:6px;align-items:center}.swatch{width:17px;height:17px;border-radius:3px;display:inline-block;border:1px solid #fff4}.hidden{display:none!important}@media(max-width:850px){.layout{grid-template-columns:1fr}.viewer{height:420px}.layers{grid-template-columns:1fr}}@media(max-width:500px){body{padding:9px}.viewer{height:340px}.statgrid{grid-template-columns:1fr 1fr}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+<header><div><h1>3Dアイテム建築</h1><div class="muted">Minecraft 統合版 / Geometry JSON → 3Dモデル → ブロック設計図</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">← マップアートへ戻る</a><span class="badge">開発版 v0.1</span></div></header>
+<div class="layout">
+<aside>
+<section class="panel"><h2>1. モデルを読み込む</h2>
+<div class="field"><label>リソースパック ZIP</label><input id="zipInput" type="file" accept=".zip,application/zip"><div class="hint">ZIP内のGeometry JSONとPNGテクスチャを探します。</div></div>
+<div class="field"><label>Geometry JSON（単体）</label><input id="jsonInput" type="file" accept=".json,application/json"></div>
+<div class="field"><label>テクスチャ PNG（任意）</label><input id="textureInput" type="file" accept="image/png"></div>
+<div class="field" id="geometrySelectWrap" hidden><label>モデル</label><select id="geometrySelect"></select></div>
+<div class="row"><button id="resetView" class="secondary" type="button">視点リセット</button><button id="fitView" class="secondary" type="button">モデルに合わせる</button></div>
+<div id="loadStatus" class="status" role="status" aria-live="polite">ZIPまたはGeometry JSONを読み込んでください。</div></section>
+<section class="panel"><h2>2. 向き・サイズ</h2>
+<div class="field"><label>X回転 <output id="rxOut">0°</output></label><input id="rx" type="range" min="-180" max="180" value="0"></div>
+<div class="field"><label>Y回転 <output id="ryOut">0°</output></label><input id="ry" type="range" min="-180" max="180" value="0"></div>
+<div class="field"><label>Z回転 <output id="rzOut">0°</output></label><input id="rz" type="range" min="-180" max="180" value="0"></div>
+<div class="field"><label>変換倍率 <output id="scaleOut">1.00×</output></label><input id="scale" type="range" min="0.25" max="4" step="0.05" value="1"></div>
+<div class="hint">モデルを回転すると、ブロック変換と段ごとの設計図にも同じ向きが反映されます。</div></section>
+<section class="panel"><h2>3. ブロック変換</h2>
+<div class="field"><label>内部構造</label><select id="fillMode"><option value="surface">表面のみ</option><option value="solid">内部まで埋める</option></select></div>
+<div class="field"><label>ブロック1個あたりのモデル単位</label><select id="voxelSize"><option value="16">16（標準）</option><option value="8">8（細かい）</option><option value="4">4（かなり細かい）</option><option value="32">32（大きめ）</option></select></div>
+<div class="field"><label>使用ブロック</label><div class="palette" id="palette"></div></div>
+<button id="convertBtn" type="button" disabled>ブロックに変換</button>
+<div id="convertStatus" class="status">モデルを読み込むと変換できます。</div></section>
+</aside>
+<main>
+<section class="panel"><h2>3Dプレビュー</h2><div id="viewer" class="viewer" aria-label="3Dモデルプレビュー"></div><div class="hint">ドラッグ：回転 / ホイール：拡大縮小 / 右ドラッグ：平行移動</div></section>
+<section class="panel" id="blueprintPanel"><h2>4. 段ごとの設置設計図</h2>
+<div class="statgrid"><div class="stat"><span class="muted">横幅 X</span><b id="dimX">-</b></div><div class="stat"><span class="muted">高さ Y</span><b id="dimY">-</b></div><div class="stat"><span class="muted">奥行 Z</span><b id="dimZ">-</b></div></div>
+<div id="blueprintEmpty" class="status">ブロック変換すると、ここに各段の設計図が表示されます。</div>
+<div id="blueprintUI" class="hidden"><div class="field"><label>段（下から） <output id="layerOut">1</output></label><input id="layer" type="range" min="1" max="1" value="1"></div>
+<div class="row"><button id="prevLayer" class="secondary" type="button">前の段</button><button id="nextLayer" class="secondary" type="button">次の段</button><button id="saveLayer" type="button">この段をPNG保存</button></div>
+<div class="layers"><div><h2>上から見た配置図</h2><canvas id="layerCanvas" class="layer-canvas" width="640" height="640"></canvas></div><div><h2>この段のブロック数</h2><div id="layerMaterials" class="status"></div><h2 style="margin-top:16px">全体の必要素材</h2><div id="allMaterials" class="status"></div></div></div></div>
+</section>
+</main></div></div>
+<script type="module" src="3d/bedrock-model.js"></script>
+</body></html>

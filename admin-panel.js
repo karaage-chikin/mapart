@@ -3,7 +3,9 @@ const API=document.querySelector('meta[name="resource-packs-api"]')?.content;
 if(!API)throw new Error("API endpoint is not configured");
 const TOKEN_KEY="resourcePackAdminToken";
 const storedToken=sessionStorage.getItem(TOKEN_KEY)||"";
-const storedExpiry=Number(sessionStorage.getItem("resourcePackAdminTokenExpiresAt")||0);\nconst token=(!storedExpiry||storedExpiry>Date.now())&&/^[A-Za-z0-9_.-]{20,2048}$/.test(storedToken)?storedToken:"";\nif(!token){sessionStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");}
+const storedExpiry=Number(sessionStorage.getItem("resourcePackAdminTokenExpiresAt")||0);
+const token=(!storedExpiry||storedExpiry>Date.now())&&/^[A-Za-z0-9_.-]{20,2048}$/.test(storedToken)?storedToken:"";
+if(!token){sessionStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");}
 const $=id=>document.getElementById(id);
 const PAGE_SIZE=50,MAX_DATE=8640000000000000;
 const ESC_MAP={"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};

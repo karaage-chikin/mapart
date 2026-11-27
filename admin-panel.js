@@ -3,7 +3,7 @@ const API=document.querySelector('meta[name="resource-packs-api"]')?.content;
 if(!API)throw new Error("API endpoint is not configured");
 const TOKEN_KEY="resourcePackAdminToken";
 const storedToken=sessionStorage.getItem(TOKEN_KEY)||"";
-const token=/^[A-Za-z0-9_.-]{20,2048}$/.test(storedToken)?storedToken:"";
+const storedExpiry=Number(sessionStorage.getItem("resourcePackAdminTokenExpiresAt")||0);\nconst token=(!storedExpiry||storedExpiry>Date.now())&&/^[A-Za-z0-9_.-]{20,2048}$/.test(storedToken)?storedToken:"";\nif(!token){sessionStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");}
 const $=id=>document.getElementById(id);
 const PAGE_SIZE=50,MAX_DATE=8640000000000000;
 const ESC_MAP={"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};
@@ -106,7 +106,7 @@ async function init(){
  if(!token){location.href="index.html";return;}
  try{await api("/api/admin/session");}
  catch(error){
-  if(error.status===401){sessionStorage.removeItem(TOKEN_KEY);location.href="index.html";return;}
+  if(error.status===401){sessionStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");location.href="index.html";return;}
   status(error.message,"error");$("pageContent").innerHTML=failurePanel(error);return;
  }
  $("logoutBtn")?.addEventListener("click",()=>{sessionStorage.removeItem(TOKEN_KEY);location.href="index.html";});

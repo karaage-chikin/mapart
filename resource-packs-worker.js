@@ -141,10 +141,8 @@ function extractPageImages(html) {
   const imgRe=/<img\b[^>]*>/gi;
   for(const m of html.matchAll(imgRe)){
     const tag=m[0];
-    for(const attr of ["data-src","data-lazy-src","src"]){
-      const v=tag.match(new RegExp(\`\\b\${attr}=["']([^"']+)["']\`,"i"));
-      if(v){found.push(decodeHtml(v[1]));break;}
-    }
+    const v=tag.match(/\b(?:data-src|data-lazy-src|src)=["']([^"']+)["']/i);
+    if(v)found.push(decodeHtml(v[1]));
     const srcset=tag.match(/srcset=["']([^"']+)["']/i);
     if(srcset)found.push(decodeHtml(srcset[1].split(",")[0].trim().split(/\s+/)[0]));
   }

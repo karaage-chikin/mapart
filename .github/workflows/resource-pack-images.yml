@@ -37,6 +37,11 @@ jobs:
           const headers = { "User-Agent": "Mozilla/5.0 (compatible; KaraageChikinBedrockPackDirectory/2.1)", "Accept": "text/html,application/xhtml+xml" };
           const clean = s => String(s || "").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&#8217;|&#8216;/g, "'").replace(/&quot;/g, '"').replace(/&#160;|&nbsp;/g, " ").replace(/&#8211;/g, "–").replace(/\s+/g, " ").trim();
           const restricted = /\b(gun|guns|weapon|weapons|knife|knives|sword|swords|rifle|pistol|shotgun|grenade|ammo|ammunition|blade|crossbow|mace|spear)\b/i;
+          const beforeSafetyFilter = packs.length;
+          for (let i = packs.length - 1; i >= 0; i--) {
+            if (restricted.test(String(packs[i].title || ""))) packs.splice(i, 1);
+          }
+          console.log("Excluded restricted-topic titles:", beforeSafetyFilter - packs.length);
           function category(title) {
             const t = title.toLowerCase();
             if (/shader|visual|pbr/.test(t)) return "シェーダー";

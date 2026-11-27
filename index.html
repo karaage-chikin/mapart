@@ -19,6 +19,4 @@
     <button id="homeAdminLoginBtn" type="submit">ログイン</button>
   </form>
   <p id="homeAdminStatus" class="login-status" aria-live="polite"></p>
-</section><p class="note">各ツールは独立したページで動作します。ホームにはいつでも戻れます。</p></main><footer>Minecraft制作ツール</footer><script>
-(()=>{const form=document.getElementById("homeAdminLogin"),status=document.getElementById("homeAdminStatus"),button=document.getElementById("homeAdminLoginBtn");if(!form)return;form.addEventListener("submit",async e=>{e.preventDefault();button.disabled=true;status.className="login-status";status.textContent="認証中…";try{const r=await fetch("https://resource-packs-api.karaage-chikin-029.workers.dev/api/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password:document.getElementById("homeAdminPassword").value})});const data=await r.json();if(!r.ok)throw new Error(data.error||"ログインできませんでした。");sessionStorage.setItem("resourcePackAdminToken",data.token);location.href="admin.html";}catch(err){status.className="login-status error";status.textContent=err.message;}finally{button.disabled=false;}});})();
-</script><script type="module" src="3d/preload-textures.js?v=0.8.0"></script></body></html>
+</section><p class="note">各ツールは独立したページで動作します。ホームにはいつでも戻れます。</p></main><footer>Minecraft制作ツール</footer><script src="admin-login.js" defer></script><script type="module" src="3d/preload-textures.js?v=0.8.0"></script></body></html>

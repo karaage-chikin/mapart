@@ -4,7 +4,7 @@ const API = "https://resource-packs-api.karaage-chikin-029.workers.dev";
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const favKey = "bedrock-resource-pack-favorites-v1";
-let packs = [], seedPacks = [], activeCategory = "すべて", favoritesOnly = false, token = sessionStorage.getItem("resourcePackAdminToken") || "", editingId = null, currentModalId = null, currentGalleryImages = [];
+let packs = [], seedPacks = [], activeCategory = "すべて", favoritesOnly = false, token = sessionStorage.getItem("resourcePackAdminToken") || "", currentModalId = null, currentGalleryImages = [];
 const categories = ["すべて", ...new Set(["シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","ブロック・アイテム","UI・シンプル","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","便利・操作","季節・テーマ","テーマ・世界観","その他"])];
 function favorites(){try{return new Set(JSON.parse(localStorage.getItem(favKey)||"[]"));}catch{return new Set();}}
 function setFavorites(set){localStorage.setItem(favKey,JSON.stringify([...set]));}
@@ -25,7 +25,7 @@ function render(){
  const list=filtered(),fav=favorites();
  $("countStat").textContent=packs.length+"件掲載";
  $("resultCount").textContent=list.length+"件を表示中";
- $("grid").innerHTML=list.length?list.map(p=>'<article class="pack" data-open="'+esc(p.id)+'">'+imageMarkup(p.thumbnailUrl||(p.galleryImages||[])[0]||"",p.title+"の画像","pack-thumb")+'<div class="pack-top"><span class="category">'+esc(p.category)+'</span><button class="fav '+(fav.has(p.id)?"on":"")+'" data-fav="'+esc(p.id)+'" aria-label="お気に入り">'+(fav.has(p.id)?"★":"☆")+'</button></div><h2>'+esc(p.title)+'</h2><div class="author">作者：'+esc(p.author||"不明")+'</div><p class="desc">'+esc(p.description)+'</p><div class="pack-bottom"><span class="version">'+esc(p.compatibility||"対応情報は配布元で確認")+'</span><button class="details" data-open="'+esc(p.id)+'">詳細を見る →</button></div>'+(p.directDownloadAllowed?'<div class="version">サイト内ダウンロード対応</div>':'')+(token?'<div class="admin-actions"><button class="btn small" data-edit="'+esc(p.id)+'">編集</button><button class="btn small" data-delete="'+esc(p.id)+'">削除</button></div>':"")+'</article>').join(""):'<div class="empty">該当するパックが見つかりませんでした。検索語やジャンルを変えてみてね。</div>';
+ $("grid").innerHTML=list.length?list.map(p=>'<article class="pack" data-open="'+esc(p.id)+'">'+imageMarkup(p.thumbnailUrl||(p.galleryImages||[])[0]||"",p.title+"の画像","pack-thumb")+'<div class="pack-top"><span class="category">'+esc(p.category)+'</span><button class="fav '+(fav.has(p.id)?"on":"")+'" data-fav="'+esc(p.id)+'" aria-label="お気に入り">'+(fav.has(p.id)?"★":"☆")+'</button></div><h2>'+esc(p.title)+'</h2><div class="author">作者：'+esc(p.author||"不明")+'</div><p class="desc">'+esc(p.description)+'</p><div class="pack-bottom"><span class="version">'+esc(p.compatibility||"対応情報は配布元で確認")+'</span><button class="details" data-open="'+esc(p.id)+'">詳細を見る →</button></div>'+(p.directDownloadAllowed?'<div class="version">サイト内ダウンロード対応</div>':'')+(token?'<div class="admin-actions"><button class="btn small" data-delete="'+esc(p.id)+'">削除</button></div>':"")+'</article>').join(""):'<div class="empty">該当するパックが見つかりませんでした。検索語やジャンルを変えてみてね。</div>';
 }
 function renderGallery(index=0){
  const box=$("modalGallery");
@@ -43,17 +43,14 @@ function openDetail(id){
  $("downloadLink").classList.toggle("hidden",!(p.directDownloadAllowed&&p.directDownloadUrl));
  $("downloadLink").textContent="サイト内からダウンロード ↓";
  const isFav=favorites().has(id);$("modalFav").textContent=isFav?"★ お気に入り済み":"☆ お気に入り";
- $("modalEdit").classList.toggle("hidden",!token);
  $("modal").classList.remove("hidden");
 }
 function toggleFav(id){const f=favorites();f.has(id)?f.delete(id):f.add(id);setFavorites(f);render();if(currentModalId===id)$("modalFav").textContent=f.has(id)?"★ お気に入り済み":"☆ お気に入り";}
-function fillEditor(p){
- editingId=p?.id||null;
- $("editTitle").value=p?.title||"";$("editAuthor").value=p?.author||"";$("editCategory").value=p?.category||"その他";$("editVersion").value=p?.compatibility||"";$("editUrl").value=p?.sourceUrl||"";$("editThumbnail").value=p?.thumbnailUrl||"";$("editGallery").value=(p?.galleryImages||[]).join("\n");$("editDownloadUrl").value=p?.directDownloadUrl||"";$("editDownloadAllowed").checked=!!p?.directDownloadAllowed;$("editDescription").value=p?.description||"";
- $("savePack").textContent=editingId?"変更を保存":"登録する";
- $("adminPanel").scrollIntoView({behavior:"smooth",block:"start"});
+function clearEditor(){
+ ["editTitle","editAuthor","editVersion","editUrl","editThumbnail","editGallery","editDownloadUrl","editDescription"].forEach(id=>$(id).value="");
+ $("editCategory").value="シェーダー";$("editDownloadAllowed").checked=false;
+ setStatus("入力をクリアしました。");
 }
-function clearEditor(){fillEditor(null);setStatus("入力をクリアしました。");}
 async function api(path,options={}){
  const headers={"Content-Type":"application/json",...(options.headers||{})}; if(token)headers.Authorization="Bearer "+token;
  const res=await fetch(API+path,{...options,headers});
@@ -113,7 +110,6 @@ function showEditor(loggedIn){
 $("filters").addEventListener("click",e=>{const b=e.target.closest("[data-category]");if(!b)return;activeCategory=b.dataset.category;categoryNav();render();});
 $("grid").addEventListener("click",e=>{
  const fav=e.target.closest("[data-fav]");if(fav){e.stopPropagation();toggleFav(fav.dataset.fav);return;}
- const edit=e.target.closest("[data-edit]");if(edit){e.stopPropagation();fillEditor(packs.find(p=>p.id===edit.dataset.edit));return;}
  const del=e.target.closest("[data-delete]");if(del){e.stopPropagation();deletePack(del.dataset.delete);return;}
  const open=e.target.closest("[data-open]");if(open)openDetail(open.dataset.open);
 });
@@ -130,7 +126,7 @@ $("logoutBtn").addEventListener("click",()=>{token="";sessionStorage.removeItem(
 $("savePack").addEventListener("click",async()=>{
  const payload={title:$("editTitle").value.trim(),author:$("editAuthor").value.trim(),category:$("editCategory").value,compatibility:$("editVersion").value.trim()||"配布元で確認",sourceUrl:$("editUrl").value.trim(),thumbnailUrl:$("editThumbnail").value.trim(),galleryImages:$("editGallery").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),directDownloadUrl:$("editDownloadUrl").value.trim(),directDownloadAllowed:$("editDownloadAllowed").checked,description:$("editDescription").value.trim(),source:"管理者登録"};
  if(!payload.title||!payload.sourceUrl||!payload.description){setStatus("パック名・説明・配布元URLを入力してください。","error");return;}
- try{const path=editingId?"/api/admin/packs/"+encodeURIComponent(editingId):"/api/admin/packs";const data=await api(path,{method:editingId?"PUT":"POST",body:JSON.stringify(payload)});if(editingId){packs=packs.map(p=>p.id===editingId?data.pack:p);}else{packs.unshift(data.pack);}clearEditor();render();setStatus("登録内容を保存しました。","ok");}
+ try{const data=await api("/api/admin/packs",{method:"POST",body:JSON.stringify(payload)});packs.unshift(data.pack);clearEditor();render();setStatus("登録しました。","ok");}
  catch(e){setStatus(e.message,"error");}
 });
 $("discoverNow").addEventListener("click",async()=>{const b=$("discoverNow");b.disabled=true;$("candidateStatus").textContent="MCPEDLを検索中…";try{const r=await api("/api/admin/discover",{method:"POST",body:"{}"});$("candidateStatus").textContent="調査："+r.scanned+"件 / 新規候補："+r.added+"件 / 重複等："+r.skipped+"件";await loadCandidates();}catch(e){$("candidateStatus").textContent=e.message;}finally{b.disabled=false;}});
@@ -160,7 +156,6 @@ $("modalGallery").addEventListener("click",e=>{const b=e.target.closest("[data-g
 $("modalClose").addEventListener("click",()=>$("modal").classList.add("hidden"));
 $("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.add("hidden");});
 $("modalFav").addEventListener("click",()=>currentModalId&&toggleFav(currentModalId));
-$("modalEdit").addEventListener("click",()=>{const p=packs.find(x=>x.id===currentModalId);if(p){$("modal").classList.add("hidden");fillEditor(p);}});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")$("modal").classList.add("hidden");});
 load();
 })();

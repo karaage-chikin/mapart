@@ -71,7 +71,7 @@ async function loadCandidates(){
 }
 async function load(){
  try{
-  const response=await fetch("resource-packs.json?v=1.0.0",{cache:"no-store"});
+  const response=await fetch("resource-packs.json?v=1.1.0",{cache:"no-store"});
   if(!response.ok)throw new Error("seed");
   packs=await response.json();
  }catch{packs=[];}
@@ -107,6 +107,12 @@ $("savePack").addEventListener("click",async()=>{
 });
 $("discoverNow").addEventListener("click",async()=>{const b=$("discoverNow");b.disabled=true;$("candidateStatus").textContent="MCPEDLを検索中…";try{const r=await api("/api/admin/discover",{method:"POST",body:"{}"});$("candidateStatus").textContent="調査："+r.scanned+"件 / 新規候補："+r.added+"件 / 重複等："+r.skipped+"件";await loadCandidates();}catch(e){$("candidateStatus").textContent=e.message;}finally{b.disabled=false;}});
 $("refreshCandidates").addEventListener("click",loadCandidates);
+$("enrichImages").addEventListener("click",async()=>{
+ const b=$("enrichImages");b.disabled=true;$("candidateStatus").textContent="既存パックの画像を取得中…";
+ try{const r=await api("/api/admin/enrich-images",{method:"POST",body:"{}"});$("candidateStatus").textContent="調査："+r.scanned+"件 / 画像を更新："+r.updated+"件";const live=await api("/api/packs");packs=live.packs||packs;render();}
+ catch(e){$("candidateStatus").textContent=e.message;}finally{b.disabled=false;}
+});
+
 $("candidateList").addEventListener("click",async e=>{
  const a=e.target.closest("[data-approve]"),d=e.target.closest("[data-reject]");
  if(a){const id=a.dataset.approve,sel=$("candidateList").querySelector('[data-candidate-category="'+CSS.escape(id)+'"]');if(!confirm("配布元でBedrock対応を確認しましたか？確認済みなら公開します。"))return;try{const r=await api("/api/admin/candidates/"+encodeURIComponent(id)+"/approve",{method:"POST",body:JSON.stringify({category:sel?.value||"その他"})});packs.unshift(r.pack);render();await loadCandidates();$("candidateStatus").textContent="承認して公開しました。";}catch(err){$("candidateStatus").textContent=err.message;}}
@@ -114,6 +120,21 @@ $("candidateList").addEventListener("click",async e=>{
 });
 $("cancelEdit").addEventListener("click",clearEditor);
 async function deletePack(id){const p=packs.find(x=>x.id===id);if(!p||!confirm("「"+p.title+"」を削除しますか？"))return;try{await api("/api/admin/packs/"+encodeURIComponent(id),{method:"DELETE"});packs=packs.filter(x=>x.id!==id);render();setStatus("削除しました。","ok");}catch(e){setStatus(e.message,"error");}}
+$("downloadLink").addEventListener("click",async e=>{
+ e.preventDefault();const p=packs.find(x=>x.id===currentModalId);if(!p||!p.directDownloadAllowed)return;
+ const button=$("downloadLink"),label=button.textContent;button.textContent="ダウンロード準備中…";button.classList.add("disabled");
+ try{
+  const res=await fetch(API+"/api/download/"+encodeURIComponent(p.id));
+  if(!res.ok){let data={};try{data=await res.json();}catch{}throw new Error(data.error||"ダウンロードできませんでした。");}
+  const blob=await res.blob(),cd=res.headers.get("Content-Disposition")||"",m=cd.match(/filename\*=UTF-8''([^;]+)/i);
+  let filename=(p.title||"resource-pack")+".mcpack";if(m){try{filename=decodeURIComponent(m[1]);}catch{}}
+  const objectUrl=URL.createObjectURL(blob),a=document.createElement("a");a.href=objectUrl;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
+  button.textContent="ダウンロードを開始しました";
+ }catch(err){alert(err.message);button.textContent=label;}
+ finally{button.classList.remove("disabled");}
+});
+$("modalGallery").addEventListener("click",e=>{const b=e.target.closest("[data-gallery-index]");if(b)renderGallery(Number(b.dataset.galleryIndex));});
+
 $("modalClose").addEventListener("click",()=>$("modal").classList.add("hidden"));
 $("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.add("hidden");});
 $("modalFav").addEventListener("click",()=>currentModalId&&toggleFav(currentModalId));

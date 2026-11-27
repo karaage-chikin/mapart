@@ -1,6 +1,6 @@
 (() => {
 "use strict";
-const API = "https://resource-packs-api.karaage-chikin-029.workers.dev";
+const API = document.querySelector('meta[name="resource-packs-api"]')?.content;\nif (!API) throw new Error("API endpoint is not configured");
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const favKey = "bedrock-resource-pack-favorites-v1";

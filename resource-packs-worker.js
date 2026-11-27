@@ -128,18 +128,57 @@ async function fetchMcpedlPosts() {
   const posts=await pr.json();if(!Array.isArray(posts))throw new Error("MCPEDLの応答形式が不正です.");
   return posts;
 }
-async function enrichMcpedlImages(env, posts=null) {
-  posts=posts||await fetchMcpedlPosts();let updated=0;
-  for(const p of posts){
-    const images=extractPostImages(p);
-    if(!images.length)continue;
-    const result=await env.DB.prepare("UPDATE resource_packs SET thumbnail_url=?,gallery_json=?,updated_at=? WHERE source_url=?")
-      .bind(images[0],JSON.stringify(images),Date.now(),String(p.link||"")).run();
-    updated+=Number(result?.meta?.changes||0);
-  }
-  return {scanned:posts.length,updated};
+function decodeHtml(value) {
+  return String(value||"").replace(/&amp;/g,"&").replace(/&#038;/g,"&").replace(/&quot;/g,'"').replace(/&#39;|&#x27;/gi,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">");
 }
-
+function extractPageImages(html) {
+  const found=[];
+  const metaRe=/<meta\\b[^>]*(?:property|name)=[\\"'](?:og:image|twitter:image|twitter:image:src)[\\"'][^>]*>/gi;
+  for(const m of html.matchAll(metaRe)){
+    const tag=m[0], content=tag.match(/content=[\\"']([^\\"']+)[\\"']/i);
+    if(content)found.push(decodeHtml(content[1]));
+  }
+  const imgRe=/<img\\b[^>]*>/gi;
+  for(const m of html.matchAll(imgRe)){
+    const tag=m[0];
+    for(const attr of ["data-src","data-lazy-src","src"]){
+      const v=tag.match(new RegExp("\\\\b"+attr+"=[\\\"']([^\\\"']+)[\\\"']","i"));
+      if(v){found.push(decodeHtml(v[1]));break;}
+    }
+    const srcset=tag.match(/srcset=[\\"']([^\\"']+)[\\"']/i);
+    if(srcset)found.push(decodeHtml(srcset[1].split(",")[0].trim().split(/\\s+/)[0]));
+  }
+  return [...new Set(found.map(raw=>{try{const u=new URL(raw);if(u.protocol!=="https:"||!u.hostname.includes(".")||/\\.(svg|gif)(?:$|\\?)/i.test(u.pathname))return "";return u.href;}catch{return "";}}).filter(Boolean))].slice(0,8);
+}
+async function enrichMcpedlImages(env) {
+  const rows=await env.DB.prepare("SELECT id,source_url FROM resource_packs WHERE thumbnail_url='' OR thumbnail_url IS NULL OR gallery_json='[]' OR gallery_json IS NULL").all();
+  const targets=rows.results||[];let updated=0,failed=0,found=0;
+  for(let i=0;i<targets.length;i+=6){
+    const batch=targets.slice(i,i+6);
+    const results=await Promise.all(batch.map(async row=>{
+      try{
+        const u=new URL(row.source_url);
+        if(u.protocol!=="https:"||u.hostname!=="mcpedl.com")return {id:row.id,images:[]};
+        const response=await fetch(u.href,{headers:{"User-Agent":"Mozilla/5.0 (compatible; ResourcePackImageIndexer/1.0)","Accept":"text/html,application/xhtml+xml"},signal:AbortSignal.timeout(12000)});
+        if(!response.ok)return {id:row.id,images:[]};
+        const html=await response.text();
+        if(html.length>4000000)return {id:row.id,images:[]};
+        return {id:row.id,images:extractPageImages(html)};
+      }catch{return {id:row.id,images:[]};}
+    }));
+    for(const item of results){
+      if(!item.images.length){failed++;continue;}
+      const prior=await env.DB.prepare("SELECT thumbnail_url,gallery_json FROM resource_packs WHERE id=?").bind(item.id).first();
+      let existing=[];try{existing=JSON.parse(prior?.gallery_json||"[]");}catch{}
+      const images=[...new Set([...(existing||[]),...item.images])].slice(0,8);
+      const thumb=prior?.thumbnail_url||images[0];
+      await env.DB.prepare("UPDATE resource_packs SET thumbnail_url=?,gallery_json=?,updated_at=? WHERE id=?")
+        .bind(thumb,JSON.stringify(images),Date.now(),item.id).run();
+      updated++;found+=images.length;
+    }
+  }
+  return {scanned:targets.length,updated,imagesFound:found,withoutImages:failed};
+}
 async function discoverMcpedl(env, posts=null) {
   posts=posts||await fetchMcpedlPosts();let added=0,skipped=0;
   for(const p of posts){
@@ -157,7 +196,7 @@ async function discoverMcpedl(env, posts=null) {
 }
 function normalizeCandidate(r){return {id:r.id,title:r.title,author:r.author,description:r.description,sourceUrl:r.source_url,provider:r.provider,discoveredAt:r.discovered_at,thumbnailUrl:r.thumbnail_url||"",galleryImages:galleryFromJson(r.gallery_json)};}
 export default {
-  async scheduled(controller, env, ctx) { ctx.waitUntil((async()=>{const posts=await fetchMcpedlPosts();await enrichMcpedlImages(env,posts);await discoverMcpedl(env,posts);})().catch(e=>console.error("Scheduled discovery/image refresh failed",e))); },
+  async scheduled(controller, env, ctx) { ctx.waitUntil((async()=>{await enrichMcpedlImages(env);const posts=await fetchMcpedlPosts();await discoverMcpedl(env,posts);})().catch(e=>console.error("Scheduled discovery/image refresh failed",e))); },
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
     if (request.method === "OPTIONS") {

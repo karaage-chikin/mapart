@@ -4,7 +4,7 @@ const API = "https://resource-packs-api.karaage-chikin-029.workers.dev";
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const favKey = "bedrock-resource-pack-favorites-v1";
-let packs = [], activeCategory = "すべて", favoritesOnly = false, token = sessionStorage.getItem("resourcePackAdminToken") || "", editingId = null, currentModalId = null, currentGalleryImages = [];
+let packs = [], seedPacks = [], activeCategory = "すべて", favoritesOnly = false, token = sessionStorage.getItem("resourcePackAdminToken") || "", editingId = null, currentModalId = null, currentGalleryImages = [];
 const categories = ["すべて", ...new Set(["シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","ブロック・アイテム","UI・シンプル","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","便利・操作","季節・テーマ","テーマ・世界観","その他"])];
 function favorites(){try{return new Set(JSON.parse(localStorage.getItem(favKey)||"[]"));}catch{return new Set();}}
 function setFavorites(set){localStorage.setItem(favKey,JSON.stringify([...set]));}
@@ -74,20 +74,28 @@ function pollGalleryImages(attempt=0){
  setTimeout(async()=>{
   try{
    const live=await api("/api/packs"),next=live.packs||[];
-   const changed=next.some((p,i)=>p.thumbnailUrl!==packs[i]?.thumbnailUrl||JSON.stringify(p.galleryImages||[])!==JSON.stringify(packs[i]?.galleryImages||[]));
-   if(changed){packs=next;render();}
+   const merged=mergeLivePacks(next);
+   const changed=merged.some((p,i)=>p.thumbnailUrl!==packs[i]?.thumbnailUrl||JSON.stringify(p.galleryImages||[])!==JSON.stringify(packs[i]?.galleryImages||[]));
+   if(changed){packs=merged;render();}
    const pending=next.some(p=>!p.thumbnailUrl&&!(p.galleryImages||[]).length);
    if(pending)pollGalleryImages(attempt+1);
   }catch{pollGalleryImages(attempt+1);}
  },10000);
 }
+function mergeLivePacks(live){
+ const byUrl=new Map(seedPacks.map(p=>[p.sourceUrl,p]));
+ return (live||[]).map(p=>{
+  const seed=byUrl.get(p.sourceUrl)||{};
+  return {...p,thumbnailUrl:p.thumbnailUrl||seed.thumbnailUrl||"",galleryImages:(p.galleryImages&&p.galleryImages.length?p.galleryImages:(seed.galleryImages||[]))};
+ });
+}
 async function load(){
  try{
   const response=await fetch("resource-packs.json?v=1.1.0",{cache:"no-store"});
   if(!response.ok)throw new Error("seed");
-  packs=await response.json();
+  seedPacks=await response.json();packs=seedPacks;
  }catch{packs=[];}
- try{const live=await api("/api/packs");if(Array.isArray(live.packs))packs=live.packs;}catch(e){console.info("Cloud catalogue unavailable; using bundled catalogue.",e.message);}
+ try{const live=await api("/api/packs");if(Array.isArray(live.packs))packs=mergeLivePacks(live.packs);}catch(e){console.info("Cloud catalogue unavailable; using bundled catalogue.",e.message);}
  categoryNav();render();
  if(packs.some(p=>!p.thumbnailUrl&&!(p.galleryImages||[]).length))pollGalleryImages();
  if(token){try{await api("/api/admin/session");showEditor(true);await loadCandidates();}catch{token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);}}

@@ -248,7 +248,8 @@ jobs:
           }
           (async () => {
             let updated = 0, totalImages = 0, failed = 0;
-            const targets = packs.filter(p => /^https:\/\/(?:mcpedl\.com|www\.curseforge\.com|www\.planetminecraft\.com)\//i.test(p.sourceUrl || "") && !(p.imagesFetchedAt && p.sourceUpdatedAt && p.imagesFetchedAt >= p.sourceUpdatedAt && (p.galleryImages || []).length >= 4)).slice(0, 600);
+            const targets = packs.filter(p => /^https:\/\/(?:mcpedl\.com|www\.curseforge\.com|www\.planetminecraft\.com)\//i.test(p.sourceUrl || "") && !(p.imagesFetchedAt && p.sourceUpdatedAt && p.imagesFetchedAt >= p.sourceUpdatedAt && (p.galleryImages || []).length >= 4));
+          console.log("Eligible packs for image enrichment:", targets.length, "of", packs.length);
             for (let i = 0; i < targets.length; i += 15) {
               const batch = await Promise.all(targets.slice(i, i + 15).map(fetchOne));
               for (const item of batch) {

@@ -183,6 +183,26 @@ export default {
         return reply({ error: "一覧を読み込めませんでした。" }, 503, origin);
       }
     }
+    const downloadMatch=url.pathname.match(/^\/api\/download\/([A-Za-z0-9_-]{1,80})$/);
+    if(downloadMatch&&request.method==="GET"){
+      try{
+        const row=await env.DB.prepare("SELECT title,direct_download_url,direct_download_allowed FROM resource_packs WHERE id=?").bind(downloadMatch[1]).first();
+        if(!row||Number(row.direct_download_allowed)!==1||!row.direct_download_url)return reply({error:"このパックはサイト内ダウンロードに対応していません。公式配布ページを利用してください。"},404,origin);
+        const target=new URL(row.direct_download_url);
+        if(target.protocol!=="https:")return reply({error:"安全でないダウンロード先です。"},400,origin);
+        const upstream=await fetch(target.href,{redirect:"follow",headers:{"User-Agent":"KaraageChikinResourcePackDirectory/1.1"}});
+        if(!upstream.ok||!upstream.body)return reply({error:"配布ファイルを取得できませんでした（HTTP "+upstream.status+"）。"},502,origin);
+        const type=(upstream.headers.get("Content-Type")||"application/octet-stream").split(";")[0].toLowerCase();
+        if(type.startsWith("text/")||type==="application/json"||type==="application/xhtml+xml")return reply({error:"配布元がファイルではなくWebページを返しました。"},415,origin);
+        const length=Number(upstream.headers.get("Content-Length")||0);
+        if(length>104857600)return reply({error:"ファイルが大きすぎます（上限100MB）。"},413,origin);
+        let filename="resource-pack.mcpack";
+        try{filename=decodeURIComponent(target.pathname.split("/").pop()||filename);}catch{}
+        filename=filename.split('"').join("_").split("\\").join("_").split(String.fromCharCode(10)).join("_").slice(0,120)||"resource-pack.mcpack";
+        const stream=upstream.body.pipeThrough(new TransformStream({transform(chunk,controller){this.size=(this.size||0)+chunk.byteLength;if(this.size>104857600)throw new Error("download exceeds 100MB");controller.enqueue(chunk);}}));
+        return new Response(stream,{status:200,headers:{"Content-Type":"application/octet-stream","Content-Disposition":"attachment; filename*=UTF-8''"+encodeURIComponent(filename),"Cache-Control":"no-store",...cors(origin)}});
+      }catch(error){console.error("Pack download failed",error);return reply({error:"ダウンロードに失敗しました。配布元ページから取得してください。"},502,origin);}
+    }
     if (request.method === "POST" && url.pathname === "/api/admin/login") {
       if (!env.ADMIN_PASSWORD || !env.SESSION_SECRET) return reply({ error: "管理者認証がまだ設定されていません。管理者用シークレットを設定してください。" }, 503, origin);
       try {

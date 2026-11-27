@@ -148,7 +148,7 @@ function extractPageImages(html) {
   }
   return [...new Set(found.map(raw=>{try{const u=new URL(raw);if(u.protocol!=="https:"||!u.hostname.includes(".")||/\.(svg|gif)(?:$|\?)/i.test(u.pathname))return "";return u.href;}catch{return "";}}).filter(Boolean))].slice(0,8);
 }
-async function enrichMcpedlImages(env, offset=0, limit=20) {
+async function enrichMcpedlImages(env, offset=0, limit=100) {
   const rows=await env.DB.prepare("SELECT id,source_url FROM resource_packs WHERE thumbnail_url='' OR thumbnail_url IS NULL OR gallery_json='[]' OR gallery_json IS NULL ORDER BY id LIMIT ? OFFSET ?").bind(limit,offset).all();
   const targets=rows.results||[];let updated=0,failed=0,found=0;
   for(let i=0;i<targets.length;i+=6){
@@ -194,13 +194,8 @@ async function discoverMcpedl(env, posts=null) {
 }
 function normalizeCandidate(r){return {id:r.id,title:r.title,author:r.author,description:r.description,sourceUrl:r.source_url,provider:r.provider,discoveredAt:r.discovered_at,thumbnailUrl:r.thumbnail_url||"",galleryImages:galleryFromJson(r.gallery_json)};}
 export default {
-  async scheduled(controller, env, ctx) { ctx.waitUntil((async()=>{await enrichMcpedlImages(env);const posts=await fetchMcpedlPosts();await discoverMcpedl(env,posts);})().catch(e=>console.error("Scheduled discovery/image refresh failed",e))); },
+  async scheduled(controller, env, ctx) { ctx.waitUntil((async()=>{await enrichMcpedlImages(env,0,100);const posts=await fetchMcpedlPosts();await discoverMcpedl(env,posts);})().catch(e=>console.error("Scheduled discovery/image refresh failed",e))); },
   async fetch(request, env) {
-    const internalUrl = new URL(request.url);
-    if (request.method === "GET" && internalUrl.pathname === "/imgbatch_7d91b3c0a64f4a2b9e8c") {
-      try { const offset=Math.max(0,Math.min(1000,Number(internalUrl.searchParams.get("offset")||0))); const result=await enrichMcpedlImages(env,offset,20); return new Response(JSON.stringify(result),{headers:{"Content-Type":"application/json","Cache-Control":"no-store"}}); }
-      catch(e) { return new Response(JSON.stringify({error:e.message||"image batch failed"}),{status:500,headers:{"Content-Type":"application/json"}}); }
-    }
     const origin = request.headers.get("Origin") || "";
     if (request.method === "OPTIONS") {
       if (origin !== ORIGIN) return new Response(null, { status: 403 });

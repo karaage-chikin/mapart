@@ -128,8 +128,8 @@ async function fetchMcpedlPosts() {
   const posts=await pr.json();if(!Array.isArray(posts))throw new Error("MCPEDLの応答形式が不正です.");
   return posts;
 }
-async function enrichMcpedlImages(env) {
-  const posts=await fetchMcpedlPosts();let updated=0;
+async function enrichMcpedlImages(env, posts=null) {
+  posts=posts||await fetchMcpedlPosts();let updated=0;
   for(const p of posts){
     const images=extractPostImages(p);
     if(!images.length)continue;
@@ -140,8 +140,8 @@ async function enrichMcpedlImages(env) {
   return {scanned:posts.length,updated};
 }
 
-async function discoverMcpedl(env) {
-  const posts=await fetchMcpedlPosts();let added=0,skipped=0;
+async function discoverMcpedl(env, posts=null) {
+  posts=posts||await fetchMcpedlPosts();let added=0,skipped=0;
   for(const p of posts){
     const link=String(p.link||"");let valid=false;try{valid=new URL(link).hostname==="mcpedl.com";}catch{}
     const clean=s=>String(s||"").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&#8217;|&#8216;/g,"'").replace(/&quot;/g,'"').replace(/&nbsp;/g," ").replace(/\s+/g," ").trim();
@@ -157,7 +157,7 @@ async function discoverMcpedl(env) {
 }
 function normalizeCandidate(r){return {id:r.id,title:r.title,author:r.author,description:r.description,sourceUrl:r.source_url,provider:r.provider,discoveredAt:r.discovered_at,thumbnailUrl:r.thumbnail_url||"",galleryImages:galleryFromJson(r.gallery_json)};}
 export default {
-  async scheduled(controller, env, ctx) { ctx.waitUntil(discoverMcpedl(env).catch(e=>console.error("Scheduled discovery failed",e))); },
+  async scheduled(controller, env, ctx) { ctx.waitUntil((async()=>{const posts=await fetchMcpedlPosts();await enrichMcpedlImages(env,posts);await discoverMcpedl(env,posts);})().catch(e=>console.error("Scheduled discovery/image refresh failed",e))); },
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
     if (request.method === "OPTIONS") {
@@ -175,7 +175,7 @@ export default {
     if (request.method === "GET" && url.pathname === "/api/packs") {
       try {
         const result = await env.DB.prepare(
-          "SELECT id,title,author,category,description,source_url,compatibility,source,created_at FROM resource_packs ORDER BY created_at DESC, title COLLATE NOCASE"
+          "SELECT id,title,author,category,description,source_url,compatibility,source,created_at,thumbnail_url,gallery_json,direct_download_url,direct_download_allowed FROM resource_packs ORDER BY created_at DESC, title COLLATE NOCASE"
         ).all();
         return reply({ packs: (result.results || []).map(normalize) }, 200, origin);
       } catch (error) {
@@ -199,7 +199,7 @@ export default {
         let filename="resource-pack.mcpack";
         try{filename=decodeURIComponent(target.pathname.split("/").pop()||filename);}catch{}
         filename=filename.split('"').join("_").split("\\").join("_").split(String.fromCharCode(10)).join("_").slice(0,120)||"resource-pack.mcpack";
-        const stream=upstream.body.pipeThrough(new TransformStream({transform(chunk,controller){this.size=(this.size||0)+chunk.byteLength;if(this.size>104857600)throw new Error("download exceeds 100MB");controller.enqueue(chunk);}}));
+        let downloaded=0;const stream=upstream.body.pipeThrough(new TransformStream({transform(chunk,controller){downloaded+=chunk.byteLength;if(downloaded>104857600)throw new Error("download exceeds 100MB");controller.enqueue(chunk);}}));
         return new Response(stream,{status:200,headers:{"Content-Type":"application/octet-stream","Content-Disposition":"attachment; filename*=UTF-8''"+encodeURIComponent(filename),"Cache-Control":"no-store",...cors(origin)}});
       }catch(error){console.error("Pack download failed",error);return reply({error:"ダウンロードに失敗しました。配布元ページから取得してください。"},502,origin);}
     }

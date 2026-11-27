@@ -239,7 +239,7 @@ jobs:
           }
           async function fetchOne(pack) {
             if (!/^https:\/\/(?:mcpedl\.com|www\.curseforge\.com|www\.planetminecraft\.com)\//i.test(pack.sourceUrl || "")) return { pack, images: [] };
-            if (pack.imagesFetchedAt && pack.sourceUpdatedAt && pack.imagesFetchedAt >= pack.sourceUpdatedAt && (pack.galleryImages || []).length) return { pack, images: [] };
+            
             try {
               const response = await fetch(pack.sourceUrl, { headers, signal: AbortSignal.timeout(12000) });
               if (!response.ok) throw new Error("HTTP " + response.status);
@@ -252,14 +252,16 @@ jobs:
           }
           (async () => {
             let updated = 0, totalImages = 0, failed = 0;
-            const targets = packs.filter(p => /^https:\/\/(?:mcpedl\.com|www\.curseforge\.com|www\.planetminecraft\.com)\//i.test(p.sourceUrl || "") && !(p.imagesFetchedAt && p.sourceUpdatedAt && p.imagesFetchedAt >= p.sourceUpdatedAt && (p.galleryImages || []).length >= 4));
+            const targets = packs.filter(p => /^https:\/\/(?:mcpedl\.com|www\.curseforge\.com|www\.planetminecraft\.com)\//i.test(p.sourceUrl || ""));
           console.log("Eligible packs for image enrichment:", targets.length, "of", packs.length);
             for (let i = 0; i < targets.length; i += 15) {
               const batch = await Promise.all(targets.slice(i, i + 15).map(fetchOne));
               for (const item of batch) {
                 if (!item.images.length) { failed++; continue; }
-                const combined = [...new Set([...(item.pack.galleryImages || []), ...item.images])].slice(0, 20);
-                item.pack.thumbnailUrl = item.pack.thumbnailUrl || combined[0];
+                const isPromotionalUrl = value => /advert|banner|sponsor|promo|revenue|sale|newsletter|subscribe|affiliate|doubleclick|googlesyndication|adservice|adsystem|avatar|gravatar|profile|logo|social-icon|share-button/i.test(String(value || ""));
+                const combined = [...new Set(item.images.filter(value => !isPromotionalUrl(value)))].slice(0, 20);
+                if (!combined.length) { failed++; continue; }
+                item.pack.thumbnailUrl = combined[0];
                 item.pack.galleryImages = combined;
                 item.pack.imagesFetchedAt = new Date().toISOString().slice(0, 10);
                 updated++;

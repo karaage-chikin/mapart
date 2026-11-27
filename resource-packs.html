@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://resource-packs-api.karaage-chikin-029.workers.dev https://translate.googleapis.com; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
 <meta name="theme-color" content="#181825">
 <meta name="description" content="Minecraft Bedrock Edition専用のリソースパック図鑑。ジャンルやキーワードからパックを探せます。">
 <title>統合版リソースパック図鑑 | Minecraft制作ツール</title>
@@ -20,7 +20,7 @@ main{width:min(1180px,100% - 32px);margin:0 auto;padding:36px 0 70px}.hero{paddi
 .modal{position:fixed;inset:0;background:#0009;display:grid;place-items:center;padding:18px;z-index:10}.modal-card{width:min(820px,100%);max-height:85vh;overflow:auto;background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:22px;box-shadow:0 20px 70px #0008}.modal-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.modal h2{margin:8px 0}.modal p{line-height:1.8;color:#bac2de}.close{background:transparent;border:0;color:var(--muted);font-size:1.5rem}.modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
 footer{text-align:center;padding:22px;color:#6c7086;font-size:.75rem;border-top:1px solid var(--border)}
 @media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.top{padding:10px 0}.top .brand span:last-child{font-size:.88rem}main{padding-top:22px}.toolbar{grid-template-columns:1fr}.grid{grid-template-columns:1fr}.pack{min-height:190px}.admin-grid{grid-template-columns:1fr}.resultline{align-items:flex-start;flex-direction:column}}
-</style>
+ .catalogue-notice{margin:12px 0;padding:12px 14px;border:1px solid #d97706;border-radius:10px;background:#78350f33;color:#fde68a;line-height:1.6}.catalogue-notice[data-kind="error"]{border-color:#dc2626;background:#7f1d1d33;color:#fecaca}.catalogue-notice[hidden]{display:none} </style>
 </head>
 <body>
 <header><div class="top"><a class="brand" href="index.html"><span class="brand-icon">📦</span><span>Minecraft制作ツール</span></a><a class="home" href="index.html">← ホームへ戻る</a></div></header>
@@ -50,7 +50,7 @@ footer{text-align:center;padding:22px;color:#6c7086;font-size:.75rem;border-top:
 <input id="editVersion" class="field" placeholder="対応バージョン・注意点">
 <input id="editUrl" class="field" type="url" placeholder="公式配布ページURL（https://...）">
 <input id="editThumbnail" class="field" type="url" placeholder="一覧サムネイル画像URL（https://...）">
-<textarea id="editGallery" class="field" placeholder="ギャラリー画像URL（1行に1つ・最大8枚）"></textarea>
+<textarea id="editGallery" class="field" placeholder="ギャラリー画像URL（1行に1つ・最大20枚）"></textarea>
 <input id="editDownloadUrl" class="field" type="url" placeholder="直接ダウンロード用ファイルURL（任意）">
 <label class="checkline"><input id="editDownloadAllowed" type="checkbox"> 作者・配布元がファイルの直接配布を許可していることを確認済み</label>
 <p class="admin-hint">直接ダウンロードURLは、作者または配布元が再配布・直接配信を許可している場合だけ登録してください。未確認ならチェックせず、公式配布ページへのリンクだけにします。</p>
@@ -64,5 +64,5 @@ footer{text-align:center;padding:22px;color:#6c7086;font-size:.75rem;border-top:
 </main>
 <div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-card"><div class="modal-head"><div><span id="modalCategory" class="category"></span><h2 id="modalTitle"></h2></div><button id="modalClose" class="close" aria-label="閉じる">×</button></div><div id="modalGallery"></div><div id="modalBody"></div><div class="modal-actions"><a id="downloadLink" class="btn primary hidden" href="#" rel="noopener noreferrer">サイト内からダウンロード ↓</a><a id="sourceLink" class="btn" href="#" target="_blank" rel="noopener noreferrer">配布元でダウンロード ↗</a><a id="translateDescription" class="btn" href="#" target="_blank" rel="noopener noreferrer">説明を翻訳 ↗</a><button id="modalFav" class="btn">☆ お気に入り</button></div></div></div>
 <footer>Minecraft制作ツール · Bedrock resource pack directory</footer>
-<script src="resource-packs.js?v=2.2.0" defer></script>
+<script src="resource-packs.js?v=3.0.0" defer></script>
 </body></html>

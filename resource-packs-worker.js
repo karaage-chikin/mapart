@@ -115,7 +115,7 @@ function extractPostImages(post) {
   if(featured)urls.push(featured);
   const html=String(post.content?.rendered||"");
   for(const match of html.matchAll(/(?:src|data-src)=["']([^"']+)["']/gi))urls.push(match[1].replace(/&amp;/g,"&"));
-  return [...new Set(urls.map(raw=>{try{const u=new URL(raw);return u.protocol==="https:"&&(u.hostname==="mcpedl.com"||u.hostname.endsWith(".mcpedl.com"))?u.href:"";}catch{return "";}}).filter(Boolean))].slice(0,8);
+  return [...new Set(urls.map(raw=>{try{const u=new URL(raw);return u.protocol==="https:"&&(u.hostname==="mcpedl.com"||u.hostname.endsWith(".mcpedl.com"))?u.href:"";}catch{return "";}}).filter(Boolean))].slice(0,20);
 }
 async function fetchMcpedlPosts() {
   const headers={"User-Agent":"KaraageChikinResourcePackDirectory/1.1","Accept":"application/json"};
@@ -168,7 +168,7 @@ async function enrichMcpedlImages(env, offset=0, limit=100) {
       if(!item.images.length){failed++;continue;}
       const prior=await env.DB.prepare("SELECT thumbnail_url,gallery_json FROM resource_packs WHERE id=?").bind(item.id).first();
       let existing=[];try{existing=JSON.parse(prior?.gallery_json||"[]");}catch{}
-      const images=[...new Set([...(existing||[]),...item.images])].slice(0,8);
+      const images=[...new Set([...(existing||[]),...item.images])].slice(0,20);
       const thumb=prior?.thumbnail_url||images[0];
       await env.DB.prepare("UPDATE resource_packs SET thumbnail_url=?,gallery_json=?,updated_at=? WHERE id=?")
         .bind(thumb,JSON.stringify(images),Date.now(),item.id).run();

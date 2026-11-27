@@ -179,8 +179,8 @@ export default {
       if (request.method === "POST" && url.pathname === "/api/admin/discover") {
         try{return reply(await discoverMcpedl(env),200,origin);}catch(e){console.error(e);return reply({error:e.message||"候補を取得できませんでした。"},502,origin);}
       }
-      const cm=url.pathname.match(/^\/api\/admin\/candidates\/([A-Za-z0-9_-]{1,80})\/(approve)$/);
-      if(cm && request.method==="POST"){
+      const cm=url.pathname.match(/^\/api\/admin\/candidates\/([A-Za-z0-9_-]{1,80})(?:\/approve)?$/);
+      if(cm && request.method==="POST" && url.pathname.endsWith("/approve")){
         try{
           const c=await env.DB.prepare("SELECT * FROM resource_pack_candidates WHERE id=? AND status='pending'").bind(cm[1]).first();
           if(!c)return reply({error:"候補が見つかりません。"},404,origin);
@@ -191,7 +191,7 @@ export default {
           return reply({pack:normalize(row)},201,origin);
         }catch(e){console.error(e);return reply({error:"候補を公開できませんでした。"},500,origin);}
       }
-      if(cm && request.method==="DELETE"){await env.DB.prepare("DELETE FROM resource_pack_candidates WHERE id=?").bind(cm[1]).run();return reply({ok:true},200,origin);}
+      if(cm && request.method==="DELETE" && !url.pathname.endsWith("/approve")){await env.DB.prepare("DELETE FROM resource_pack_candidates WHERE id=?").bind(cm[1]).run();return reply({ok:true},200,origin);}
       if (request.method === "POST" && url.pathname === "/api/admin/packs") {
         try {
           const body = await readJson(request), invalid = validatePack(body);

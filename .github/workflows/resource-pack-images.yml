@@ -42,7 +42,7 @@ jobs:
           };
           function extractImages(html) {
             const found = [];
-            for (const m of html.matchAll(/<meta\\b[^>]*>/gi)) {
+            for (const m of html.matchAll(/<meta\b[^>]*>/gi)) {
               const tag = m[0];
               const key = (attr(tag, "property") || attr(tag, "name")).toLowerCase();
               if (["og:image", "twitter:image", "twitter:image:src"].includes(key)) {
@@ -50,24 +50,24 @@ jobs:
                 if (value) found.push(value);
               }
             }
-            for (const m of html.matchAll(/<img\\b[^>]*>/gi)) {
+            for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
               const tag = m[0];
               const value = attr(tag, "data-src") || attr(tag, "data-lazy-src") || attr(tag, "src");
               if (value) found.push(value);
               const srcset = attr(tag, "srcset");
-              if (srcset) found.push(srcset.split(",")[0].trim().split(/\\s+/)[0]);
+              if (srcset) found.push(srcset.split(",")[0].trim().split(/\s+/)[0]);
             }
             return [...new Set(found.map(raw => {
               try {
                 const u = new URL(raw);
-                if (u.protocol !== "https:" || !u.hostname.includes(".") || /\\.(svg|gif)(?:$|\\?)/i.test(u.pathname)) return "";
+                if (u.protocol !== "https:" || !u.hostname.includes(".") || /\.(svg|gif)(?:$|\?)/i.test(u.pathname)) return "";
                 if (/gravatar|overwolf|avatar|logo/i.test(u.hostname + u.pathname)) return "";
                 return u.href;
               } catch { return ""; }
             }).filter(Boolean))].slice(0, 8);
           }
           async function fetchOne(pack) {
-            if (!/^https:\/\/mcpedl\\.com\//i.test(pack.sourceUrl || "")) return { pack, images: [] };
+            if (!/^https:\/\/mcpedl\.com\//i.test(pack.sourceUrl || "")) return { pack, images: [] };
             try {
               const response = await fetch(pack.sourceUrl, { headers, signal: AbortSignal.timeout(18000) });
               if (!response.ok) throw new Error("HTTP " + response.status);
@@ -91,7 +91,7 @@ jobs:
                 totalImages += combined.length;
               }
             }
-            fs.writeFileSync(path, JSON.stringify(packs, null, 2) + "\\n");
+            fs.writeFileSync(path, JSON.stringify(packs, null, 2) + "\n");
             console.log(JSON.stringify({ scanned: packs.length, updated, totalImages, withoutImages: failed }, null, 2));
           })().catch(error => { console.error(error); process.exit(1); });
           NODE

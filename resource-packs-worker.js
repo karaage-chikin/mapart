@@ -53,25 +53,34 @@ async function isAdmin(request, secret) {
     return payload.role === "admin" && Number(payload.exp) > Date.now();
   } catch { return false; }
 }
+function galleryFromJson(value) {
+  try { const parsed=JSON.parse(value||"[]"); return Array.isArray(parsed)?parsed.filter(x=>typeof x==="string").slice(0,8):[]; } catch { return []; }
+}
 function normalize(row) {
+  const allowed=Number(row.direct_download_allowed||0)===1;
   return {
-    id: row.id, title: row.title, author: row.author || "", category: row.category || "その他",
-    description: row.description || "", sourceUrl: row.source_url, compatibility: row.compatibility || "配布元で確認",
-    source: row.source || "管理者登録", createdAt: row.created_at
+    id:row.id,title:row.title,author:row.author||"",category:row.category||"その他",
+    description:row.description||"",sourceUrl:row.source_url,compatibility:row.compatibility||"配布元で確認",
+    source:row.source||"管理者登録",createdAt:row.created_at,thumbnailUrl:row.thumbnail_url||"",
+    galleryImages:galleryFromJson(row.gallery_json),directDownloadAllowed:allowed,
+    directDownloadUrl:allowed?(row.direct_download_url||""):""
   };
 }
 function validatePack(input) {
-  if (!input || typeof input !== "object") return "入力内容が不正です。";
-  const title = String(input.title || "").trim();
-  const url = String(input.sourceUrl || "").trim();
-  const description = String(input.description || "").trim();
-  if (!title || title.length > 160) return "パック名を1〜160文字で入力してください。";
-  if (!description || description.length > 1200) return "説明を1〜1200文字で入力してください。";
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "https:" || !parsed.hostname.includes(".")) return "配布元URLはhttps://から始まるURLにしてください。";
-  } catch { return "配布元URLが正しくありません。"; }
-  if (String(input.author || "").length > 120 || String(input.category || "").length > 60 || String(input.compatibility || "").length > 120) return "入力が長すぎます。";
+  if(!input||typeof input!=="object")return "入力内容が不正です。";
+  const title=String(input.title||"").trim(),url=String(input.sourceUrl||"").trim(),description=String(input.description||"").trim();
+  if(!title||title.length>160)return "パック名を1〜160文字で入力してください。";
+  if(!description||description.length>1200)return "説明を1〜1200文字で入力してください。";
+  const isHttps=value=>{try{const u=new URL(value);return u.protocol==="https:"&&!!u.hostname.includes(".");}catch{return false;}};
+  if(!isHttps(url))return "配布元URLはhttps://から始まるURLにしてください。";
+  if(String(input.author||"").length>120||String(input.category||"").length>60||String(input.compatibility||"").length>120)return "入力が長すぎます。";
+  const thumb=String(input.thumbnailUrl||"").trim();
+  if(thumb&&!isHttps(thumb))return "サムネイル画像URLはhttps://から始まるURLにしてください。";
+  const gallery=Array.isArray(input.galleryImages)?input.galleryImages:[];
+  if(gallery.length>8||gallery.some(x=>typeof x!=="string"||x.length>2000||!isHttps(x.trim())))return "ギャラリー画像はhttps://のURLを8件以内で入力してください。";
+  const download=String(input.directDownloadUrl||"").trim();
+  if(download&&!isHttps(download))return "直接ダウンロードURLはhttps://から始まるURLにしてください。";
+  if(input.directDownloadAllowed===true&&!download)return "直接ダウンロードを許可する場合はファイルURLを入力してください。";
   return null;
 }
 async function readJson(request) {
@@ -99,31 +108,53 @@ async function resetLoginAttempts(env, request) {
   const key = b64url(new Uint8Array(digest).slice(0,18));
   await env.DB.prepare("DELETE FROM resource_pack_login_attempts WHERE ip_hash = ?").bind(key).run();
 }
+function extractPostImages(post) {
+  const urls=[];
+  const featured=post._embedded?.["wp:featuredmedia"]?.[0]?.source_url;
+  if(featured)urls.push(featured);
+  const html=String(post.content?.rendered||"");
+  for(const match of html.matchAll(/(?:src|data-src)=["']([^"']+)["']/gi))urls.push(match[1].replace(/&amp;/g,"&"));
+  return [...new Set(urls.map(raw=>{try{const u=new URL(raw);return u.protocol==="https:"&&(u.hostname==="mcpedl.com"||u.hostname.endsWith(".mcpedl.com"))?u.href:"";}catch{return "";}}).filter(Boolean))].slice(0,8);
+}
+async function fetchMcpedlPosts() {
+  const headers={"User-Agent":"KaraageChikinResourcePackDirectory/1.1","Accept":"application/json"};
+  const cr=await fetch("https://mcpedl.com/wp-json/wp/v2/categories?slug=texture-packs",{headers});
+  if(!cr.ok)throw new Error("MCPEDLカテゴリを取得できませんでした（HTTP "+cr.status+"）。");
+  const cats=await cr.json();
+  if(!Array.isArray(cats)||!cats[0]?.id)throw new Error("MCPEDLのTexture Packsカテゴリが見つかりません。");
+  const pr=await fetch("https://mcpedl.com/wp-json/wp/v2/posts?categories="+cats[0].id+"&per_page=100&orderby=date&order=desc&_embed=author,wp:featuredmedia",{headers});
+  if(!pr.ok)throw new Error("MCPEDL投稿一覧を取得できませんでした（HTTP "+pr.status+"）。");
+  const posts=await pr.json();if(!Array.isArray(posts))throw new Error("MCPEDLの応答形式が不正です.");
+  return posts;
+}
+async function enrichMcpedlImages(env) {
+  const posts=await fetchMcpedlPosts();let updated=0;
+  for(const p of posts){
+    const images=extractPostImages(p);
+    if(!images.length)continue;
+    const result=await env.DB.prepare("UPDATE resource_packs SET thumbnail_url=?,gallery_json=?,updated_at=? WHERE source_url=?")
+      .bind(images[0],JSON.stringify(images),Date.now(),String(p.link||"")).run();
+    updated+=Number(result?.meta?.changes||0);
+  }
+  return {scanned:posts.length,updated};
+}
+
 async function discoverMcpedl(env) {
-  const headers = { "User-Agent": "KaraageChikinResourcePackDirectory/1.0", "Accept": "application/json" };
-  const cr = await fetch("https://mcpedl.com/wp-json/wp/v2/categories?slug=texture-packs", {headers});
-  if (!cr.ok) throw new Error("MCPEDLカテゴリを取得できませんでした（HTTP " + cr.status + "）。");
-  const cats = await cr.json();
-  if (!Array.isArray(cats) || !cats[0]?.id) throw new Error("MCPEDLのTexture Packsカテゴリが見つかりません。");
-  const pr = await fetch("https://mcpedl.com/wp-json/wp/v2/posts?categories=" + cats[0].id + "&per_page=50&orderby=date&order=desc&_embed=author", {headers});
-  if (!pr.ok) throw new Error("MCPEDL投稿一覧を取得できませんでした（HTTP " + pr.status + "）。");
-  const posts = await pr.json();
-  if (!Array.isArray(posts)) throw new Error("MCPEDLの応答形式が不正です。");
-  let added=0, skipped=0;
-  for (const p of posts) {
-    const link=String(p.link||"");
-    let valid=false; try { valid=new URL(link).hostname==="mcpedl.com"; } catch {}
-    const clean=s=>String(s||"").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&#8217;|&#8216;/g,"'").replace(/&quot;/g,'"').replace(/&nbsp;/g," ").replace(/\\s+/g," ").trim();
-    const title=clean(p.title?.rendered), description=clean(p.excerpt?.rendered).slice(0,1000), author=String(p._embedded?.author?.[0]?.name||"").slice(0,120);
+  const posts=await fetchMcpedlPosts();let added=0,skipped=0;
+  for(const p of posts){
+    const link=String(p.link||"");let valid=false;try{valid=new URL(link).hostname==="mcpedl.com";}catch{}
+    const clean=s=>String(s||"").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&#8217;|&#8216;/g,"'").replace(/&quot;/g,'"').replace(/&nbsp;/g," ").replace(/\s+/g," ").trim();
+    const title=clean(p.title?.rendered),description=clean(p.excerpt?.rendered).slice(0,1000),author=String(p._embedded?.author?.[0]?.name||"").slice(0,120),images=extractPostImages(p);
     if(!valid||!title||!description){skipped++;continue;}
     const published=await env.DB.prepare("SELECT id FROM resource_packs WHERE source_url=? LIMIT 1").bind(link).first();
     if(published){skipped++;continue;}
-    const r=await env.DB.prepare("INSERT OR IGNORE INTO resource_pack_candidates (id,title,author,description,source_url,provider,discovered_at,status) VALUES (?,?,?,?,?,?,?,'pending')").bind(crypto.randomUUID(),title,author,description,link,"MCPEDL",Date.now()).run();
+    const r=await env.DB.prepare("INSERT OR IGNORE INTO resource_pack_candidates (id,title,author,description,source_url,provider,discovered_at,status,thumbnail_url,gallery_json) VALUES (?,?,?,?,?,?,?,'pending',?,?)")
+      .bind(crypto.randomUUID(),title,author,description,link,"MCPEDL",Date.now(),images[0]||"",JSON.stringify(images)).run();
     if(Number(r?.meta?.changes||0)===1)added++;else skipped++;
   }
   return {added,skipped,scanned:posts.length,provider:"MCPEDL"};
 }
-function normalizeCandidate(r){return {id:r.id,title:r.title,author:r.author,description:r.description,sourceUrl:r.source_url,provider:r.provider,discoveredAt:r.discovered_at};}
+function normalizeCandidate(r){return {id:r.id,title:r.title,author:r.author,description:r.description,sourceUrl:r.source_url,provider:r.provider,discoveredAt:r.discovered_at,thumbnailUrl:r.thumbnail_url||"",galleryImages:galleryFromJson(r.gallery_json)};}
 export default {
   async scheduled(controller, env, ctx) { ctx.waitUntil(discoverMcpedl(env).catch(e=>console.error("Scheduled discovery failed",e))); },
   async fetch(request, env) {

@@ -84,33 +84,29 @@ jobs:
                 if (modified && modified < cutoff) { reachedOld = true; break; }
                 if (!modified) continue;
                 const sourceUrl = key + "/";
-                const near = html.slice(Math.max(0, m.index - 1200), Math.min(html.length, m.index + 2200));
-                const img = near.match(/(?:data-src|data-lazy-src|src)=["'](https:\/\/[^"']+\.(?:jpg|jpeg|png|webp)(?:\?[^"']*)?)["']/i);
-                const by = near.match(/\bBy\s+([^<·]{2,100})\s*[·<]/i);
-                const author = by ? clean(by[1]) : "";
-                const image = img?.[1] || "";
                 const existing = known.get(key.toLowerCase());
                 if (existing) {
                   existing.sourceUpdatedAt = modified.toISOString().slice(0, 10);
-                  if (author) existing.author = author;
-                  if (image) {
-                    existing.thumbnailUrl = existing.thumbnailUrl || image;
-                    existing.galleryImages = [...new Set([...(existing.galleryImages || []), image])].slice(0, 8);
+                  if (existing.sourceType === "automatic") {
+                    existing.description = "Minecraft Bedrock向けリソースパック。詳細・対応バージョンは配布元ページで確認してください。";
+                    existing.author = "";
+                    existing.thumbnailUrl = "";
+                    existing.galleryImages = [];
+                    delete existing.imagesFetchedAt;
                   }
                   updated++;
                   continue;
                 }
                 const slug = parts[0];
                 const id = "mcpedl-" + slug.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 56);
-                const description = clean(near).slice(0, 700);
                 const record = {
-                  id, title, author, category: category(title),
-                  description: description || "Minecraft Bedrock向けリソースパック。詳細・対応バージョンは配布元ページで確認してください。",
+                  id, title, author: "", category: category(title),
+                  description: "Minecraft Bedrock向けリソースパック。詳細・対応バージョンは配布元ページで確認してください。",
                   sourceUrl, compatibility: "Bedrock向け（配布元でバージョン確認）",
                   source: "MCPEDL", sourceType: "automatic",
                   createdAt: modified.toISOString().slice(0, 10),
                   sourceUpdatedAt: modified.toISOString().slice(0, 10),
-                  thumbnailUrl: image, galleryImages: image ? [image] : []
+                  thumbnailUrl: "", galleryImages: []
                 };
                 packs.push(record);
                 known.set(key.toLowerCase(), record);

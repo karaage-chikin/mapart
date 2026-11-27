@@ -33,104 +33,66 @@ jobs:
           const path = "resource-packs.json";
           const packs = JSON.parse(fs.readFileSync(path, "utf8"));
           const known = new Set(packs.map(p => String(p.sourceUrl || "").replace(/\/+$/, "")));
-          const headers = {
-            "User-Agent": "Mozilla/5.0 (compatible; KaraageChikinBedrockPackDirectory/1.0)",
-            "Accept": "application/json"
-          };
-          const clean = s => String(s || "").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&#8217;|&#8216;/g, "'").replace(/&quot;/g, '"').replace(/&#160;|&nbsp;/g, " ").replace(/\s+/g, " ").trim();
-          function category(title, desc) {
-            const t = (title + " " + desc).toLowerCase();
-            if (/shader|vibrant visual|pbr|lighting/.test(t)) return "シェーダー";
-            if (/ui|gui|hud|menu|crosshair|inventory|touch control/.test(t)) return "UI・テーマ";
+          const headers = { "User-Agent": "Mozilla/5.0 (compatible; KaraageChikinBedrockPackDirectory/1.0)", "Accept": "text/html,application/xhtml+xml" };
+          const clean = s => String(s || "").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&#8217;|&#8216;/g, "'").replace(/&quot;/g, '"').replace(/&#160;|&nbsp;/g, " ").replace(/&#8211;/g, "–").replace(/\s+/g, " ").trim();
+          function category(title) {
+            const t = title.toLowerCase();
+            if (/shader|visual|pbr/.test(t)) return "シェーダー";
+            if (/ui|gui|hud|menu|crosshair|inventory/.test(t)) return "UI・テーマ";
             if (/sound|music|audio/.test(t)) return "サウンド";
-            if (/font|language|translation/.test(t)) return "言語・フォント";
+            if (/font|language/.test(t)) return "言語・フォント";
             if (/animation|animated/.test(t)) return "アニメーション";
             if (/tree|plant|leaves|flower|nature|grass/.test(t)) return "自然・植物";
             if (/block|ore|glass|item|texture/.test(t)) return "ブロック・建築";
-            if (/low.?end|fps|performance|optimization|lag/.test(t)) return "軽量化";
+            if (/fps|performance|optimization|lag/.test(t)) return "軽量化";
             return "その他";
           }
-          function imagesFromPost(post) {
-            const found = [];
-            const featured = post._embedded?.["wp:featuredmedia"]?.[0]?.source_url;
-            if (featured) found.push(featured);
-            const html = String(post.content?.rendered || "");
-            for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
-              const tag = m[0];
-              const src = tag.match(/\b(?:data-src|data-lazy-src|src)=["']([^"']+)["']/i)?.[1];
-              if (src) found.push(src.replace(/&amp;/g, "&"));
-            }
-            return [...new Set(found.map(raw => {
-              try {
-                const u = new URL(raw);
-                if (u.protocol !== "https:" || /\.(svg)(?:$|\?)/i.test(u.pathname)) return "";
-                if (/gravatar|avatar|logo|icon/i.test(u.hostname + u.pathname)) return "";
-                return u.href;
-              } catch { return ""; }
-            }).filter(Boolean))].slice(0, 8);
-          }
-          async function fetchPage(categoryId, page) {
-            const url = "https://mcpedl.com/wp-json/wp/v2/posts?categories=" + categoryId +
-              "&per_page=100&page=" + page + "&orderby=date&order=desc&_embed=author,wp:featuredmedia";
-            let last;
-            for (let attempt = 0; attempt < 3; attempt++) {
-              try {
-                const r = await fetch(url, { headers, signal: AbortSignal.timeout(25000) });
-                if (r.status === 400) return { posts: [], totalPages: page - 1, done: true };
-                if (!r.ok) throw new Error("HTTP " + r.status);
-                return { posts: await r.json(), totalPages: Number(r.headers.get("X-WP-TotalPages") || 1), done: false };
-              } catch (e) {
-                last = e;
-                await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1)));
-              }
-            }
-            throw last;
+          async function getPage(page) {
+            const url = page === 1 ? "https://mcpedl.com/category/texture-packs/" : "https://mcpedl.com/category/texture-packs/page/" + page + "/";
+            const r = await fetch(url, { headers, signal: AbortSignal.timeout(25000) });
+            if (!r.ok) throw new Error("MCPEDL listing page " + page + " failed: HTTP " + r.status);
+            return await r.text();
           }
           (async () => {
-            const cr = await fetch("https://mcpedl.com/wp-json/wp/v2/categories?slug=texture-packs", { headers, signal: AbortSignal.timeout(20000) });
-            if (!cr.ok) throw new Error("MCPEDL category API failed: HTTP " + cr.status);
-            const cats = await cr.json();
-            const categoryId = cats?.[0]?.id;
-            if (!categoryId) throw new Error("MCPEDL Bedrock texture-pack category not found");
-            let added = 0, scanned = 0, page = 1, totalPages = 1;
-            const maxPages = 20;
-            while (added < 500 && page <= totalPages && page <= maxPages) {
-              const result = await fetchPage(categoryId, page);
-              if (result.done || !result.posts.length) break;
-              totalPages = result.totalPages;
-              scanned += result.posts.length;
-              for (const post of result.posts) {
-                const link = String(post.link || "").replace(/\/+$/, "");
-                let valid = false;
-                try { const u = new URL(link); valid = u.protocol === "https:" && u.hostname === "mcpedl.com"; } catch {}
-                const title = clean(post.title?.rendered);
-                const description = clean(post.excerpt?.rendered || post.content?.rendered).slice(0, 1000);
-                if (!valid || !title || known.has(link)) continue;
-                const galleryImages = imagesFromPost(post);
-                const id = "mcpedl-" + String(post.id || post.slug || added).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 48);
+            let added = 0, scanned = 0, lastPage = 0;
+            for (let page = 1; page <= 80 && added < 500; page++) {
+              const html = await getPage(page);
+              lastPage = page;
+              let pageAdded = 0;
+              for (const m of html.matchAll(/<a\b[^>]*href=["'](https?:\/\/mcpedl\.com\/[^"'?#]+\/?)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+                const rawUrl = m[1].replace(/\/+$/, "");
+                let u;
+                try { u = new URL(rawUrl); } catch { continue; }
+                const parts = u.pathname.split("/").filter(Boolean);
+                if (u.hostname !== "mcpedl.com" || parts.length !== 1 || /^(category|tag|author|page|wp-json|login|register|search)$/i.test(parts[0])) continue;
+                const title = clean(m[2]);
+                if (!title || title.length < 3 || title.length > 180 || known.has(rawUrl)) continue;
+                const near = html.slice(Math.max(0, m.index - 1800), Math.min(html.length, m.index + 2600));
+                const imageMatch = near.match(/(?:data-src|data-lazy-src|src)=["'](https:\/\/[^"']+\.(?:jpg|jpeg|png|webp)(?:\?[^"']*)?)["']/i);
+                const image = imageMatch?.[1] || "";
+                const by = near.match(/\bBy\s+([^<·]{2,100})\s*[·<]/i);
+                const author = by ? clean(by[1]) : "";
+                const id = "mcpedl-" + parts[0].replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 56);
                 packs.push({
-                  id, title,
-                  author: clean(post._embedded?.author?.[0]?.name || ""),
-                  category: category(title, description),
-                  description: description || "詳細・対応バージョンは配布元ページで確認してください。",
-                  sourceUrl: link + "/",
-                  compatibility: "Bedrock向け（配布元でバージョン確認）",
-                  source: "MCPEDL",
-                  sourceType: "automatic",
-                  createdAt: post.date || new Date().toISOString().slice(0, 10),
-                  thumbnailUrl: galleryImages[0] || "",
-                  galleryImages
+                  id, title, author, category: category(title),
+                  description: "Minecraft Bedrock向けリソースパック。詳細・対応バージョンは配布元ページで確認してください。",
+                  sourceUrl: rawUrl + "/", compatibility: "Bedrock向け（配布元でバージョン確認）",
+                  source: "MCPEDL", sourceType: "automatic",
+                  createdAt: new Date().toISOString().slice(0, 10),
+                  thumbnailUrl: image, galleryImages: image ? [image] : []
                 });
-                known.add(link);
-                added++;
+                known.add(rawUrl);
+                added++; pageAdded++; scanned++;
                 if (added >= 500) break;
               }
-              console.log("MCPEDL page", page, "scanned", scanned, "new", added, "of", totalPages);
-              page++;
+              console.log("Listing page", page, "new", pageAdded, "total new", added);
+              if (pageAdded === 0 && page > 3) {
+                // Keep paging through older pages; a page can contain only already-listed entries.
+              }
             }
             fs.writeFileSync(path, JSON.stringify(packs, null, 2) + "\n");
-            console.log(JSON.stringify({ previousAndNewTotal: packs.length, added, scanned, pagesRead: page - 1 }, null, 2));
-            if (added === 0) console.log("No new resource packs were found; existing catalogue was retained.");
+            console.log(JSON.stringify({ total: packs.length, added, scanned, lastPage }, null, 2));
+            if (added < 500) console.log("Only " + added + " new unique entries were available in the pages checked.");
           })().catch(error => { console.error(error); process.exit(1); });
           NODE
       - name: Fetch public pack images

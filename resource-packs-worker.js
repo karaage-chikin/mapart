@@ -195,14 +195,15 @@ async function discoverMcpedl(env, posts=null) {
 function normalizeCandidate(r){return {id:r.id,title:r.title,author:r.author,description:r.description,sourceUrl:r.source_url,provider:r.provider,discoveredAt:r.discovered_at,thumbnailUrl:r.thumbnail_url||"",galleryImages:galleryFromJson(r.gallery_json)};}
 export default {
   async scheduled(controller, env, ctx) { ctx.waitUntil((async()=>{await enrichMcpedlImages(env,0,100);const posts=await fetchMcpedlPosts();await discoverMcpedl(env,posts);})().catch(e=>console.error("Scheduled discovery/image refresh failed",e))); },
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const origin = request.headers.get("Origin") || "";
     if (request.method === "OPTIONS") {
       if (origin !== ORIGIN) return new Response(null, { status: 403 });
       return new Response(null, { status: 204, headers: cors(origin) });
     }
-    if (origin !== ORIGIN) return new Response("Forbidden", { status: 403, headers: { "X-Content-Type-Options": "nosniff" } });
     const url = new URL(request.url);
+    const publicPackRead = request.method === "GET" && url.pathname === "/api/packs" && (origin === "" || origin === ORIGIN);
+    if (origin !== ORIGIN && !publicPackRead) return new Response("Forbidden", { status: 403, headers: { "X-Content-Type-Options": "nosniff" } });
     if (request.method === "GET" && url.pathname === "/api/health") {
       try {
         await env.DB.prepare("SELECT 1 AS ok").first();
@@ -211,10 +212,28 @@ export default {
     }
     if (request.method === "GET" && url.pathname === "/api/packs") {
       try {
+        await env.DB.prepare("INSERT OR IGNORE INTO resource_pack_image_jobs (id,status) VALUES (1,'idle')").run();
+        const now=Date.now();
+        const claim=await env.DB.prepare("UPDATE resource_pack_image_jobs SET status='running',started_at=?,finished_at=NULL,result_json=NULL WHERE id=1 AND status!='running' AND (finished_at IS NULL OR finished_at<?)")
+          .bind(now,now-21600000).run();
+        if(Number(claim?.meta?.changes||0)===1){
+          ctx.waitUntil((async()=>{
+            try{
+              const result=await enrichMcpedlImages(env,0,100);
+              await env.DB.prepare("UPDATE resource_pack_image_jobs SET status='done',finished_at=?,result_json=? WHERE id=1")
+                .bind(Date.now(),JSON.stringify(result)).run();
+              console.log("Automatic gallery image import completed",result);
+            }catch(error){
+              await env.DB.prepare("UPDATE resource_pack_image_jobs SET status='failed',finished_at=?,result_json=? WHERE id=1")
+                .bind(Date.now(),JSON.stringify({error:String(error?.message||error)})).run();
+              console.error("Automatic gallery image import failed",error);
+            }
+          })());
+        }
         const result = await env.DB.prepare(
           "SELECT id,title,author,category,description,source_url,compatibility,source,created_at,thumbnail_url,gallery_json,direct_download_url,direct_download_allowed FROM resource_packs ORDER BY created_at DESC, title COLLATE NOCASE"
         ).all();
-        return reply({ packs: (result.results || []).map(normalize) }, 200, origin);
+        return reply({ packs: (result.results || []).map(normalize), imageImportStarted:Number(claim?.meta?.changes||0)===1 }, 200, origin);
       } catch (error) {
         console.error("Pack listing failed", error);
         return reply({ error: "一覧を読み込めませんでした。" }, 503, origin);

@@ -1,5 +1,6 @@
 (()=>{"use strict";
-const API=document.querySelector('meta[name="resource-packs-api"]')?.content;\nif(!API)throw new Error("API endpoint is not configured");
+const API=document.querySelector('meta[name="resource-packs-api"]')?.content;
+if(!API)throw new Error("API endpoint is not configured");
 const TOKEN_KEY="resourcePackAdminToken";
 const storedToken=sessionStorage.getItem(TOKEN_KEY)||"";
 const token=/^[A-Za-z0-9_.-]{20,2048}$/.test(storedToken)?storedToken:"";

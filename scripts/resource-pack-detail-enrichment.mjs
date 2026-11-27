@@ -31,7 +31,13 @@ function articleText($){
  for(const selector of selectors){
   $(selector).each((_,el)=>{
    const node=$(el).clone();
-   node.find("script,style,svg,nav,footer,header,aside,form,button,[class*='advert'],[id*='advert'],[class*='promo'],[class*='banner'],[class*='social']").remove();
+   node.find("script,style,svg,nav,footer,header,aside,form,button,iframe,[class*='advert'],[id*='advert'],[class*='sponsor'],[id*='sponsor'],[class*='promo'],[id*='promo'],[class*='banner'],[id*='banner'],[class*='ad-slot'],[id*='ad-slot'],[data-ad],[aria-label*='advert'],[class*='social']").remove();
+   node.find("p,li,div").each((_,item)=>{
+    const line=cleanText($(item).text());
+    const promo=/\\b(advertisement|sponsored content|promoted post|advertise with us|ad choices|affiliate offer|subscribe to our newsletter)\\b/i.test(line);
+    const attribution=/\\b(by|author|created by|uploaded by|credit|credits)\\b/i.test(line)||/(作者|作成者|投稿者|クレジット)/.test(line);
+    if(promo&&!attribution)$(item).remove();
+   });
    const text=cleanText(node.text());
    if(text.length>best.length&&text.length<=MAX_DESCRIPTION*2)best=text;
   });

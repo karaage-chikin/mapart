@@ -83,15 +83,18 @@ function pollGalleryImages(attempt=0){
  },10000);
 }
 function mergeLivePacks(live){
- const byUrl=new Map(seedPacks.map(p=>[p.sourceUrl,p]));
- return (live||[]).map(p=>{
-  const seed=byUrl.get(p.sourceUrl)||{};
-  return {...p,thumbnailUrl:p.thumbnailUrl||seed.thumbnailUrl||"",galleryImages:(p.galleryImages&&p.galleryImages.length?p.galleryImages:(seed.galleryImages||[]))};
- });
+ const byUrl=new Map();
+ for(const p of seedPacks)byUrl.set(String(p.sourceUrl||"").replace(/\/+$/,""),p);
+ for(const p of (live||[])){
+  const key=String(p.sourceUrl||"").replace(/\/+$/,"");
+  const seed=byUrl.get(key)||{};
+  byUrl.set(key,{...seed,...p,thumbnailUrl:p.thumbnailUrl||seed.thumbnailUrl||"",galleryImages:(p.galleryImages&&p.galleryImages.length?p.galleryImages:(seed.galleryImages||[]))});
+ }
+ return [...byUrl.values()];
 }
 async function load(){
  try{
-  const response=await fetch("resource-packs.json?v=1.1.0",{cache:"no-store"});
+  const response=await fetch("resource-packs.json?v=1.2.0",{cache:"no-store"});
   if(!response.ok)throw new Error("seed");
   seedPacks=await response.json();packs=seedPacks;
  }catch{packs=[];}

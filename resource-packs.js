@@ -35,6 +35,7 @@ const searchTerms = [
  ["明るい","bright","light","白","white"]
 ];
 function normalized(s){return String(s||"").normalize("NFKC").toLocaleLowerCase().trim();}
+const formatDateJst=value=>{const n=Number(value);if(!Number.isFinite(n))return "不明";const d=new Date(n);return Number.isNaN(d.getTime())?"不明":new Intl.DateTimeFormat("ja-JP",{timeZone:"Asia/Tokyo",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}).format(d);};
 function expandSearch(q){const n=normalized(q);const out=[n];for(const group of searchTerms){if(group.some(t=>normalized(t)===n)||group.some(t=>n.includes(normalized(t))&&normalized(t).length>1))out.push(...group.map(normalized));}return [...new Set(out.filter(Boolean))];}
 function suggestionItems(q){
  const n=normalized(q);if(!n)return ["シェーダー","UI","自然","空","水","ブロック","アイテム","サウンド","軽量化","フォント"];
@@ -128,7 +129,7 @@ const candidateCategories=["その他","シェーダー","軽量化","UI・テ�
 async function loadCandidates(){
  const box=$("candidateList");if(!box)return;box.innerHTML='<div class="empty">候補を読み込み中…</div>';
  try{const data=await api("/api/admin/candidates"),list=data.candidates||[];
- box.innerHTML=list.length?list.map(c=>'<article class="pack">'+imageMarkup(c.thumbnailUrl||((c.galleryImages||[])[0])||"",c.title,"pack-thumb")+'<h2>'+esc(c.title)+'</h2><div class="author">作者：'+esc(c.author||"不明")+' · '+esc(c.provider)+'</div><p class="desc">'+esc(c.description)+'</p><div class="admin-actions"><a class="btn small" href="'+esc(safeImageUrl(c.sourceUrl)||"#")+'" target="_blank" rel="noopener noreferrer">配布元を確認 ↗</a><select class="field" data-candidate-category="'+esc(c.id)+'">'+candidateCategories.map(x=>'<option>'+esc(x)+'</option>').join("")+'</select><button class="btn primary small" data-approve="'+esc(c.id)+'">確認して公開</button><button class="btn small" data-reject="'+esc(c.id)+'">除外</button></div><div class="version">発見：'+new Date(c.discoveredAt).toLocaleString("ja-JP")+'</div></article>').join(""):'<div class="empty">追加候補はありません。今すぐ候補を探してみてね。</div>';
+ box.innerHTML=list.length?list.map(c=>'<article class="pack">'+imageMarkup(c.thumbnailUrl||((c.galleryImages||[])[0])||"",c.title,"pack-thumb")+'<h2>'+esc(c.title)+'</h2><div class="author">作者：'+esc(c.author||"不明")+' · '+esc(c.provider)+'</div><p class="desc">'+esc(c.description)+'</p><div class="admin-actions"><a class="btn small" href="'+esc(safeImageUrl(c.sourceUrl)||"#")+'" target="_blank" rel="noopener noreferrer">配布元を確認 ↗</a><select class="field" data-candidate-category="'+esc(c.id)+'">'+candidateCategories.map(x=>'<option>'+esc(x)+'</option>').join("")+'</select><button class="btn primary small" data-approve="'+esc(c.id)+'">確認して公開</button><button class="btn small" data-reject="'+esc(c.id)+'">除外</button></div><div class="version">発見：'+formatDateJst(c.discoveredAt)+'</div></article>').join(""):'<div class="empty">追加候補はありません。今すぐ候補を探してみてね。</div>';
  $("candidateStatus").textContent=list.length+"件の未確認候補";
  }catch(e){box.innerHTML='<div class="empty">候補を読み込めませんでした：'+esc(e.message)+'</div>';}
 }

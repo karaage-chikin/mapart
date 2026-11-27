@@ -737,61 +737,11 @@
   </style>
 </head>
 <body class="is-loading">
-  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示">v1.5.48</button>
+  <button type="button" class="app-version" id="appVersion" aria-controls="updateNotice" aria-expanded="false" title="クリックして更新情報を表示" data-version="v1.5.49"></button>
   <section class="update-notice" id="updateNotice" role="dialog" aria-labelledby="updateNoticeTitle" aria-describedby="updateNoticeDescription" hidden>
-    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion">v1.5.48</span></h2>
+    <h2 id="updateNoticeTitle">アップデートしました！ <span id="updateNoticeVersion"></span></h2>
     <p id="updateNoticeDescription">新しいバージョンが利用できます。</p>
-    <ul id="updateNoticeChanges">
-      <li>必要数のスタック・シュルカー換算で、該当しない単位も0として表示</li>
-      <li>クラウド共有した設計図ページから、同じ設計図の設置手順を直接開けるように変更</li>
-      <li>設置手順の表示を8ブロック単位に変更</li>
-      <li>追加補正7項目を全範囲探索＋局所精密探索で自動最適化</li>
-      <li>手動補正にハイライト・シャドウ・白レベル・黒レベル・色相・明瞭度・ノイズ軽減を追加</li>
-      <li>必要数一覧を「〇st + 〇〇」「〇sh + 〇st + 〇〇」の実数換算表示に変更</li>
-      <li>通常変換でディザリング方式を取得する変数の自己参照を修正</li>
-      <li>画像読み込み・変換結果のリセット・統計表示・履歴管理・設置手順URLを改善</li>
-      <li>輪郭確認モードを追加し、元画像とマップアートの輪郭の一致・欠落・余分な線を可視化</li>
-      <li>色の誤差ヒートマップを追加し、元画像と実際のマップカラーの差を可視化</li>
-      <li>誤差ヒートマップに単独表示・元画像重ね表示・マスごとの色差確認を追加</li>
-      <li>自動補正・通常変換の色判定をテクスチャ平均色から分離し、Minecraftマップカラーだけで評価</li>
-      <li>自動最適化の評価を、出力される128×128マップカラーの平均色差へ統一</li>
-      <li>クラウド保存の通信タイムアウトとHTTP別エラー表示を追加</li>
-      <li>クラウド保存領域に件数・総容量の上限を追加</li>
-      <li>Safariで新しいタブを先に確保し、保存中・失敗時の案内を改善</li>
-      <li>画像変換の進捗を行数・パーセントで表示</li>
-      <li>クラウド共有機能を空の状態から再スタート</li>
-      <li>クラウド保存をPNGバイナリ方式に変更し、Base64変換による容量増加を解消</li>
-      <li>クラウド読み込み時のD1 BLOB配列変換に対応し、共有PNGが空になる問題を修正</li>
-      <li>設計図データをIndexedDBで受け渡し、URLを短縮（旧URLも引き続き対応）</li>
-      <li>設置進捗を自動保存し、設置方向の変更時に進捗リセットを確認</li>
-      <li>ミニマップの色画像をキャッシュして、移動時はハイライトのみ更新</li>
-      <li>PNG保存時の全ピクセル再検証を廃止し、形式・ヘッダー検証に整理</li>
-      <li>Bedrockテクスチャ参照を固定コミットにし、取得失敗時はマップ色表示へフォールバック</li>
-      <li>パレットID表・テクスチャ解決・コメント付きJSON解析を共通ファイルに集約</li>
-      <li>97種類のブロック色データを共有パレットへ一本化し、ID・RGB形式を検証</li>
-      <li>整数RGBの最寄りブロック検索をキャッシュし、同じ色の再探索を削減</li>
-      <li>旧URLのブロック番号順を固定し、既存リンクの互換性を保護</li>
-      <li>画像アップロード時の二重読み込みを修正</li>
-      <li>2Dプレビューのピクセル描画方式を改善</li>
-      <li>プレビュー表示の安定性を改善</li>
-      <li>ガンマ補正の計算ミスを修正し、明るさ・色調補正を正常化</li>
-      <li>アップロードと画像調整を別カテゴリに整理</li>
-      <li>自動最適化を複数パターン比較方式に変更し、ブロック色差と輪郭保持を評価</li>
-      <li>明るさ・コントラスト・彩度・ガンマ・ディザリングを組み合わせて自動選択</li>
-      <li>2つ目の最適化機能を削除</li>
-      <li>自動最適化後も手動スライダーをそのまま操作できるよう調整</li>
-      <li>選択中のブロックだけで最適化し、最適化中に選択が変わった場合は誤適用を防止</li>
-      <li>Sobelフィルタで輪郭の方向・強度・線の連続性を評価（35%）</li>
-      <li>輪郭付近の色精度（25%）・全ピクセル色差（25%）・2×2領域色差（15%）で評価</li>
-      <li>シャープネス0/25/50%とディザリング7設定を含む1,701候補を比較</li>
-      <li>32×32×32 Lab近似LUTと上位16ブロック候補で探索を高速化</li>
-      <li>Worker非対応時はメインスレッドの代替評価へフォールバック</li>
-      <li>自動最適化の進行状況を候補数ではなくパーセント表示に変更</li>
-      <li>Jarvis–Judice–Ninke・Sierra Lite・Bayer 4×4ディザリングを追加</li>
-      <li>画質・色調補正を独立タブに分離し、色温度・自然な彩度を追加</li>
-      <li>追加補正と新ディザリング方式も自動最適化の比較対象に追加</li>
-      <li>Workerの色温度・自然な彩度の反映漏れを修正</li><li>粗探索140候補＋精密探索7候補に変更</li><li>最大4 Worker並列・進行表示・中止操作・階調クリッピングペナルティを追加</li>
-    </ul>
+    <ul id="updateNoticeChanges" aria-live="polite"><li>更新履歴を読み込んでいます…</li></ul>
     <button type="button" id="dismissUpdateNotice">確認した</button>
   </section>
   <div class="texture-loading-screen" id="textureLoadingScreen" role="status" aria-live="polite">
@@ -996,7 +946,37 @@
       const dismissButton = document.getElementById("dismissUpdateNotice");
       if (!versionElement || !notice || !dismissButton) return;
       const versionLabel = document.getElementById("updateNoticeVersion");
-      if (versionLabel) versionLabel.textContent = versionElement.textContent.trim();
+      const version = versionElement.dataset.version || "バージョン不明";
+      versionElement.textContent = version;
+      if (versionLabel) versionLabel.textContent = version;
+      const changesList = document.getElementById("updateNoticeChanges");
+      if (changesList) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        fetch("mapart-changelog.json", { cache: "no-store", signal: controller.signal })
+          .then(response => { if (!response.ok) throw new Error("HTTP " + response.status); return response.json(); })
+          .then(data => {
+            if (!Array.isArray(data.changes)) throw new Error("Invalid changelog");
+            const fragment = document.createDocumentFragment();
+            data.changes.forEach(change => {
+              const li = document.createElement("li");
+              li.textContent = String(change);
+              fragment.appendChild(li);
+            });
+            changesList.replaceChildren(fragment);
+            if (data.version) {
+              versionElement.textContent = String(data.version);
+              if (versionLabel) versionLabel.textContent = String(data.version);
+            }
+          })
+          .catch(() => {
+            changesList.replaceChildren();
+            const li = document.createElement("li");
+            li.textContent = "更新履歴を読み込めませんでした。ページを再読み込みしてください。";
+            changesList.appendChild(li);
+          })
+          .finally(() => clearTimeout(timeout));
+      }
       const closeNotice = () => {
         notice.hidden = true;
         versionElement.setAttribute("aria-expanded", "false");

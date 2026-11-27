@@ -71,9 +71,12 @@ async function loadLogs(type,page,seq){
  const offset=page*PAGE_SIZE;
  const d=await api("/api/admin/monitor/logs?type="+encodeURIComponent(type)+"&limit="+PAGE_SIZE+"&offset="+offset);
  if(seq!==requestSequence)return;
- const list=d.logs||[];
- $("pageContent").innerHTML='<section class="panel"><h2>'+(type==="update"?"更新・管理操作":"Debug・エラー記録")+'</h2>'+rows(list.map(x=>({title:x.action,body:x.detail,meta:formatDate(x.created_at)+" / "+x.type})))+pager("logs",page,d.total,d.hasMore)+'</section>';
- status("全"+number(d.total)+"件中 "+(offset+1)+"〜"+(offset+list.length)+"件を表示","good");
+ const all=d.logs||[],serverPaged=Number.isFinite(Number(d.total));
+ const total=serverPaged?number(d.total):all.length;
+ const list=serverPaged?all:all.slice(offset,offset+PAGE_SIZE);
+ const hasMore=serverPaged?Boolean(d.hasMore):offset+PAGE_SIZE<total;
+ $("pageContent").innerHTML='<section class="panel"><h2>'+(type==="update"?"更新・管理操作":"Debug・エラー記録")+'</h2>'+rows(list.map(x=>({title:x.action,body:x.detail,meta:formatDate(x.created_at)+" / "+x.type})))+pager("logs",page,total,hasMore)+'</section>';
+ status("全"+total+"件中 "+(total?offset+1:0)+"〜"+(offset+list.length)+"件を表示","good");
 }
 async function loadStorage(seq){
  const d=await api("/api/admin/monitor/overview");if(seq!==requestSequence)return;
@@ -84,9 +87,12 @@ async function loadStorage(seq){
 async function loadAccess(page,seq){
  const offset=page*PAGE_SIZE,d=await api("/api/admin/monitor/access?limit="+PAGE_SIZE+"&offset="+offset);
  if(seq!==requestSequence)return;
- const daily=(d.daily||[]),admins=(d.admin||[]);
- $("pageContent").innerHTML='<section class="panel"><h2>公開ページの日別アクセス（直近90日）</h2>'+(daily.length?'<table><thead><tr><th>日付（日本時間）</th><th>API</th><th>アクセス数</th></tr></thead><tbody>'+daily.map(x=>'<tr><td>'+esc(x.day)+'</td><td>'+esc(x.route)+'</td><td>'+esc(x.count)+'</td></tr>').join("")+'</tbody></table>':'<div class="empty">アクセス記録はまだありません。</div>')+'</section><section class="panel"><h2>管理者アクセス記録</h2>'+rows(admins.map(x=>({title:x.action,body:x.detail,meta:formatDate(x.created_at)+" / IP識別ハッシュ: "+x.ip_hash+" / "+x.user_agent})))+pager("access",page,d.adminTotal,d.hasMore)+'</section><p class="notice">公開アクセスは日別集計のみです。管理者アクセスではIPアドレスそのものではなくハッシュ値を保存します。</p>';
- status("管理者ログ "+number(d.adminTotal)+"件中 "+(offset+1)+"〜"+(offset+admins.length)+"件を表示","good");
+ const daily=(d.daily||[]),allAdmins=(d.admin||[]),serverPaged=Number.isFinite(Number(d.adminTotal));
+ const total=serverPaged?number(d.adminTotal):allAdmins.length;
+ const admins=serverPaged?allAdmins:allAdmins.slice(offset,offset+PAGE_SIZE);
+ const hasMore=serverPaged?Boolean(d.hasMore):offset+PAGE_SIZE<total;
+ $("pageContent").innerHTML='<section class="panel"><h2>公開ページの日別アクセス（直近90日）</h2>'+(daily.length?'<table><thead><tr><th>日付（日本時間）</th><th>API</th><th>アクセス数</th></tr></thead><tbody>'+daily.map(x=>'<tr><td>'+esc(x.day)+'</td><td>'+esc(x.route)+'</td><td>'+esc(x.count)+'</td></tr>').join("")+'</tbody></table>':'<div class="empty">アクセス記録はまだありません。</div>')+'</section><section class="panel"><h2>管理者アクセス記録</h2>'+rows(admins.map(x=>({title:x.action,body:x.detail,meta:formatDate(x.created_at)+" / IP識別ハッシュ: "+x.ip_hash+" / "+x.user_agent})))+pager("access",page,total,hasMore)+'</section><p class="notice">公開アクセスは日別集計のみです。管理者アクセスではIPアドレスそのものではなくハッシュ値を保存します。</p>';
+ status("管理者ログ "+total+"件中 "+(total?offset+1:0)+"〜"+(offset+admins.length)+"件を表示","good");
 }
 async function renderPage(){
  const seq=++requestSequence;activateNav();status("読み込み中…");$("pageContent").innerHTML='<div class="panel loading" role="status">データを読み込んでいます…</div>';

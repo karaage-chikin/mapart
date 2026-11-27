@@ -133,19 +133,19 @@ function decodeHtml(value) {
 }
 function extractPageImages(html) {
   const found=[];
-  const metaRe=/<meta\b[^>]*(?:property|name)=[\\"'](?:og:image|twitter:image|twitter:image:src)[\\"'][^>]*>/gi;
+  const metaRe=/<meta\b[^>]*(?:property|name)=["'](?:og:image|twitter:image|twitter:image:src)["'][^>]*>/gi;
   for(const m of html.matchAll(metaRe)){
-    const tag=m[0], content=tag.match(/content=[\\"']([^\\"']+)[\\"']/i);
+    const content=m[0].match(/content=["']([^"']+)["']/i);
     if(content)found.push(decodeHtml(content[1]));
   }
   const imgRe=/<img\b[^>]*>/gi;
   for(const m of html.matchAll(imgRe)){
     const tag=m[0];
     for(const attr of ["data-src","data-lazy-src","src"]){
-      const v=tag.match(new RegExp("\\b"+attr+"=[\\"']([^\\"']+)[\\"']","i"));
+      const v=tag.match(new RegExp(\`\\b\${attr}=["']([^"']+)["']\`,"i"));
       if(v){found.push(decodeHtml(v[1]));break;}
     }
-    const srcset=tag.match(/srcset=[\\"']([^\\"']+)[\\"']/i);
+    const srcset=tag.match(/srcset=["']([^"']+)["']/i);
     if(srcset)found.push(decodeHtml(srcset[1].split(",")[0].trim().split(/\s+/)[0]));
   }
   return [...new Set(found.map(raw=>{try{const u=new URL(raw);if(u.protocol!=="https:"||!u.hostname.includes(".")||/\.(svg|gif)(?:$|\?)/i.test(u.pathname))return "";return u.href;}catch{return "";}}).filter(Boolean))].slice(0,8);

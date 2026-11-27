@@ -205,7 +205,10 @@ async function load(){
  if(packs.some(p=>!p.thumbnailUrl&&!(p.galleryImages||[]).length))pollGalleryImages();
  if(token){
   try{await api("/api/admin/session");showEditor(true);await loadCandidates();}
-  catch(error){token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);if(error.message.includes("タイムアウト"))setStatus("管理者認証を確認できません。再読み込みしてください。","error");}
+  catch(error){
+   if(/401|ログインしてください|認証/i.test(error.message)){token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);setStatus("ログイン期限が切れました。再度ログインしてください。","error");}
+   else{showEditor(false);setStatus("管理者認証サーバーに接続できません。通信を確認して再読み込みしてください。","error");}
+  }
  }
 }
 function showEditor(loggedIn){

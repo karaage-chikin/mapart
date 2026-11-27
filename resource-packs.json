@@ -24,30 +24,6 @@
     "createdAt": "2026-11-27"
   },
   {
-    "id": "seed-003",
-    "title": "NoPumpkinOverlay",
-    "author": "ChickenAddons",
-    "category": "UI・便利",
-    "description": "カボチャを装備したときの画面オーバーレイを非表示にする。",
-    "sourceUrl": "https://mcpedl.com/nopumpkinoverlay/",
-    "compatibility": "配布元で確認",
-    "source": "MCPEDL",
-    "sourceType": "curated",
-    "createdAt": "2026-11-27"
-  },
-  {
-    "id": "seed-004",
-    "title": "Light FPS",
-    "author": "The_Zahin_GAMER",
-    "category": "軽量化",
-    "description": "パーティクルや表示効果を調整し、軽量化を目指すパック。",
-    "sourceUrl": "https://mcpedl.com/light-fps/",
-    "compatibility": "Bedrock / PE（配布元記載）",
-    "source": "MCPEDL",
-    "sourceType": "curated",
-    "createdAt": "2026-11-27"
-  },
-  {
     "id": "seed-005",
     "title": "Solvera Visuals [v1.0]",
     "author": "YashuStudio",
@@ -312,18 +288,6 @@
     "createdAt": "2026-11-27"
   },
   {
-    "id": "seed-027",
-    "title": "ASMR - Mechanical Keyboard Sounds",
-    "author": "oSkullo",
-    "category": "サウンド",
-    "description": "ゲーム内の各種サウンドを機械式キーボード風の音に変更。",
-    "sourceUrl": "https://mcpedl.com/mechanical-keyboard-sounds-bedrock-edition/",
-    "compatibility": "配布元で確認",
-    "source": "MCPEDL",
-    "sourceType": "curated",
-    "createdAt": "2026-11-27"
-  },
-  {
     "id": "seed-028",
     "title": "Increment",
     "author": "gamerzmcpe00",
@@ -492,18 +456,6 @@
     "createdAt": "2026-11-27"
   },
   {
-    "id": "seed-042",
-    "title": "Sodium FPS Booster",
-    "author": "The_Zahin_GAMER",
-    "category": "軽量化",
-    "description": "複数のパフォーマンス設定でパーティクルや環境表示を最適化。",
-    "sourceUrl": "https://mcpedl.com/sodium-fps-booster/",
-    "compatibility": "配布元で確認",
-    "source": "MCPEDL",
-    "sourceType": "curated",
-    "createdAt": "2026-11-27"
-  },
-  {
     "id": "seed-043",
     "title": "Newb X Future",
     "author": "1Sekon",
@@ -559,18 +511,6 @@
     "description": "青やシアンを基調にしたアニメ風のVibrant Visuals。",
     "sourceUrl": "https://mcpedl.com/uds-azure-visuals/",
     "compatibility": "1.21.80+（配布元記載）",
-    "source": "MCPEDL",
-    "sourceType": "curated",
-    "createdAt": "2026-11-27"
-  },
-  {
-    "id": "seed-048",
-    "title": "Cinnamon Spice",
-    "author": "RaysOn",
-    "category": "UI・テーマ",
-    "description": "紫を基調としたシンプルなUIデザインに変更。",
-    "sourceUrl": "https://mcpedl.com/cinnamon-spice/",
-    "compatibility": "配布元で確認",
     "source": "MCPEDL",
     "sourceType": "curated",
     "createdAt": "2026-11-27"
@@ -774,18 +714,6 @@
     "category": "シェーダー",
     "description": "青空、ローズ色の夕暮れ、夜空などの色調を追加。",
     "sourceUrl": "https://mcpedl.com/novalim-shader/",
-    "compatibility": "配布元で確認",
-    "source": "MCPEDL",
-    "sourceType": "curated",
-    "createdAt": "2026-11-27"
-  },
-  {
-    "id": "seed-066",
-    "title": "Simple Player Animation",
-    "author": "Hyperest Studios",
-    "category": "アニメーション",
-    "description": "プレイヤーの標準アニメーションを変更。",
-    "sourceUrl": "https://mcpedl.com/simple-player-animation/",
     "compatibility": "配布元で確認",
     "source": "MCPEDL",
     "sourceType": "curated",
@@ -1092,42 +1020,6 @@
     "createdAt": "2026-11-27"
   },
   {
-    "id": "seed-093",
-    "title": "New Style Buttons",
-    "author": "Pro king510",
-    "category": "UI・操作",
-    "description": "タッチ操作ボタンをカラフルまたはシンプルなデザインに変更。",
-    "sourceUrl": "https://mcpedl.com/new-style-buttons/",
-    "compatibility": "配布元で確認",
-    "source": "MCPEDL",
-    "sourceType": "curated",
-    "createdAt": "2026-11-27"
-  },
-  {
-    "id": "seed-094",
-    "title": "Cherry UI Pack",
-    "author": "Venousalex123",
-    "category": "UI・テーマ",
-    "description": "チェリー系カラーを取り入れたUIとインベントリのデザイン。",
-    "sourceUrl": "https://mcpedl.com/cherry-ui-pack/",
-    "compatibility": "配布元で確認",
-    "source": "MCPEDL",
-    "sourceType": "curated",
-    "createdAt": "2026-11-27"
-  },
-  {
-    "id": "seed-095",
-    "title": "Better Hearts Bar Colors UI",
-    "author": "Dev A.V",
-    "category": "UI・テーマ",
-    "description": "体力バーの色を複数のバリエーションから選べる。",
-    "sourceUrl": "https://mcpedl.com/better-hearts-variety-colors-ui/",
-    "compatibility": "配布元で確認",
-    "source": "MCPEDL",
-    "sourceType": "curated",
-    "createdAt": "2026-11-27"
-  },
-  {
     "id": "seed-096",
     "title": "Ferous Luna Shader",
     "author": "Ferous Chara",
@@ -1254,6 +1146,54 @@
     "category": "水・環境",
     "description": "雨天時のパーティクルをより立体的で雰囲気のある見た目に変更。",
     "sourceUrl": "https://mcpedl.com/rain-particles/",
+    "compatibility": "配布元で確認",
+    "source": "MCPEDL",
+    "sourceType": "curated",
+    "createdAt": "2026-11-27"
+  },
+  {
+    "id": "seed-107",
+    "title": "Reflected visuals",
+    "author": "Lotiif-craft-studio",
+    "category": "シェーダー",
+    "description": "リアルな反射、雰囲気のあるライティング、全体的なビジュアルを整える。",
+    "sourceUrl": "https://mcpedl.com/reflected-visuals/",
+    "compatibility": "配布元で確認",
+    "source": "MCPEDL",
+    "sourceType": "curated",
+    "createdAt": "2026-11-27"
+  },
+  {
+    "id": "seed-108",
+    "title": "particle Booster",
+    "author": "silfi-craft",
+    "category": "軽量化",
+    "description": "パーティクル表現を調整し、滑らかさと臨場感のバランスを整える。",
+    "sourceUrl": "https://mcpedl.com/particle-booster/",
+    "compatibility": "配布元で確認",
+    "source": "MCPEDL",
+    "sourceType": "curated",
+    "createdAt": "2026-11-27"
+  },
+  {
+    "id": "seed-109",
+    "title": "Better Falling Leaves - A La Nature Fragment",
+    "author": "LaCarotteRebel",
+    "category": "自然・植物",
+    "description": "葉の種類や落ち葉の見た目を変え、水面や地面に残る演出を追加。",
+    "sourceUrl": "https://mcpedl.com/better-falling-leaves-a-la-nature-fragment/",
+    "compatibility": "配布元で確認",
+    "source": "MCPEDL",
+    "sourceType": "curated",
+    "createdAt": "2026-11-27"
+  },
+  {
+    "id": "seed-110",
+    "title": "RAIN - La Nature Fragment",
+    "author": "LaCarotteRebel",
+    "category": "水・環境",
+    "description": "雨粒や雨のしぶきをより自然で立体的に見せる。",
+    "sourceUrl": "https://mcpedl.com/rain-la-nature-fragment/",
     "compatibility": "配布元で確認",
     "source": "MCPEDL",
     "sourceType": "curated",

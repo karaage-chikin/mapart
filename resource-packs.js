@@ -6,6 +6,8 @@ const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const favKey = "bedrock-resource-pack-favorites-v1";
 let packs = [], seedPacks = [], activeCategory = "すべて", favoritesOnly = false, token = sessionStorage.getItem("resourcePackAdminToken") || "", currentModalId = null, currentGalleryImages = [];
+const tokenExpiry=Number(sessionStorage.getItem("resourcePackAdminTokenExpiresAt")||0);
+if(tokenExpiry&&tokenExpiry<=Date.now()){token="";sessionStorage.removeItem("resourcePackAdminToken");sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");}
 const categories = ["すべて", ...new Set(["シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","ブロック・アイテム","UI・シンプル","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","便利・操作","季節・テーマ","テーマ・世界観","その他"])];
 function favorites(){try{return new Set(JSON.parse(localStorage.getItem(favKey)||"[]"));}catch{return new Set();}}
 function setFavorites(set){localStorage.setItem(favKey,JSON.stringify([...set]));}
@@ -208,7 +210,7 @@ async function load(){
  if(token){
   try{await api("/api/admin/session");showEditor(true);await loadCandidates();}
   catch(error){
-   if(/401|ログインしてください|認証/i.test(error.message)){token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);setStatus("ログイン期限が切れました。再度ログインしてください。","error");}
+   if(/401|ログインしてください|認証/i.test(error.message)){token="";sessionStorage.removeItem("resourcePackAdminToken");sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");showEditor(false);setStatus("ログイン期限が切れました。再度ログインしてください。","error");}
    else{showEditor(false);setStatus("管理者認証サーバーに接続できません。通信を確認して再読み込みしてください。","error");}
   }
  }
@@ -227,11 +229,15 @@ $("favoritesOnly").addEventListener("click",()=>{favoritesOnly=!favoritesOnly;$(
 $("adminToggle").addEventListener("click",()=>$("adminPanel").classList.toggle("hidden"));
 $("loginBtn").addEventListener("click",async()=>{
  const password=$("adminPassword").value;if(!password){setStatus("パスワードを入力してください。","error");return;}
- try{const result=await fetch(API+"/api/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password})});const data=await result.json();if(!result.ok)throw new Error(data.error||"ログインできませんでした。");
- token=data.token;sessionStorage.setItem("resourcePackAdminToken",token);$("adminPassword").value="";showEditor(true);render();await loadCandidates();setStatus("ログインしました。","ok");
+ try{
+  const data=await api("/api/admin/login",{method:"POST",body:JSON.stringify({password})});
+  if(typeof data.token!=="string"||!/^[A-Za-z0-9_.-]{20,2048}$/.test(data.token))throw new Error("認証応答が不正です。");
+  token=data.token;sessionStorage.setItem("resourcePackAdminToken",token);
+  if(data.expiresIn)sessionStorage.setItem("resourcePackAdminTokenExpiresAt",String(Date.now()+Number(data.expiresIn)));
+  $("adminPassword").value="";showEditor(true);render();await loadCandidates();setStatus("ログインしました。","ok");
  }catch(e){if(e.message.includes("設定されていません"))$("adminSetupHint").classList.remove("hidden");setStatus(e.message,"error");}
 });
-$("logoutBtn").addEventListener("click",()=>{token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);render();setStatus("ログアウトしました。");});
+$("logoutBtn").addEventListener("click",()=>{token="";sessionStorage.removeItem("resourcePackAdminToken");sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");showEditor(false);render();setStatus("ログアウトしました。");});
 $("savePack").addEventListener("click",async()=>{
  const payload={title:$("editTitle").value.trim(),author:$("editAuthor").value.trim(),category:$("editCategory").value,compatibility:$("editVersion").value.trim()||"配布元で確認",sourceUrl:$("editUrl").value.trim(),thumbnailUrl:$("editThumbnail").value.trim(),galleryImages:$("editGallery").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),directDownloadUrl:$("editDownloadUrl").value.trim(),directDownloadAllowed:$("editDownloadAllowed").checked,description:$("editDescription").value.trim(),source:"管理者登録"};
  if(!payload.title||!payload.sourceUrl||!payload.description){setStatus("パック名・説明・配布元URLを入力してください。","error");return;}

@@ -50,7 +50,9 @@ async function translateSearch(){
  const target=/[ぁ-んァ-ヶ一-龯]/.test(q)?"en":"ja";
  try{
   const url="https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl="+target+"&dt=t&q="+encodeURIComponent(q);
-  const res=await fetch(url);if(!res.ok)throw new Error("translation unavailable");
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
+  let res;try{res=await fetch(url,{signal:controller.signal});}finally{clearTimeout(timer);}
+  if(!res.ok)throw new Error("translation unavailable");
   const data=await res.json(),translated=(data[0]||[]).map(x=>x[0]||"").join("").trim();
   if(!translated)throw new Error("empty translation");
   $("search").value=translated;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");render();
@@ -103,11 +105,16 @@ function clearEditor(){
  setStatus("入力をクリアしました。");
 }
 async function api(path,options={}){
- const headers={"Content-Type":"application/json",...(options.headers||{})}; if(token)headers.Authorization="Bearer "+token;
- const res=await fetch(API+path,{...options,headers});
- let body={};try{body=await res.json();}catch{}
- if(!res.ok)throw new Error(body.error||("APIエラー "+res.status));
- return body;
+ const headers={"Accept":"application/json",...(options.body?{"Content-Type":"application/json"}:{}),...(options.headers||{})};
+ if(token&&/^[A-Za-z0-9_.-]{20,2048}$/.test(token))headers.Authorization="Bearer "+token;
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);
+ try{
+  const res=await fetch(API+path,{...options,headers,cache:"no-store",signal:controller.signal});
+  let body;try{body=await res.json();}catch{throw new Error("サーバーから正しい応答がありません。");}
+  if(!res.ok)throw new Error(body.error||("APIエラー "+res.status));
+  return body;
+ }catch(error){if(error.name==="AbortError")throw new Error("通信がタイムアウトしました。");throw error;}
+ finally{clearTimeout(timer);}
 }
 const candidateCategories=["その他","シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","ブロック・アイテム","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","季節・テーマ"];
 async function loadCandidates(){
@@ -118,42 +125,84 @@ async function loadCandidates(){
  }catch(e){box.innerHTML='<div class="empty">候補を読み込めませんでした：'+esc(e.message)+'</div>';}
 }
 function pollGalleryImages(attempt=0){
- if(attempt>=36)return;
+ const MAX_ATTEMPTS=36,INTERVAL_MS=10000;
+ if(attempt>=MAX_ATTEMPTS)return;
  setTimeout(async()=>{
   try{
-   const live=await api("/api/packs"),next=live.packs||[];
-   const merged=mergeLivePacks(next);
-   const changed=merged.some((p,i)=>p.thumbnailUrl!==packs[i]?.thumbnailUrl||JSON.stringify(p.galleryImages||[])!==JSON.stringify(packs[i]?.galleryImages||[]));
+   const live=await api("/api/packs"),next=Array.isArray(live.packs)?live.packs:[];
+   const merged=mergeLivePacks(next),oldById=new Map(packs.map(p=>[p.id,p]));
+   const changed=merged.some(p=>{const old=oldById.get(p.id);return !old||p.thumbnailUrl!==old.thumbnailUrl||JSON.stringify(p.galleryImages||[])!==JSON.stringify(old.galleryImages||[]);});
    if(changed){packs=merged;render();}
    const pending=next.some(p=>!p.thumbnailUrl&&!(p.galleryImages||[]).length);
-   if(pending)pollGalleryImages(attempt+1);
-  }catch{pollGalleryImages(attempt+1);}
- },10000);
+   if(pending&&attempt+1<MAX_ATTEMPTS)pollGalleryImages(attempt+1);
+  }catch(error){
+   console.info("Gallery status check failed",error.message);
+   if(attempt+1<MAX_ATTEMPTS)pollGalleryImages(attempt+1);
+  }
+ },INTERVAL_MS);
+}
+function normalizeSourceUrl(value){
+ try{
+  const u=new URL(String(value||""));
+  if(u.protocol!=="https:")return "";
+  u.hostname=u.hostname.toLowerCase().replace(/^www\./,"");
+  u.hash="";
+  for(const key of [...u.searchParams.keys()])if(/^(utm_.+|fbclid|gclid|ref|source|campaign)$/i.test(key))u.searchParams.delete(key);
+  u.searchParams.sort();
+  u.pathname=u.pathname.replace(/\/+$/,"");
+  return u.origin+u.pathname+(u.search||"");
+ }catch{return "";}
 }
 function mergeLivePacks(live){
  const byUrl=new Map();
- for(const p of seedPacks)byUrl.set(String(p.sourceUrl||"").replace(/\/+$/,""),p);
- for(const p of (live||[])){
-  const key=String(p.sourceUrl||"").replace(/\/+$/,"");
+ for(const p of seedPacks){const key=normalizeSourceUrl(p.sourceUrl);if(key)byUrl.set(key,p);}
+ for(const p of (Array.isArray(live)?live:[])){
+  const key=normalizeSourceUrl(p.sourceUrl);if(!key)continue;
   const seed=byUrl.get(key);
-  // MCPEDL entries are governed by the source-updated catalogue. Do not re-add
-  // entries removed by the one-year retention rule from the static index.
-  if(!seed && /mcpedl/i.test(String(p.source||""))) continue;
-  const base=seed||{};
-  byUrl.set(key,{...base,...p,thumbnailUrl:p.thumbnailUrl||base.thumbnailUrl||"",galleryImages:(p.galleryImages&&p.galleryImages.length?p.galleryImages:(base.galleryImages||[]))});
+  const sourceHost=(()=>{try{return new URL(p.sourceUrl).hostname.toLowerCase();}catch{return "";}})();
+  if(!seed&&(/mcpedl/i.test(String(p.source||""))||sourceHost==="mcpedl.com"))continue;
+  const base=seed||{},merged={...base};
+  for(const [field,value] of Object.entries(p)){
+   if(value===null||value===undefined||value==="")continue;
+   if(Array.isArray(value)&&value.length===0&&Array.isArray(base[field])&&base[field].length)continue;
+   merged[field]=value;
+  }
+  merged.thumbnailUrl=p.thumbnailUrl||base.thumbnailUrl||"";
+  merged.galleryImages=Array.isArray(p.galleryImages)&&p.galleryImages.length?p.galleryImages:(base.galleryImages||[]);
+  merged.sourceUrl=base.sourceUrl||p.sourceUrl;
+  byUrl.set(key,merged);
  }
  return [...byUrl.values()];
 }
+function catalogueNotice(message,kind="warning"){
+ let el=$("catalogueNotice");
+ if(!el){el=document.createElement("div");el.id="catalogueNotice";el.className="catalogue-notice";$("grid").before(el);}
+ el.textContent=message;el.dataset.kind=kind;el.hidden=!message;
+}
 async function load(){
+ let seedError=null,liveError=null;
  try{
-  const response=await fetch("resource-packs.json?v=2.0.0",{cache:"no-store"});
-  if(!response.ok)throw new Error("seed");
-  seedPacks=await response.json();packs=seedPacks;
- }catch{packs=[];}
- try{const live=await api("/api/packs");if(Array.isArray(live.packs))packs=mergeLivePacks(live.packs);}catch(e){console.info("Cloud catalogue unavailable; using bundled catalogue.",e.message);}
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+  let response;try{response=await fetch("resource-packs.json",{cache:"no-store",signal:controller.signal});}finally{clearTimeout(timer);}
+  if(!response.ok)throw new Error("HTTP "+response.status);
+  const data=await response.json();if(!Array.isArray(data))throw new Error("カタログ形式が不正です。");
+  seedPacks=data.filter(p=>p&&typeof p==="object"&&typeof p.id==="string"&&typeof p.title==="string");packs=seedPacks;
+ }catch(error){seedError=error;seedPacks=[];packs=[];}
+ try{
+  const live=await api("/api/packs");
+  if(Array.isArray(live.packs))packs=mergeLivePacks(live.packs);
+  else throw new Error("公開APIのデータ形式が不正です。");
+ }catch(error){liveError=error;console.info("Cloud catalogue unavailable.",error.message);}
  categoryNav();render();
+ if(seedError&&liveError)catalogueNotice("図鑑データを読み込めませんでした。通信を確認して再読み込みしてください。","error");
+ else if(seedError)catalogueNotice("基本カタログを読み込めませんでした。現在表示できるデータは公開API分のみです。","warning");
+ else if(liveError)catalogueNotice("追加データとの同期に失敗しました。基本カタログを表示しています。","warning");
+ else catalogueNotice("");
  if(packs.some(p=>!p.thumbnailUrl&&!(p.galleryImages||[]).length))pollGalleryImages();
- if(token){try{await api("/api/admin/session");showEditor(true);await loadCandidates();}catch{token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);}}
+ if(token){
+  try{await api("/api/admin/session");showEditor(true);await loadCandidates();}
+  catch(error){token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);if(error.message.includes("タイムアウト"))setStatus("管理者認証を確認できません。再読み込みしてください。","error");}
+ }
 }
 function showEditor(loggedIn){
  $("loginArea").classList.toggle("hidden",loggedIn);$("editorArea").classList.toggle("hidden",!loggedIn);

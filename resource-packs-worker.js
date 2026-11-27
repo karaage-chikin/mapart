@@ -9,6 +9,7 @@ function cors(origin) {
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin",
+    "Access-Control-Expose-Headers": "Content-Disposition",
     "X-Content-Type-Options": "nosniff"
   };
 }
@@ -204,8 +205,11 @@ export default {
       if (!env.SESSION_SECRET || !(await isAdmin(request, env.SESSION_SECRET))) return reply({ error: "管理者としてログインしてください。" }, 401, origin);
       if (request.method === "GET" && url.pathname === "/api/admin/session") return reply({ ok: true }, 200, origin);
       if (request.method === "GET" && url.pathname === "/api/admin/candidates") {
-        const r=await env.DB.prepare("SELECT id,title,author,description,source_url,provider,discovered_at FROM resource_pack_candidates WHERE status='pending' ORDER BY discovered_at DESC LIMIT 100").all();
+        const r=await env.DB.prepare("SELECT id,title,author,description,source_url,provider,discovered_at,thumbnail_url,gallery_json FROM resource_pack_candidates WHERE status='pending' ORDER BY discovered_at DESC LIMIT 100").all();
         return reply({candidates:(r.results||[]).map(normalizeCandidate)},200,origin);
+      }
+      if(request.method==="POST"&&url.pathname==="/api/admin/enrich-images"){
+        try{return reply(await enrichMcpedlImages(env),200,origin);}catch(e){console.error(e);return reply({error:e.message||"画像を取得できませんでした。"},502,origin);}
       }
       if (request.method === "POST" && url.pathname === "/api/admin/discover") {
         try{return reply(await discoverMcpedl(env),200,origin);}catch(e){console.error(e);return reply({error:e.message||"候補を取得できませんでした。"},502,origin);}
@@ -216,7 +220,7 @@ export default {
           const c=await env.DB.prepare("SELECT * FROM resource_pack_candidates WHERE id=? AND status='pending'").bind(cm[1]).first();
           if(!c)return reply({error:"候補が見つかりません。"},404,origin);
           const body=await readJson(request), category=String(body.category||"その他").slice(0,60), id=crypto.randomUUID(), now=Date.now();
-          await env.DB.prepare("INSERT INTO resource_packs (id,title,author,category,description,source_url,compatibility,source,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)").bind(id,c.title,c.author,category,c.description,c.source_url,"配布元で確認","MCPEDL自動発見（管理者承認）",now,now).run();
+          await env.DB.prepare("INSERT INTO resource_packs (id,title,author,category,description,source_url,compatibility,source,created_at,updated_at,thumbnail_url,gallery_json,direct_download_url,direct_download_allowed) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,c.title,c.author,category,c.description,c.source_url,"配布元で確認","MCPEDL自動発見（管理者承認）",now,now,c.thumbnail_url||"",c.gallery_json||"[]","",0).run();
           await env.DB.prepare("DELETE FROM resource_pack_candidates WHERE id=?").bind(c.id).run();
           const row=await env.DB.prepare("SELECT * FROM resource_packs WHERE id=?").bind(id).first();
           return reply({pack:normalize(row)},201,origin);
@@ -230,8 +234,8 @@ export default {
           const id = crypto.randomUUID();
           const now = Date.now();
           await env.DB.prepare(
-            "INSERT INTO resource_packs (id,title,author,category,description,source_url,compatibility,source,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
-          ).bind(id,String(body.title).trim(),String(body.author||"").trim(),String(body.category||"その他"),String(body.description).trim(),String(body.sourceUrl).trim(),String(body.compatibility||"配布元で確認"),"管理者登録",now,now).run();
+            "INSERT INTO resource_packs (id,title,author,category,description,source_url,compatibility,source,created_at,updated_at,thumbnail_url,gallery_json,direct_download_url,direct_download_allowed) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+          ).bind(id,String(body.title).trim(),String(body.author||"").trim(),String(body.category||"その他"),String(body.description).trim(),String(body.sourceUrl).trim(),String(body.compatibility||"配布元で確認"),"管理者登録",now,now,String(body.thumbnailUrl||""),JSON.stringify(body.galleryImages||[]),body.directDownloadAllowed?String(body.directDownloadUrl||""):"",body.directDownloadAllowed?1:0).run();
           const row = await env.DB.prepare("SELECT * FROM resource_packs WHERE id=?").bind(id).first();
           return reply({ pack: normalize(row) }, 201, origin);
         } catch (error) { console.error(error); return reply({ error: "登録できませんでした。" }, 500, origin); }
@@ -243,8 +247,8 @@ export default {
           if (invalid) return reply({ error: invalid }, 400, origin);
           const now = Date.now();
           const result = await env.DB.prepare(
-            "UPDATE resource_packs SET title=?,author=?,category=?,description=?,source_url=?,compatibility=?,updated_at=? WHERE id=?"
-          ).bind(String(body.title).trim(),String(body.author||"").trim(),String(body.category||"その他"),String(body.description).trim(),String(body.sourceUrl).trim(),String(body.compatibility||"配布元で確認"),now,match[1]).run();
+            "UPDATE resource_packs SET title=?,author=?,category=?,description=?,source_url=?,compatibility=?,thumbnail_url=?,gallery_json=?,direct_download_url=?,direct_download_allowed=?,updated_at=? WHERE id=?"
+          ).bind(String(body.title).trim(),String(body.author||"").trim(),String(body.category||"その他"),String(body.description).trim(),String(body.sourceUrl).trim(),String(body.compatibility||"配布元で確認"),String(body.thumbnailUrl||""),JSON.stringify(body.galleryImages||[]),body.directDownloadAllowed?String(body.directDownloadUrl||""):"",body.directDownloadAllowed?1:0,now,match[1]).run();
           if (Number(result?.meta?.changes||0) !== 1) return reply({ error: "対象のパックが見つかりません。" }, 404, origin);
           const row = await env.DB.prepare("SELECT * FROM resource_packs WHERE id=?").bind(match[1]).first();
           return reply({ pack: normalize(row) }, 200, origin);

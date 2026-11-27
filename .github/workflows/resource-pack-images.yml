@@ -36,6 +36,14 @@ jobs:
           node-version: "20"
       - name: Install structured HTML parser
         run: npm install --no-save --package-lock=false cheerio@1.0.0
+      - name: Validate collection scripts and shared helpers
+        run: |
+          node --check scripts/resource-pack-sync.mjs
+          node --check scripts/resource-pack-additional-source.mjs
+          node --check scripts/resource-pack-image-enrichment.mjs
+          node --check scripts/resource-pack-detail-enrichment.mjs
+          node --check scripts/resource-pack-utils.mjs
+          node --test scripts/resource-pack-utils.test.mjs
       - name: Sync recent Bedrock resource packs and apply one-calendar-year retention
         run: node scripts/resource-pack-sync.mjs
       - name: Collect recent Bedrock packs from an additional source

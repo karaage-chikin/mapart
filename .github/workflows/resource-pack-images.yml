@@ -1,0 +1,108 @@
+name: Resource pack gallery images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/resource-pack-images.yml"
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: resource-pack-gallery-images
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Fetch public pack images
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = "resource-packs.json";
+          const packs = JSON.parse(fs.readFileSync(path, "utf8"));
+          const headers = {
+            "User-Agent": "Mozilla/5.0 (compatible; ResourcePackGalleryIndexer/1.0)",
+            "Accept": "text/html,application/xhtml+xml"
+          };
+          const decode = s => String(s || "").replace(/&amp;/g, "&").replace(/&#038;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&#x27;/gi, "'");
+          const attr = (tag, name) => {
+            const m = tag.match(new RegExp("\\b" + name + "=[\\"']([^\\"']+)[\\"']", "i"));
+            return m ? decode(m[1]) : "";
+          };
+          function extractImages(html) {
+            const found = [];
+            for (const m of html.matchAll(/<meta\\b[^>]*>/gi)) {
+              const tag = m[0];
+              const key = (attr(tag, "property") || attr(tag, "name")).toLowerCase();
+              if (["og:image", "twitter:image", "twitter:image:src"].includes(key)) {
+                const value = attr(tag, "content");
+                if (value) found.push(value);
+              }
+            }
+            for (const m of html.matchAll(/<img\\b[^>]*>/gi)) {
+              const tag = m[0];
+              const value = attr(tag, "data-src") || attr(tag, "data-lazy-src") || attr(tag, "src");
+              if (value) found.push(value);
+              const srcset = attr(tag, "srcset");
+              if (srcset) found.push(srcset.split(",")[0].trim().split(/\\s+/)[0]);
+            }
+            return [...new Set(found.map(raw => {
+              try {
+                const u = new URL(raw);
+                if (u.protocol !== "https:" || !u.hostname.includes(".") || /\\.(svg|gif)(?:$|\\?)/i.test(u.pathname)) return "";
+                if (/gravatar|overwolf|avatar|logo/i.test(u.hostname + u.pathname)) return "";
+                return u.href;
+              } catch { return ""; }
+            }).filter(Boolean))].slice(0, 8);
+          }
+          async function fetchOne(pack) {
+            if (!/^https:\/\/mcpedl\\.com\//i.test(pack.sourceUrl || "")) return { pack, images: [] };
+            try {
+              const response = await fetch(pack.sourceUrl, { headers, signal: AbortSignal.timeout(18000) });
+              if (!response.ok) throw new Error("HTTP " + response.status);
+              const html = await response.text();
+              return { pack, images: extractImages(html.slice(0, 5000000)) };
+            } catch (error) {
+              console.log("No image:", pack.title, error.message);
+              return { pack, images: [] };
+            }
+          }
+          (async () => {
+            let updated = 0, totalImages = 0, failed = 0;
+            for (let i = 0; i < packs.length; i += 5) {
+              const batch = await Promise.all(packs.slice(i, i + 5).map(fetchOne));
+              for (const item of batch) {
+                if (!item.images.length) { failed++; continue; }
+                const combined = [...new Set([...(item.pack.galleryImages || []), ...item.images])].slice(0, 8);
+                item.pack.thumbnailUrl = item.pack.thumbnailUrl || combined[0];
+                item.pack.galleryImages = combined;
+                updated++;
+                totalImages += combined.length;
+              }
+            }
+            fs.writeFileSync(path, JSON.stringify(packs, null, 2) + "\\n");
+            console.log(JSON.stringify({ scanned: packs.length, updated, totalImages, withoutImages: failed }, null, 2));
+          })().catch(error => { console.error(error); process.exit(1); });
+          NODE
+      - name: Commit image index
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add resource-packs.json
+          if git diff --cached --quiet; then
+            echo "No image changes."
+          else
+            git commit -m "Update resource pack gallery images"
+            git push
+          fi

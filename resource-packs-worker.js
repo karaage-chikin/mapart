@@ -78,7 +78,7 @@ function validatePack(input) {
   const thumb=String(input.thumbnailUrl||"").trim();
   if(thumb&&!isHttps(thumb))return "サムネイル画像URLはhttps://から始まるURLにしてください。";
   const gallery=Array.isArray(input.galleryImages)?input.galleryImages:[];
-  if(gallery.length>8||gallery.some(x=>typeof x!=="string"||x.length>2000||!isHttps(x.trim())))return "ギャラリー画像はhttps://のURLを8件以内で入力してください。";
+  if(gallery.length>20||gallery.some(x=>typeof x!=="string"||x.length>2000||!isHttps(x.trim())))return "ギャラリー画像はhttps://のURLを20件以内で入力してください。";
   const download=String(input.directDownloadUrl||"").trim();
   if(download&&!isHttps(download))return "直接ダウンロードURLはhttps://から始まるURLにしてください。";
   if(input.directDownloadAllowed===true&&!download)return "直接ダウンロードを許可する場合はファイルURLを入力してください。";

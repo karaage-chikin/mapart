@@ -6,13 +6,20 @@ on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/resource-pack-images.yml"\n      - "scripts/resource-pack-*.mjs"
+      - ".github/workflows/resource-pack-images.yml"
+      - "scripts/resource-pack-*.mjs"
   schedule:
     - cron: "0 18 * * *"
   workflow_dispatch:
 
 permissions:
   contents: write
+
+env:
+  MAX_MCPEDL_PAGES: "1000"
+  MAX_NEW_PACKS: "3000"
+  MAX_ADDITIONAL_PAGES: "80"
+  STALE_PAGE_LIMIT: "12"
 
 concurrency:
   group: resource-pack-gallery-images
@@ -27,7 +34,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Sync up to 3,000 new Bedrock resource packs and remove entries last updated over one year ago
+      - name: Install structured HTML parser
+        run: npm install --no-save --package-lock=false cheerio@1.0.0
+      - name: Sync recent Bedrock resource packs and apply one-calendar-year retention
         run: node scripts/resource-pack-sync.mjs
       - name: Collect recent Bedrock packs from an additional source
         run: node scripts/resource-pack-additional-source.mjs

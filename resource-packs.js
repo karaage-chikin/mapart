@@ -1,6 +1,7 @@
 (() => {
 "use strict";
-const API = document.querySelector('meta[name="resource-packs-api"]')?.content;\nif (!API) throw new Error("API endpoint is not configured");
+const API = document.querySelector('meta[name="resource-packs-api"]')?.content;
+if (!API) throw new Error("API endpoint is not configured");
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const favKey = "bedrock-resource-pack-favorites-v1";
@@ -231,7 +232,8 @@ $("loginBtn").addEventListener("click",async()=>{
 });
 $("logoutBtn").addEventListener("click",()=>{token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);render();setStatus("ログアウトしました。");});
 $("savePack").addEventListener("click",async()=>{
- const payload={title:$("editTitle").value.trim(),author:$("editAuthor").value.trim(),category:$("editCategory").value,compatibility:$("editVersion").value.trim()||"配布元で確認",sourceUrl:$("editUrl").value.trim(),thumbnailUrl:$("editThumbnail").value.trim(),galleryImages:$("editGallery").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),directDownloadUrl:$("editDownloadUrl").value.trim(),directDownloadAllowed:$("editDownloadAllowed").checked,description:$("editDescription").value.trim(),source:"管理者登録"};
+ const payload={title:$("editTitle").value.trim(),author:$("editAuthor").value.trim(),category:$("editCategory").value,compatibility:$("editVersion").value.trim()||"配布元で確認",sourceUrl:$("editUrl").value.trim(),thumbnailUrl:$("editThumbnail").value.trim(),galleryImages:$("editGallery").value.split(/\r?
+/).map(x=>x.trim()).filter(Boolean),directDownloadUrl:$("editDownloadUrl").value.trim(),directDownloadAllowed:$("editDownloadAllowed").checked,description:$("editDescription").value.trim(),source:"管理者登録"};
  if(!payload.title||!payload.sourceUrl||!payload.description){setStatus("パック名・説明・配布元URLを入力してください。","error");return;}
  try{const data=await api("/api/admin/packs",{method:"POST",body:JSON.stringify(payload)});packs.unshift(data.pack);clearEditor();render();setStatus("登録しました。","ok");}
  catch(e){setStatus(e.message,"error");}

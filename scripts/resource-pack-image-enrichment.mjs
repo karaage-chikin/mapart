@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { load } from "cheerio";
 const path="resource-packs.json",packs=JSON.parse(fs.readFileSync(path,"utf8"));
 const headers={"User-Agent":"Mozilla/5.0 (compatible; ResourcePackGalleryIndexer/1.1)","Accept":"text/html,application/xhtml+xml"};
-const PROMO=/advert|advertisement|sponsor|promot|banner|revenue|sale|newsletter|subscribe|affiliate|tracking|pixel|doubleclick|googlesyndication|adservice|adsystem|avatar|gravatar|profile|author-photo|user-photo|site-logo|brand-logo|social-icon|share-button|become-an-author|explore-modding/i;
+const PROMO=/advert|advertisement|sponsor|promot|banner|revenue|sale|newsletter|subscribe|affiliate|tracking|pixel|doubleclick|googlesyndication|adservice|adsystem|adslot|ad-unit|sponsored|native-ad|sidebar-ad|avatar|gravatar|profile|author-photo|user-photo|site-logo|brand-logo|social-icon|share-button|become-an-author|explore-modding|coupon|discount-code|popunder|interstitial/i;
 function canonicalImage(raw,base){
  try{
   const u=new URL(raw,base);
@@ -28,7 +28,7 @@ function extractImages(html,base){
  return [...new Set(found)].slice(0,20);
 }
 async function fetchOne(pack){
- if(!/^https:\/\/(?:mcpedl\.com|www\.curseforge\.com|www\.planetminecraft\.com)\//i.test(pack.sourceUrl||""))return {pack,images:[]};
+ if(!/^https:\/\/(?:mcpedl\.com|www\.curseforge\.com|www\.planetminecraft\.com|modbay\.org)\//i.test(pack.sourceUrl||""))return {pack,images:[]};
  try{
   const response=await fetch(pack.sourceUrl,{headers,signal:AbortSignal.timeout(15000)});
   if(response.status===429)throw new Error("HTTP 429 (rate limited)");
@@ -39,7 +39,7 @@ async function fetchOne(pack){
 }
 (async()=>{
  let updated=0,totalImages=0,failed=0;
- const targets=packs.filter(p=>/^https:\/\/(?:mcpedl\.com|www\.curseforge\.com|www\.planetminecraft\.com)\//i.test(p.sourceUrl||""));
+ const targets=packs.filter(p=>/^https:\/\/(?:mcpedl\.com|www\.curseforge\.com|www\.planetminecraft\.com|modbay\.org)\//i.test(p.sourceUrl||""));
  console.log("Eligible packs for image enrichment:",targets.length,"of",packs.length);
  for(let i=0;i<targets.length;i+=10){
   const batch=await Promise.all(targets.slice(i,i+10).map(fetchOne));

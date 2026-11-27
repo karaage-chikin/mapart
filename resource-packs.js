@@ -69,6 +69,18 @@ async function loadCandidates(){
  $("candidateStatus").textContent=list.length+"件の未確認候補";
  }catch(e){box.innerHTML='<div class="empty">候補を読み込めませんでした：'+esc(e.message)+'</div>';}
 }
+function pollGalleryImages(attempt=0){
+ if(attempt>=36)return;
+ setTimeout(async()=>{
+  try{
+   const live=await api("/api/packs"),next=live.packs||[];
+   const changed=next.some((p,i)=>p.thumbnailUrl!==packs[i]?.thumbnailUrl||JSON.stringify(p.galleryImages||[])!==JSON.stringify(packs[i]?.galleryImages||[]));
+   if(changed){packs=next;render();}
+   const pending=next.some(p=>!p.thumbnailUrl&&!(p.galleryImages||[]).length);
+   if(pending)pollGalleryImages(attempt+1);
+  }catch{pollGalleryImages(attempt+1);}
+ },10000);
+}
 async function load(){
  try{
   const response=await fetch("resource-packs.json?v=1.1.0",{cache:"no-store"});
@@ -77,6 +89,7 @@ async function load(){
  }catch{packs=[];}
  try{const live=await api("/api/packs");if(Array.isArray(live.packs))packs=live.packs;}catch(e){console.info("Cloud catalogue unavailable; using bundled catalogue.",e.message);}
  categoryNav();render();
+ if(packs.some(p=>!p.thumbnailUrl&&!(p.galleryImages||[]).length))pollGalleryImages();
  if(token){try{await api("/api/admin/session");showEditor(true);await loadCandidates();}catch{token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);}}
 }
 function showEditor(loggedIn){

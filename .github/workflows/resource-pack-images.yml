@@ -27,7 +27,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Sync up to 900 new Bedrock resource packs and remove entries last updated over one year ago
+      - name: Sync up to 3,000 new Bedrock resource packs and remove entries last updated over one year ago
         run: |
           node <<'NODE'
           import fs from "node:fs";
@@ -136,11 +136,11 @@ jobs:
             });
             removed = before - retained.length;
             fs.writeFileSync(path, JSON.stringify(retained, null, 2) + "\n");
-            console.log(JSON.stringify({ total: retained.length, added, updated, removed, scanned, cutoff: cutoff.toISOString().slice(0, 10) }, null, 2));
+            console.log(JSON.stringify({ total: retained.length, added, updated, removed, scanned, directDownloadable: retained.filter(p => p.directDownloadAllowed && p.directDownloadUrl).length, cutoff: cutoff.toISOString().slice(0, 10) }, null, 2));
             if (added < 900) console.log("Only " + added + " new unique recent entries were found in the scanned pages.");
           })().catch(error => { console.error(error); process.exit(1); });
           NODE
-      - name: Collect recent Bedrock packs from CurseForge and Planet Minecraft
+      - name: Collect recent Bedrock packs from an additional source
         run: |
           node <<'NODE'
           import fs from "node:fs";
@@ -159,7 +159,7 @@ jobs:
           function cardDate(html) {
             const ds=[];
             for(const m of html.matchAll(/\b(?:datetime|data-date|data-published)=["']([^"']+)["']/gi)){const d=dateFrom(m[1]);if(d)ds.push(d);}
-            for(const m of html.matchAll(/\b(?:\d{1,2}\s+[A-Za-z]{3},\s+\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{2}-\d{2})\b/g)){const d=dateFrom(m[0]);if(d)ds.push(d);}
+            for(const m of html.matchAll(/\b(?:[A-Za-z]{3,9}\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[A-Za-z]{3},\s+\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{2}-\d{2})\b/g)){const d=dateFrom(m[0]);if(d)ds.push(d);}
             return ds.filter(d=>d<=new Date(Date.now()+86400000)).sort((a,b)=>b-a)[0]||null;
           }
           function imageFrom(html,base) {
@@ -189,17 +189,7 @@ jobs:
               console.log("CurseForge",n,"matches",matches,"added",now);empty=now?0:empty+1;if(!matches||empty>=8)break;await new Promise(r=>setTimeout(r,180));
             }return added;
           }
-          async function scanPlanetMinecraft(){
-            let added=0,empty=0;
-            for(let n=1;n<=240&&added<3000;n++){
-              const html=await page("https://www.planetminecraft.com/texture-packs/?op1=any&platform=2&page="+n);let matches=0,now=0;
-              const re=/<a\b[^>]*href=["']([^"']*\/texture-packs\/[^"'?#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-              for(const m of html.matchAll(re)){let u;try{u=new URL(m[1],"https://www.planetminecraft.com");}catch{continue;}const parts=u.pathname.split("/").filter(Boolean);if(!u.hostname.endsWith("planetminecraft.com")||parts.length!==2||parts[0]!=="texture-packs")continue;
-                const frag=html.slice(Math.max(0,m.index-1800),Math.min(html.length,m.index+2600)),title=clean(m[2])||attr(m[2],"alt")||attr(m[2],"title");if(!title)continue;matches++;if(add("Planet Minecraft",u.href,title,frag,"https://www.planetminecraft.com")){added++;now++;}if(added>=3000)break;}
-              console.log("Planet Minecraft",n,"matches",matches,"added",now);empty=now?0:empty+1;if(!matches||empty>=8)break;await new Promise(r=>setTimeout(r,180));
-            }return added;
-          }
-          (async()=>{let curse=0,planet=0;try{curse=await scanCurseForge();}catch(e){console.log("CurseForge stopped:",e.message);}try{planet=await scanPlanetMinecraft();}catch(e){console.log("Planet Minecraft stopped:",e.message);}fs.writeFileSync(file,JSON.stringify(packs,null,2)+"\n");console.log(JSON.stringify({addedCurseForge:curse,addedPlanetMinecraft:planet,total:packs.length,cutoff:cutoff.toISOString().slice(0,10)},null,2));})().catch(e=>{console.error(e);process.exit(1);});
+          (async()=>{let added=0;try{added=await scanCurseForge();}catch(e){console.log("Additional source scan stopped:",e.message);}fs.writeFileSync(file,JSON.stringify(packs,null,2)+"\n");console.log(JSON.stringify({addedFromAdditionalSource:added,total:packs.length,cutoff:cutoff.toISOString().slice(0,10)},null,2));})().catch(e=>{console.error(e);process.exit(1);});
           NODE
       - name: Fetch public pack images
         run: |

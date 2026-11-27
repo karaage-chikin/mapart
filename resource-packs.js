@@ -5,7 +5,7 @@ const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const favKey = "bedrock-resource-pack-favorites-v1";
 let packs = [], activeCategory = "すべて", favoritesOnly = false, token = sessionStorage.getItem("resourcePackAdminToken") || "", editingId = null, currentModalId = null;
-const categories = ["すべて", ...new Set(["シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","便利・操作","季節・テーマ","テーマ・世界観","その他"])];
+const categories = ["すべて", ...new Set(["シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","ブロック・アイテム","UI・シンプル","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","便利・操作","季節・テーマ","テーマ・世界観","その他"])];
 function favorites(){try{return new Set(JSON.parse(localStorage.getItem(favKey)||"[]"));}catch{return new Set();}}
 function setFavorites(set){localStorage.setItem(favKey,JSON.stringify([...set]));}
 function setStatus(message,type=""){const editorVisible=!$("editorArea").classList.contains("hidden");const el=$(editorVisible?"adminStatus":"loginStatus");if(el){el.textContent=message;el.className="status "+type;}}

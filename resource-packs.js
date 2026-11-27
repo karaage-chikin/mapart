@@ -107,12 +107,6 @@ $("savePack").addEventListener("click",async()=>{
 });
 $("discoverNow").addEventListener("click",async()=>{const b=$("discoverNow");b.disabled=true;$("candidateStatus").textContent="MCPEDLを検索中…";try{const r=await api("/api/admin/discover",{method:"POST",body:"{}"});$("candidateStatus").textContent="調査："+r.scanned+"件 / 新規候補："+r.added+"件 / 重複等："+r.skipped+"件";await loadCandidates();}catch(e){$("candidateStatus").textContent=e.message;}finally{b.disabled=false;}});
 $("refreshCandidates").addEventListener("click",loadCandidates);
-$("enrichImages").addEventListener("click",async()=>{
- const b=$("enrichImages");b.disabled=true;$("candidateStatus").textContent="既存パックの画像を取得中…";
- try{const r=await api("/api/admin/enrich-images",{method:"POST",body:"{}"});$("candidateStatus").textContent="調査："+r.scanned+"件 / 画像を更新："+r.updated+"件";const live=await api("/api/packs");packs=live.packs||packs;render();}
- catch(e){$("candidateStatus").textContent=e.message;}finally{b.disabled=false;}
-});
-
 $("candidateList").addEventListener("click",async e=>{
  const a=e.target.closest("[data-approve]"),d=e.target.closest("[data-reject]");
  if(a){const id=a.dataset.approve,sel=$("candidateList").querySelector('[data-candidate-category="'+CSS.escape(id)+'"]');if(!confirm("配布元でBedrock対応を確認しましたか？確認済みなら公開します。"))return;try{const r=await api("/api/admin/candidates/"+encodeURIComponent(id)+"/approve",{method:"POST",body:JSON.stringify({category:sel?.value||"その他"})});packs.unshift(r.pack);render();await loadCandidates();$("candidateStatus").textContent="承認して公開しました。";}catch(err){$("candidateStatus").textContent=err.message;}}

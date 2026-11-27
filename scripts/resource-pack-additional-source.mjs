@@ -18,7 +18,7 @@ function cardDate($,card){
   if(raw){const d=new Date(raw);if(!Number.isNaN(d.getTime())&&d<=new Date(Date.now()+86400000))dates.push(d);}
  });
  if(dates.length)return dates.sort((a,b)=>b-a)[0];
- const text=card.text();
+ const text=String(card.text?.()??"");
  const patterns=[/\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}\b/i,/\b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*,?\s+\d{4}\b/i,/\b\d{4}-\d{2}-\d{2}\b/];
  for(const re of patterns){const raw=text.match(re)?.[0];if(raw){const d=new Date(raw);if(!Number.isNaN(d.getTime())&&d<=new Date(Date.now()+86400000))return d;}}
  return null;

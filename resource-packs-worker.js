@@ -193,8 +193,33 @@ async function discoverMcpedl(env, posts=null) {
   return {added,skipped,scanned:posts.length,provider:"MCPEDL"};
 }
 function normalizeCandidate(r){return {id:r.id,title:r.title,author:r.author,description:r.description,sourceUrl:r.source_url,provider:r.provider,discoveredAt:r.discovered_at,thumbnailUrl:r.thumbnail_url||"",galleryImages:galleryFromJson(r.gallery_json)};}
+
+async function ensureAdminLogTables(env) {
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_admin_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at INTEGER NOT NULL, type TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', ip_hash TEXT NOT NULL DEFAULT '', user_agent TEXT NOT NULL DEFAULT '')").run();
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_daily_access (day TEXT PRIMARY KEY, route TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0)").run();
+}
+async function auditEvent(env, request, type, action, detail="") {
+  try {
+    await ensureAdminLogTables(env);
+    const ip=request.headers.get("CF-Connecting-IP")||"unknown";
+    const digest=await crypto.subtle.digest("SHA-256",encoder.encode(ip+":admin-audit-v1"));
+    const ipHash=b64url(new Uint8Array(digest).slice(0,12));
+    const ua=String(request.headers.get("User-Agent")||"").slice(0,120);
+    await env.DB.prepare("INSERT INTO resource_pack_admin_logs (created_at,type,action,detail,ip_hash,user_agent) VALUES (?,?,?,?,?,?)")
+      .bind(Date.now(),type,action,String(detail).slice(0,500),ipHash,ua).run();
+  } catch(error) { console.warn("Admin audit log write failed",String(error?.message||error)); }
+}
+async function recordPublicAccess(env, route) {
+  try {
+    await ensureAdminLogTables(env);
+    const day=new Date(Date.now()+9*60*60*1000).toISOString().slice(0,10);
+    await env.DB.prepare("INSERT INTO resource_pack_daily_access (day,route,count) VALUES (?,?,1) ON CONFLICT(day) DO UPDATE SET count=count+1")
+      .bind(day,route).run();
+  } catch(error) { console.warn("Public access counter failed",String(error?.message||error)); }
+}
+
 export default {
-  async scheduled(controller, env, ctx) { ctx.waitUntil((async()=>{await enrichMcpedlImages(env,0,100);const posts=await fetchMcpedlPosts();await discoverMcpedl(env,posts);})().catch(e=>console.error("Scheduled discovery/image refresh failed",e))); },
+  async scheduled(controller, env, ctx) { ctx.waitUntil((async()=>{await ensureAdminLogTables(env);await auditEvent(env,{headers:new Headers()},"update","scheduled_started","定期更新を開始");try{const images=await enrichMcpedlImages(env,0,100);const posts=await fetchMcpedlPosts();const discovery=await discoverMcpedl(env,posts);await auditEvent(env,{headers:new Headers()},"update","scheduled_completed",JSON.stringify({images,discovery}).slice(0,450));}catch(e){await auditEvent(env,{headers:new Headers()},"debug","scheduled_failed",String(e?.message||e));console.error("Scheduled discovery/image refresh failed",e);}})()); },
   async fetch(request, env, ctx) {
     const origin = request.headers.get("Origin") || "";
     if (request.method === "OPTIONS") {
@@ -280,6 +305,31 @@ export default {
     if (url.pathname.startsWith("/api/admin/")) {
       if (!env.SESSION_SECRET || !(await isAdmin(request, env.SESSION_SECRET))) return reply({ error: "管理者としてログインしてください。" }, 401, origin);
       if (request.method === "GET" && url.pathname === "/api/admin/session") return reply({ ok: true }, 200, origin);
+      if (request.method === "GET" && url.pathname === "/api/admin/monitor/overview") {
+        await ensureAdminLogTables(env);
+        const packs=await env.DB.prepare("SELECT COUNT(*) AS count, COALESCE(SUM(LENGTH(title)+LENGTH(author)+LENGTH(description)+LENGTH(source_url)+LENGTH(thumbnail_url)+LENGTH(gallery_json)),0) AS approx_bytes FROM resource_packs").first();
+        const candidates=await env.DB.prepare("SELECT COUNT(*) AS count FROM resource_pack_candidates").first();
+        const logs=await env.DB.prepare("SELECT COUNT(*) AS count FROM resource_pack_admin_logs").first();
+        const access=await env.DB.prepare("SELECT COALESCE(SUM(count),0) AS count FROM resource_pack_daily_access").first();
+        const imageJob=await env.DB.prepare("SELECT status,started_at,finished_at,result_json FROM resource_pack_image_jobs WHERE id=1").first();
+        const dbMeta=await env.DB.prepare("SELECT COUNT(*) AS tables FROM sqlite_master WHERE type='table'").first();
+        return reply({packs,candidates,logs,access,imageJob,dbMeta,checkedAt:Date.now()},200,origin);
+      }
+      if (request.method === "GET" && url.pathname === "/api/admin/monitor/logs") {
+        await ensureAdminLogTables(env);
+        const type=String(url.searchParams.get("type")||"all");
+        const rows=type==="all"
+          ? await env.DB.prepare("SELECT id,created_at,type,action,detail,ip_hash,user_agent FROM resource_pack_admin_logs ORDER BY id DESC LIMIT 150").all()
+          : await env.DB.prepare("SELECT id,created_at,type,action,detail,ip_hash,user_agent FROM resource_pack_admin_logs WHERE type=? ORDER BY id DESC LIMIT 150").bind(type).all();
+        return reply({logs:rows.results||[]},200,origin);
+      }
+      if (request.method === "GET" && url.pathname === "/api/admin/monitor/access") {
+        await ensureAdminLogTables(env);
+        const days=await env.DB.prepare("SELECT day,route,count FROM resource_pack_daily_access ORDER BY day DESC LIMIT 90").all();
+        const admins=await env.DB.prepare("SELECT id,created_at,action,detail,ip_hash,user_agent FROM resource_pack_admin_logs WHERE type='access' ORDER BY id DESC LIMIT 150").all();
+        return reply({daily:days.results||[],admin:admins.results||[]},200,origin);
+      }
+
       if (request.method === "GET" && url.pathname === "/api/admin/candidates") {
         const r=await env.DB.prepare("SELECT id,title,author,description,source_url,provider,discovered_at,thumbnail_url,gallery_json FROM resource_pack_candidates WHERE status='pending' ORDER BY discovered_at DESC LIMIT 100").all();
         return reply({candidates:(r.results||[]).map(normalizeCandidate)},200,origin);

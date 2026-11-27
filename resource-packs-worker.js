@@ -236,6 +236,7 @@ export default {
       } catch { return reply({ ok: false }, 503, origin); }
     }
     if (request.method === "GET" && url.pathname === "/api/packs") {
+      await recordPublicAccess(env,"/api/packs");
       try {
         await env.DB.prepare("INSERT OR IGNORE INTO resource_pack_image_jobs (id,status) VALUES (1,'idle')").run();
         const now=Date.now();
@@ -295,8 +296,9 @@ export default {
         const aa = new Uint8Array(a), bb = new Uint8Array(b);
         let diff = aa.length ^ bb.length;
         for (let i=0;i<Math.min(aa.length,bb.length);i++) diff |= aa[i] ^ bb[i];
-        if (diff !== 0) return reply({ error: "パスワードが違います。" }, 401, origin);
+        if (diff !== 0) { await auditEvent(env,request,"access","login_failed","パスワード不一致"); return reply({ error: "パスワードが違います。" }, 401, origin); }
         await resetLoginAttempts(env, request);
+        await auditEvent(env,request,"access","login_success","管理者ログイン成功");
         return reply({ token: await makeToken(env.SESSION_SECRET), expiresIn: SESSION_MS }, 200, origin);
       } catch (error) {
         return reply({ error: error.message || "ログインできませんでした。" }, 400, origin);
@@ -304,6 +306,7 @@ export default {
     }
     if (url.pathname.startsWith("/api/admin/")) {
       if (!env.SESSION_SECRET || !(await isAdmin(request, env.SESSION_SECRET))) return reply({ error: "管理者としてログインしてください。" }, 401, origin);
+      await auditEvent(env,request,request.method==="GET"?"access":"update","admin_"+request.method.toLowerCase(),url.pathname);
       if (request.method === "GET" && url.pathname === "/api/admin/session") return reply({ ok: true }, 200, origin);
       if (request.method === "GET" && url.pathname === "/api/admin/monitor/overview") {
         await ensureAdminLogTables(env);

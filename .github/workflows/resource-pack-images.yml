@@ -34,15 +34,9 @@ jobs:
           const packs = JSON.parse(fs.readFileSync(path, "utf8"));
           const cutoff = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
           const known = new Map(packs.map(p => [String(p.sourceUrl || "").replace(/\/+$/, "").toLowerCase(), p]));
-          const headers = { "User-Agent": "Mozilla/5.0 (compatible; KaraageChikinBedrockPackDirectory/2.0)", "Accept": "application/json" };
+          const headers = { "User-Agent": "Mozilla/5.0 (compatible; KaraageChikinBedrockPackDirectory/2.1)", "Accept": "text/html,application/xhtml+xml" };
           const clean = s => String(s || "").replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]*>/g, " ").replace(/&amp;/g, "&").replace(/&#8217;|&#8216;/g, "'").replace(/&quot;/g, '"').replace(/&#160;|&nbsp;/g, " ").replace(/&#8211;/g, "–").replace(/\s+/g, " ").trim();
-          const imageList = post => {
-            const found = [];
-            const featured = post._embedded?.["wp:featuredmedia"]?.[0]?.source_url;
-            if (featured) found.push(featured);
-            for (const m of String(post.content?.rendered || "").matchAll(/(?:src|data-src|data-lazy-src)=["'](https:\/\/[^"']+)["']/gi)) found.push(m[1].replace(/&amp;/g, "&"));
-            return [...new Set(found.filter(u => /^https:\/\//i.test(u) && !/\.svg(?:$|\?)/i.test(u)))].slice(0, 8);
-          };
+          const restricted = /\b(gun|guns|weapon|weapons|knife|knives|sword|swords|rifle|pistol|shotgun|grenade|ammo|ammunition|blade|crossbow|mace|spear)\b/i;
           function category(title) {
             const t = title.toLowerCase();
             if (/shader|visual|pbr/.test(t)) return "シェーダー";
@@ -55,83 +49,90 @@ jobs:
             if (/fps|performance|optimization|lag/.test(t)) return "軽量化";
             return "その他";
           }
-          const restricted = /\b(gun|guns|weapon|weapons|knife|knives|sword|swords|rifle|pistol|shotgun|grenade|ammo|ammunition|blade|crossbow|mace|spear)\b/i;
-          const categoryResponse = await fetch("https://mcpedl.com/wp-json/wp/v2/categories?slug=texture-packs", { headers, signal: AbortSignal.timeout(25000) });
-          if (!categoryResponse.ok) throw new Error("MCPEDL category API HTTP " + categoryResponse.status);
-          const categories = await categoryResponse.json();
-          const categoryId = categories?.[0]?.id;
-          if (!categoryId) throw new Error("MCPEDL Texture Packs category not found");
-          let added = 0, updated = 0, removed = 0, scanned = 0, reachedOld = false;
-          for (let page = 1; page <= 40 && added < 900 && !reachedOld; page++) {
-            const url = new URL("https://mcpedl.com/wp-json/wp/v2/posts");
-            url.searchParams.set("categories", categoryId);
-            url.searchParams.set("per_page", "100");
-            url.searchParams.set("page", String(page));
-            url.searchParams.set("orderby", "modified");
-            url.searchParams.set("order", "desc");
-            url.searchParams.set("_embed", "author,wp:featuredmedia");
-            const response = await fetch(url, { headers, signal: AbortSignal.timeout(30000) });
-            if (response.status === 400 && page > 1) break;
-            if (!response.ok) throw new Error("MCPEDL API page " + page + " HTTP " + response.status);
-            const posts = await response.json();
-            if (!Array.isArray(posts) || !posts.length) break;
-            for (const post of posts) {
-              scanned++;
-              const modified = post.modified_gmt ? new Date(post.modified_gmt + "Z") : new Date(post.modified);
-              if (!Number.isNaN(modified.getTime()) && modified < cutoff) { reachedOld = true; break; }
-              const sourceUrl = String(post.link || "").replace(/\/?$/, "/");
-              let parsed;
-              try { parsed = new URL(sourceUrl); } catch { continue; }
-              if (parsed.hostname !== "mcpedl.com" || parsed.pathname.split("/").filter(Boolean).length !== 1) continue;
-              const title = clean(post.title?.rendered);
-              if (!title || title.length > 160 || restricted.test(title)) continue;
-              const key = sourceUrl.replace(/\/+$/, "").toLowerCase();
-              const images = imageList(post);
-              const author = clean(post._embedded?.author?.[0]?.name || "");
-              const excerpt = clean(post.excerpt?.rendered).slice(0, 900);
-              const existing = known.get(key);
-              if (existing) {
-                existing.sourceUpdatedAt = modified.toISOString().slice(0, 10);
-                if (title) existing.title = title;
-                if (author) existing.author = author;
-                if (images.length) {
-                  existing.thumbnailUrl = existing.thumbnailUrl || images[0];
-                  existing.galleryImages = [...new Set([...(existing.galleryImages || []), ...images])].slice(0, 8);
-                }
-                updated++;
-                continue;
-              }
-              if (added >= 900) break;
-              const slug = parsed.pathname.split("/").filter(Boolean)[0];
-              const id = "mcpedl-" + slug.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 56);
-              const record = {
-                id, title, author, category: category(title),
-                description: excerpt || "Minecraft Bedrock向けリソースパック。詳細・対応バージョンは配布元ページで確認してください。",
-                sourceUrl, compatibility: "Bedrock向け（配布元でバージョン確認）",
-                source: "MCPEDL", sourceType: "automatic",
-                createdAt: (post.date_gmt || post.date || modified.toISOString()).slice(0, 10),
-                sourceUpdatedAt: modified.toISOString().slice(0, 10),
-                thumbnailUrl: images[0] || "", galleryImages: images
-              };
-              packs.push(record);
-              known.set(key, record);
-              added++;
-            }
+          async function getPage(page) {
+            const url = page === 1 ? "https://mcpedl.com/category/texture-packs/" : "https://mcpedl.com/category/texture-packs/page/" + page + "/";
+            const response = await fetch(url, { headers, signal: AbortSignal.timeout(25000) });
+            if (!response.ok) throw new Error("MCPEDL listing page " + page + " HTTP " + response.status);
+            return await response.text();
           }
-          const before = packs.length;
-          const retained = packs.filter(p => {
-            if (!p.sourceUpdatedAt) return true;
-            const d = new Date(p.sourceUpdatedAt + "T00:00:00Z");
-            return Number.isNaN(d.getTime()) || d >= cutoff;
-          });
-          removed = before - retained.length;
-          fs.writeFileSync(path, JSON.stringify(retained, null, 2) + "\n");
-          console.log(JSON.stringify({
-            total: retained.length, added, updated, removed,
-            scanned, cutoff: cutoff.toISOString().slice(0, 10),
-            note: "Only posts with a verified source modification date older than one year are removed."
-          }, null, 2));
-          if (added < 900) console.log("Only " + added + " new unique, recently updated entries were available.");
+          function cardDate(html, index) {
+            const articleStart = html.lastIndexOf("<article", index);
+            const articleEnd = html.indexOf("</article>", index);
+            const region = articleStart >= 0 && articleEnd > index
+              ? html.slice(articleStart, articleEnd + 10)
+              : html.slice(index, Math.min(html.length, index + 2200));
+            const match = region.match(/\b(\d{1,2}\s+[A-Za-z]{3},\s+\d{4})\b/);
+            if (!match) return null;
+            const date = new Date(match[1]);
+            return Number.isNaN(date.getTime()) ? null : date;
+          }
+          (async () => {
+            let added = 0, updated = 0, removed = 0, scanned = 0, reachedOld = false;
+            for (let page = 1; page <= 160 && added < 900 && !reachedOld; page++) {
+              const html = await getPage(page);
+              let pageItems = 0;
+              for (const m of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+                let url;
+                try { url = new URL(m[1].replace(/&amp;/g, "&"), "https://mcpedl.com"); } catch { continue; }
+                const parts = url.pathname.split("/").filter(Boolean);
+                if (url.hostname !== "mcpedl.com" || parts.length !== 1 || /^(category|tag|author|page|wp-json|login|register|search)$/i.test(parts[0])) continue;
+                const key = url.origin + url.pathname.replace(/\/+$/, "");
+                if (known.has(key.toLowerCase()) && !cardDate(html, m.index)) continue;
+                const title = clean(m[2]);
+                if (!title || title.length < 3 || title.length > 160 || restricted.test(title)) continue;
+                const modified = cardDate(html, m.index);
+                if (modified && modified < cutoff) { reachedOld = true; break; }
+                if (!modified) continue;
+                const sourceUrl = key + "/";
+                const near = html.slice(Math.max(0, m.index - 1200), Math.min(html.length, m.index + 2200));
+                const img = near.match(/(?:data-src|data-lazy-src|src)=["'](https:\/\/[^"']+\.(?:jpg|jpeg|png|webp)(?:\?[^"']*)?)["']/i);
+                const by = near.match(/\bBy\s+([^<·]{2,100})\s*[·<]/i);
+                const author = by ? clean(by[1]) : "";
+                const image = img?.[1] || "";
+                const existing = known.get(key.toLowerCase());
+                if (existing) {
+                  existing.sourceUpdatedAt = modified.toISOString().slice(0, 10);
+                  if (author) existing.author = author;
+                  if (image) {
+                    existing.thumbnailUrl = existing.thumbnailUrl || image;
+                    existing.galleryImages = [...new Set([...(existing.galleryImages || []), image])].slice(0, 8);
+                  }
+                  updated++;
+                  continue;
+                }
+                const slug = parts[0];
+                const id = "mcpedl-" + slug.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 56);
+                const description = clean(near).slice(0, 700);
+                const record = {
+                  id, title, author, category: category(title),
+                  description: description || "Minecraft Bedrock向けリソースパック。詳細・対応バージョンは配布元ページで確認してください。",
+                  sourceUrl, compatibility: "Bedrock向け（配布元でバージョン確認）",
+                  source: "MCPEDL", sourceType: "automatic",
+                  createdAt: modified.toISOString().slice(0, 10),
+                  sourceUpdatedAt: modified.toISOString().slice(0, 10),
+                  thumbnailUrl: image, galleryImages: image ? [image] : []
+                };
+                packs.push(record);
+                known.set(key.toLowerCase(), record);
+                added++; pageItems++; scanned++;
+                if (added >= 900) break;
+              }
+              console.log("MCPEDL page", page, "new", pageItems, "total new", added);
+              if (pageItems === 0 && page > 8 && !reachedOld) {
+                // Continue: pages can contain only records already present in the catalogue.
+              }
+            }
+            const before = packs.length;
+            const retained = packs.filter(p => {
+              if (!p.sourceUpdatedAt) return true;
+              const d = new Date(p.sourceUpdatedAt + "T00:00:00Z");
+              return Number.isNaN(d.getTime()) || d >= cutoff;
+            });
+            removed = before - retained.length;
+            fs.writeFileSync(path, JSON.stringify(retained, null, 2) + "\n");
+            console.log(JSON.stringify({ total: retained.length, added, updated, removed, scanned, cutoff: cutoff.toISOString().slice(0, 10) }, null, 2));
+            if (added < 900) console.log("Only " + added + " new unique recent entries were found in the scanned pages.");
+          })().catch(error => { console.error(error); process.exit(1); });
           NODE
       - name: Fetch public pack images
         run: |
@@ -189,8 +190,8 @@ jobs:
           }
           (async () => {
             let updated = 0, totalImages = 0, failed = 0;
-            for (let i = 0; i < packs.length; i += 5) {
-              const batch = await Promise.all(packs.slice(i, i + 5).map(fetchOne));
+            for (let i = 0; i < packs.length; i += 15) {
+              const batch = await Promise.all(packs.slice(i, i + 15).map(fetchOne));
               for (const item of batch) {
                 if (!item.images.length) { failed++; continue; }
                 const combined = [...new Set([...(item.pack.galleryImages || []), ...item.images])].slice(0, 8);

@@ -876,18 +876,6 @@
     "createdAt": "2026-11-27"
   },
   {
-    "id": "seed-074",
-    "title": "Bare Bones X Deep Freeze",
-    "author": "Pochilito",
-    "category": "ブロック・建築",
-    "description": "Bare Bones風のシンプルなテクスチャを複数コンテンツに追加。",
-    "sourceUrl": "https://mcpedl.com/barely-drops/",
-    "compatibility": "26.X（配布元記載）",
-    "source": "MCPEDL",
-    "sourceType": "curated",
-    "createdAt": "2026-11-27"
-  },
-  {
     "id": "seed-075",
     "title": "New Controls!",
     "author": "Michitodevofficial",
@@ -1242,6 +1230,30 @@
     "category": "ブロック・建築",
     "description": "ガラス板やガラスブロックの境界を滑らかにして透明感を高める。",
     "sourceUrl": "https://mcpedl.com/better-connected-glass-lev/",
+    "compatibility": "配布元で確認",
+    "source": "MCPEDL",
+    "sourceType": "curated",
+    "createdAt": "2026-11-27"
+  },
+  {
+    "id": "seed-105",
+    "title": "Derivative Clouds",
+    "author": "silfi-craft",
+    "category": "空・天候",
+    "description": "透明感のある雲のスカイボックスに変更するBedrock向けパック。",
+    "sourceUrl": "https://mcpedl.com/derivative-clouds/",
+    "compatibility": "配布元で確認",
+    "source": "MCPEDL",
+    "sourceType": "curated",
+    "createdAt": "2026-11-27"
+  },
+  {
+    "id": "seed-106",
+    "title": "Rain Particles",
+    "author": "silfi-craft",
+    "category": "水・環境",
+    "description": "雨天時のパーティクルをより立体的で雰囲気のある見た目に変更。",
+    "sourceUrl": "https://mcpedl.com/rain-particles/",
     "compatibility": "配布元で確認",
     "source": "MCPEDL",
     "sourceType": "curated",

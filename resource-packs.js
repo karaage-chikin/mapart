@@ -10,9 +10,44 @@ function favorites(){try{return new Set(JSON.parse(localStorage.getItem(favKey)|
 function setFavorites(set){localStorage.setItem(favKey,JSON.stringify([...set]));}
 function setStatus(message,type=""){const editorVisible=!$("editorArea").classList.contains("hidden");const el=$(editorVisible?"adminStatus":"loginStatus");if(el){el.textContent=message;el.className="status "+type;}}
 function categoryNav(){ $("filters").innerHTML=categories.map(c=>'<button class="chip '+(c===activeCategory?"active":"")+'" data-category="'+esc(c)+'">'+esc(c)+'</button>').join(""); }
+const searchTerms = [
+ ["シェーダー","shader","shaders","visual","graphics","グラフィック"],
+ ["軽量化","performance","fps","軽い","最適化"],
+ ["UI","ユーアイ","gui","hud","メニュー","menu","インベントリ","inventory"],
+ ["空","sky","cloud","雲","sun","太陽","moon","月","stars","星"],
+ ["水","water","ocean","海","川","river"],
+ ["自然","nature","植物","plant","tree","木","草","grass","leaves","葉"],
+ ["ブロック","block","blocks","建築","building","texture","テクスチャ"],
+ ["アイテム","item","items","道具","持ち物"],
+ ["サウンド","sound","sounds","audio","音","効果音"],
+ ["フォント","font","文字","language","言語","翻訳"],
+ ["アニメーション","animation","animated","動き"],
+ ["モブ","mob","model","モデル","動物","animal"],
+ ["天候","weather","rain","雨","snow","雪"],
+ ["透明","透明化","transparent","glass","ガラス"],
+ ["かわいい","cute","カラフル","colorful","pastel","パステル"],
+ ["リアル","realistic","realism","高画質","HD"],
+ ["シンプル","simple","minimal","ミニマル"],
+ ["暗い","dark","黒","black"],
+ ["明るい","bright","light","白","white"]
+];
+function normalized(s){return String(s||"").normalize("NFKC").toLocaleLowerCase().trim();}
+function expandSearch(q){const n=normalized(q);const out=[n];for(const group of searchTerms){if(group.some(t=>normalized(t)===n)||group.some(t=>n.includes(normalized(t))&&normalized(t).length>1))out.push(...group.map(normalized));}return [...new Set(out.filter(Boolean))];}
+function suggestionItems(q){
+ const n=normalized(q);if(!n)return ["シェーダー","UI","自然","空","水","ブロック","アイテム","サウンド","軽量化","フォント"];
+ const matches=[];
+ for(const group of searchTerms){const label=group[0];if(group.some(t=>normalized(t).includes(n)||n.includes(normalized(t))))matches.push(label,...group.filter(t=>normalized(t)!==n).slice(0,2));}
+ return [...new Set(matches)].slice(0,8);
+}
+function renderSuggestions(){
+ const q=$("search").value,box=$("searchSuggestions"),items=suggestionItems(q);
+ if(!items.length){box.classList.add("hidden");$("search").setAttribute("aria-expanded","false");return;}
+ box.innerHTML=items.map((v,i)=>'<button type="button" role="option" data-suggest="'+esc(v)+'"><span>'+esc(v)+'</span><small>'+(i===0&&q?"候補":"関連キーワード")+'</small></button>').join("");
+ box.classList.remove("hidden");$("search").setAttribute("aria-expanded","true");
+}
 function filtered(){
- const q=$("search").value.trim().toLowerCase(), fav=favorites();
- let list=packs.filter(p=>(activeCategory==="すべて"||p.category===activeCategory)&&(!favoritesOnly||fav.has(p.id))&&(!q||[p.title,p.author,p.description,p.category].join(" ").toLowerCase().includes(q)));
+ const q=normalized($("search").value), terms=expandSearch(q), fav=favorites();
+ let list=packs.filter(p=>(activeCategory==="すべて"||p.category===activeCategory)&&(!favoritesOnly||fav.has(p.id))&&(!q||terms.some(term=>[p.title,p.author,p.description,p.category,...(p.searchKeywords||[]),...(p.tags||[])].join(" ").toLowerCase().includes(term))));
  const sort=$("sort").value;
  if(sort==="az")list.sort((a,b)=>a.title.localeCompare(b.title,"ja"));
  if(sort==="fav")list.sort((a,b)=>(Number(fav.has(b.id))-Number(fav.has(a.id)))||a.title.localeCompare(b.title,"ja"));
@@ -36,15 +71,15 @@ function renderGallery(index=0){
 function openDetail(id){
  const p=packs.find(x=>x.id===id);if(!p)return;currentModalId=id;
  $("modalCategory").textContent=p.category;$("modalTitle").textContent=p.title;
- $("modalBody").innerHTML='<p><b>作者：</b>'+esc(p.author||"不明")+'</p><p>'+esc(p.description)+'</p><p><b>対応情報：</b>'+esc(p.compatibility||"配布元で確認")+'</p><p><b>掲載元：</b>'+esc(p.source||"配布元")+'</p>';
+ const meta=[["作者",p.author],["対応バージョン",p.compatibility||p.versions],["配布元",p.source],["公開日",p.publishedAt||p.createdAt],["最終更新日",p.sourceUpdatedAt||p.updatedAt],["ダウンロード数",p.downloads],["ファイルサイズ",p.fileSize],["ライセンス",p.license],["必要条件",p.requirements],["対応言語",Array.isArray(p.languages)?p.languages.join("、"):p.languages],["タグ",(p.tags||[]).join("、")]].filter(x=>x[1]!==undefined&&x[1]!==null&&String(x[1]).trim()!=="");const sections=[["説明",p.fullDescription||p.description],["主な特徴",p.features],["導入方法",p.installationSteps],["更新履歴",p.changelog],["注意事項",p.notes]].filter(x=>x[1]);$("modalBody").innerHTML='<div class="detail-meta">'+meta.map(x=>'<div><b>'+esc(x[0])+'</b><span>'+esc(Array.isArray(x[1])?x[1].join("、"):x[1])+'</span></div>').join("")+'</div>'+sections.map(x=>'<section class="detail-section"><h3>'+esc(x[0])+'</h3><p>'+esc(x[1])+'</p></section>').join("")+(p.sourceUrl?'<section class="detail-section"><h3>掲載情報について</h3><p>この図鑑に取得できた情報を掲載しています。未取得・未公表の項目は表示していません。内容の確認日：'+esc(p.detailsFetchedAt||"未記録")+'</p></section>':"");
  currentGalleryImages=[...new Set([p.thumbnailUrl,...(Array.isArray(p.galleryImages)?p.galleryImages:[])].filter(Boolean))].slice(0,8);
  renderGallery(0);
  $("sourceLink").href=p.sourceUrl;
  $("downloadLink").classList.toggle("hidden",!(p.directDownloadAllowed&&p.directDownloadUrl));
  $("downloadLink").textContent="サイト内からダウンロード ↓";
  const isFav=favorites().has(id);$("modalFav").textContent=isFav?"★ お気に入り済み":"☆ お気に入り";
- const isJapanese=/[ぁ-んァ-ヶ一-龯]/.test(p.description||"");
- $("translateDescription").href="https://translate.google.com/?sl=auto&tl="+(isJapanese?"en":"ja")+"&text="+encodeURIComponent(p.description||"")+"&op=translate";
+ const isJapanese=/[ぁ-んァ-ヶ一-龯]/.test((p.fullDescription||p.description||""));
+ $("translateDescription").href="https://translate.google.com/?sl=auto&tl="+(isJapanese?"en":"ja")+"&text="+encodeURIComponent(p.fullDescription||p.description||"")+"&op=translate";
  $("translateDescription").textContent=isJapanese?"英語に翻訳 ↗":"日本語に翻訳 ↗";
  $("modal").classList.remove("hidden");
 }
@@ -116,7 +151,7 @@ $("grid").addEventListener("click",e=>{
  const del=e.target.closest("[data-delete]");if(del){e.stopPropagation();deletePack(del.dataset.delete);return;}
  const open=e.target.closest("[data-open]");if(open)openDetail(open.dataset.open);
 });
-$("search").addEventListener("input",render);$("sort").addEventListener("change",render);
+$("search").addEventListener("input",()=>{render();renderSuggestions();});$("search").addEventListener("focus",renderSuggestions);$("search").addEventListener("keydown",e=>{if(e.key==="Escape"){$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");}if(e.key==="Enter"){const first=$("searchSuggestions").querySelector("[data-suggest]");if(first&&$("searchSuggestions").contains(document.activeElement)){e.preventDefault();$("search").value=first.dataset.suggest;render();$("searchSuggestions").classList.add("hidden");}}});$("searchSuggestions").addEventListener("click",e=>{const b=e.target.closest("[data-suggest]");if(!b)return;$("search").value=b.dataset.suggest;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");render();$("search").focus();});document.addEventListener("click",e=>{if(!e.target.closest(".search-wrap"))$("searchSuggestions").classList.add("hidden");});$("sort").addEventListener("change",render);
 $("favoritesOnly").addEventListener("click",()=>{favoritesOnly=!favoritesOnly;$("favoritesOnly").classList.toggle("primary",favoritesOnly);render();});
 $("adminToggle").addEventListener("click",()=>$("adminPanel").classList.toggle("hidden"));
 $("loginBtn").addEventListener("click",async()=>{

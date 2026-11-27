@@ -10,7 +10,7 @@
 </style>
 </head>
 <body><div class="wrap">
-<header><div><h1>Bedrockスキン工房</h1><div class="muted">統合版Minecraftのカスタムスキンを作成・編集</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">⌂ ホームへ戻る</a><span class="badge">開発版 v0.3.1</span></div></header>
+<header><div><h1>Bedrockスキン工房</h1><div class="muted">統合版Minecraftのカスタムスキンを作成・編集</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">⌂ ホームへ戻る</a><span class="badge">開発版 v0.4.0</span></div></header>
 <div class="layout">
 <aside>
 <section class="panel"><h2>1. スキンを準備</h2><div class="row"><button id="newBtn">新規作成</button><button class="secondary" id="openBtn">PNGを読み込む</button><input id="fileInput" type="file" accept="image/png" hidden></div><p class="hint">Bedrock向けの64×64 PNGと128×128 PNGに対応しています。</p><div class="field"><label for="model">腕のモデル</label><select id="model" style="width:100%"><option value="default">クラシック（Steve・腕4px）</option><option value="slim">スリム（Alex・腕3px）</option></select></div><div class="mini-actions"><button id="undoBtn" class="secondary" disabled>元に戻す</button><button id="clearBtn" class="secondary">全消去</button></div></section>
@@ -21,7 +21,7 @@
 <div class="row"><button id="pasteOnCanvasBtn">指定位置に貼り付け</button><button id="autoTextureBtn" class="secondary">画像をドット絵化</button></div>
 <div class="field"><label for="variantCount">自動バリエーション数</label><select id="variantCount" style="width:100%"><option value="4">4案</option><option value="8" selected>8案</option><option value="12">12案</option></select></div>
 <button id="makeVariantsBtn" class="secondary" style="width:100%">キャラクターからスキン候補をまとめて生成</button><div id="variantGallery" class="palette" aria-live="polite"></div>
-<div id="imageStatus" class="status">画像を選択するか、クリップボードから貼り付けてください。前向き全身画像が最適です。</div></section>
+<div id="imageStatus" class="status">画像を選択するか、クリップボードから貼り付けてください。顔検出で顔の位置を自動調整します。</div></section>
 <section class="panel"><h2>3. 描画ツール</h2><div class="tools"><button class="active" data-tool="pen">ペン</button><button class="secondary" data-tool="eraser">消しゴム</button><button class="secondary" data-tool="fill">塗りつぶし</button></div><div class="field"><label for="color">選択色</label><div class="row"><input id="color" type="color" value="#89b4fa"><input id="hex" value="#89b4fa" maxlength="7" aria-label="カラーコード"></div><div id="palette" class="palette"></div></div><div class="field"><label for="zoom">表示倍率 <span id="zoomText">8倍</span></label><input id="zoom" type="range" min="4" max="16" value="8"></div><p class="hint">キャンバスをタップ／ドラッグして1ピクセルずつ描けます。外側レイヤーの透明部分も編集できます。</p></section>
 <section class="panel"><h2>4. 保存</h2><button id="downloadBtn" style="width:100%">Bedrock用PNGを保存</button><p class="hint">保存したPNGは、Bedrock版の「更衣室 → クラシックスキン → インポート」から読み込めます。端末によってメニュー名が異なる場合があります。</p><div id="status" class="status">新しいスキンを作成しました。</div></section>
 </aside>
@@ -64,18 +64,32 @@ function pasteSource(){if(!sourceImage)throw new Error("先に画像を読み込
 $("pasteOnCanvasBtn").onclick=()=>{try{pasteSource();}catch(err){$("imageStatus").textContent=err.message;$("imageStatus").classList.add("error");}};
 function quantizedPixels(img,variant=0){const t=imageToCanvas(img,64,64,"cover"),c=t.getContext("2d"),im=c.getImageData(0,0,64,64),d=im.data;const levels=[4,6,8,10,12,16,20,24,32,5,7,9];const step=levels[variant%levels.length],hue=(variant%4)*9-13,sat=1+((variant%3)-1)*.12;for(let i=0;i<d.length;i+=4){if(d[i+3]<16)continue;let r=d[i],g=d[i+1],b=d[i+2];const avg=(r+g+b)/3;r=avg+(r-avg)*sat;g=avg+(g-avg)*sat;b=avg+(b-avg)*sat;const mx=Math.max(r,g,b),mn=Math.min(r,g,b);if(mx-mn>18){r+=hue;g+=hue*.25;b-=hue*.35;}d[i]=Math.max(0,Math.min(255,Math.round(r/step)*step));d[i+1]=Math.max(0,Math.min(255,Math.round(g/step)*step));d[i+2]=Math.max(0,Math.min(255,Math.round(b/step)*step));}return d;}
 function applyAutoTexture(variant=0){if(!sourceImage)throw new Error("先に画像を読み込んでください。");saveHistory();size=64;pixels=quantizedPixels(sourceImage,variant);draw();$("imageStatus").textContent="画像からBedrockスキンを自動生成しました。3Dプレビューで確認し、必要に応じて手直ししてください。";}
-$("autoTextureBtn").onclick=()=>{try{applyCharacterVariant(0);}catch(err){$("imageStatus").textContent=err.message;$("imageStatus").classList.add("error");}};
+$("autoTextureBtn").onclick=async()=>{try{await applyCharacterVariant(0);}catch(err){$("imageStatus").textContent=err.message;$("imageStatus").classList.add("error");}};
 
-/* Front-view reference image -> approximate Bedrock 64x64 skin atlas. */
+/* Face detection: MediaPipe locates the face, then maps its crop to the front of the Bedrock head. */
+let faceDetectorPromise=null;
+async function detectFace(img){
+ if(!faceDetectorPromise)faceDetectorPromise=(async()=>{
+  const vision=await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm");
+  const files=await vision.FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+  return vision.FaceDetector.createFromOptions(files,{baseOptions:{modelAssetPath:"https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/latest/blaze_face_short_range.tflite"},runningMode:"IMAGE",minDetectionConfidence:.45});
+ })();
+ const detector=await faceDetectorPromise,result=detector.detect(img),box=result.detections?.[0]?.boundingBox;
+ if(!box)return null;
+ return {x:Math.max(0,box.originX),y:Math.max(0,box.originY),w:Math.max(1,box.width),h:Math.max(1,box.height)};
+}
 function drawAtlasFace(c,img,crop,rect,filter="none"){const [sx,sy,sw,sh]=crop,[dx,dy,dw,dh]=rect;c.save();c.imageSmoothingEnabled=false;c.filter=filter;c.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh);c.restore();}
 function averageColor(img,crop){const [x,y,w,h]=crop,t=document.createElement("canvas");t.width=1;t.height=1;const c=t.getContext("2d");c.drawImage(img,x,y,w,h,0,0,1,1);const d=c.getImageData(0,0,1,1).data;return "rgb("+d[0]+","+d[1]+","+d[2]+")";}
-function makeCharacterAtlas(img,variant=0){
+function makeCharacterAtlas(img,variant=0,faceBox=null){
  const W=img.naturalWidth||img.width,H=img.naturalHeight||img.height,atlas=document.createElement("canvas");atlas.width=64;atlas.height=64;const c=atlas.getContext("2d");c.imageSmoothingEnabled=false;
  const hue=[0,18,-18,35,-35,70,145,210,285,325,8,48][variant%12],sat=[1,.82,1.12,.9,1.2,.95,1.08,.88][variant%8],filter="hue-rotate("+hue+"deg) saturate("+sat+")";
- const crop=(x,y,w,h)=>[Math.round(W*x),Math.round(H*y),Math.max(1,Math.round(W*w)),Math.max(1,Math.round(H*h))];
- const head=crop(.28,.02,.44,.27),torso=crop(.27,.29,.46,.31),armL=crop(.08,.29,.19,.32),armR=crop(.73,.29,.19,.32),legL=crop(.29,.62,.19,.36),legR=crop(.52,.62,.19,.36);
+ const crop=(x,y,w,h)=>[Math.max(0,Math.min(W-1,Math.round(x))),Math.max(0,Math.min(H-1,Math.round(y))),Math.max(1,Math.min(W-Math.round(x),Math.round(w))),Math.max(1,Math.min(H-Math.round(y),Math.round(h)))];
+ const head=crop(W*.28,H*.02,W*.44,H*.27),torso=crop(W*.27,H*.29,W*.46,H*.31),armL=crop(W*.08,H*.29,W*.19,H*.32),armR=crop(W*.73,H*.29,W*.19,H*.32),legL=crop(W*.29,H*.62,W*.19,H*.36),legR=crop(W*.52,H*.62,W*.19,H*.36);
+ let faceCrop=head;
+ if(faceBox){const padX=faceBox.w*.22,padY=faceBox.h*.20;faceCrop=crop(faceBox.x-padX,faceBox.y-padY,faceBox.w+padX*2,faceBox.h+padY*2);}
  const skin=averageColor(img,head),shirt=averageColor(img,torso),pants=averageColor(img,legL),fill=(r,col)=>{c.fillStyle=col;c.fillRect(...r);},face=(src,r)=>drawAtlasFace(c,img,src,r,filter);
- [[8,8,8,8],[0,8,8,8],[16,8,8,8],[24,8,8,8],[8,0,8,8],[16,0,8,8]].forEach(r=>face(head,r));
+ /* Other five head faces use the estimated head area; the front face uses the detected face crop. */
+ [[0,8,8,8],[16,8,8,8],[24,8,8,8],[8,0,8,8],[16,0,8,8]].forEach(r=>face(head,r));face(faceCrop,[8,8,8,8]);
  fill([16,20,4,12],shirt);fill([28,20,4,12],shirt);fill([32,20,8,12],shirt);fill([20,16,8,4],shirt);fill([28,16,8,4],shirt);face(torso,[20,20,8,12]);
  fill([40,20,4,12],skin);fill([48,20,4,12],skin);fill([52,20,4,12],skin);fill([44,16,4,4],skin);fill([48,16,4,4],skin);face(armR,[44,20,4,12]);
  fill([32,52,4,12],skin);fill([40,52,4,12],skin);fill([44,52,4,12],skin);fill([36,48,4,4],skin);fill([40,48,4,4],skin);face(armL,[36,52,4,12]);
@@ -84,9 +98,15 @@ function makeCharacterAtlas(img,variant=0){
  c.save();c.globalAlpha=.16;face(head,[40,8,8,8]);face(torso,[20,36,8,12]);face(armR,[44,36,4,12]);face(armL,[52,52,4,12]);face(legL,[4,36,4,12]);face(legR,[4,52,4,12]);c.restore();
  return c.getImageData(0,0,64,64);
 }
-function applyCharacterVariant(variant=0){if(!sourceImage)throw new Error("先にキャラクター画像を読み込んでください。");saveHistory();size=64;pixels=new Uint8ClampedArray(makeCharacterAtlas(sourceImage,variant).data);draw();$("imageStatus").textContent="候補 "+(variant+1)+" を適用しました。前向き全身画像を使うと、部位の推定精度が上がります。";}
+async function applyCharacterVariant(variant=0,faceBox=undefined){
+ if(!sourceImage)throw new Error("先に画像を読み込んでください。");
+ if(faceBox===undefined){try{faceBox=await detectFace(sourceImage);}catch(err){faceBox=null;}}
+ saveHistory();size=64;pixels=new Uint8ClampedArray(makeCharacterAtlas(sourceImage,variant,faceBox).data);draw();
+ $("imageStatus").classList.remove("error");
+ $("imageStatus").textContent=faceBox?"顔を検出し、顔の位置を頭の正面に合わせて候補 "+(variant+1)+" を適用しました。":"顔を検出できなかったため、従来の位置推定で候補 "+(variant+1)+" を作成しました。正面向きで顔がはっきり見える画像を試してください。";
+}
 
-$("makeVariantsBtn").onclick=()=>{try{if(!sourceImage)throw new Error("先に画像を読み込んでください。");const gallery=$("variantGallery");gallery.replaceChildren();const count=Number($("variantCount").value);for(let n=0;n<count;n++){const thumb=document.createElement("canvas");thumb.width=64;thumb.height=64;thumb.style.width="76px";thumb.style.height="76px";thumb.style.imageRendering="pixelated";thumb.style.border="1px solid #45475a";thumb.style.borderRadius="6px";thumb.title=(n+1)+"案を適用";thumb.getContext("2d").putImageData(makeCharacterAtlas(sourceImage,n),0,0);thumb.tabIndex=0;thumb.setAttribute("role","button");const choose=()=>{try{applyCharacterVariant(n);}catch(err){$("imageStatus").textContent=err.message;}};thumb.onclick=choose;thumb.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();choose();}};gallery.append(thumb);}$("imageStatus").textContent=count+"案を生成しました。気に入った案をクリックすると編集キャンバスと3Dプレビューに反映されます。";}catch(err){$("imageStatus").textContent=err.message;$("imageStatus").classList.add("error");}};
+$("makeVariantsBtn").onclick=async()=>{try{if(!sourceImage)throw new Error("先に画像を読み込んでください。");const gallery=$("variantGallery");gallery.replaceChildren();$("imageStatus").textContent="顔を検出しています…";let faceBox=null;try{faceBox=await detectFace(sourceImage);}catch(err){console.warn("Face detection unavailable",err);}const count=Number($("variantCount").value);for(let n=0;n<count;n++){const thumb=document.createElement("canvas");thumb.width=64;thumb.height=64;thumb.style.width="76px";thumb.style.height="76px";thumb.style.imageRendering="pixelated";thumb.style.border="1px solid #45475a";thumb.style.borderRadius="6px";thumb.title=(n+1)+"案を適用";thumb.getContext("2d").putImageData(makeCharacterAtlas(sourceImage,n,faceBox),0,0);thumb.tabIndex=0;thumb.setAttribute("role","button");const choose=()=>{try{applyCharacterVariant(n,faceBox);}catch(err){$("imageStatus").textContent=err.message;}};thumb.onclick=choose;thumb.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();choose();}};gallery.append(thumb);}$("imageStatus").classList.toggle("error",!faceBox);$("imageStatus").textContent=faceBox?"顔を検出しました。顔の位置に合わせて"+count+"案を生成しました。候補をクリックして適用できます。":"顔を検出できませんでした。従来方式で"+count+"案を生成しました。正面向きで顔がはっきり見える画像を試してください。";}catch(err){$("imageStatus").textContent=err.message;$("imageStatus").classList.add("error");}};
 
 $("newBtn").onclick=()=>{saveHistory();size=64;pixels=new Uint8ClampedArray(size*size*4);draw();$("status").textContent="新しい64×64スキンを作成しました。";};
 $("openBtn").onclick=()=>$("fileInput").click();

@@ -85,7 +85,7 @@ function openDetail(id){
  const p=packs.find(x=>x.id===id);if(!p)return;currentModalId=id;
  $("modalCategory").textContent=p.category;$("modalTitle").textContent=p.title;
  const meta=[["作者",p.author],["対応バージョン",p.compatibility||p.versions],["配布元",p.source],["公開日",p.publishedAt||p.createdAt],["最終更新日",p.sourceUpdatedAt||p.updatedAt],["ダウンロード数",p.downloads],["ファイルサイズ",p.fileSize],["ライセンス",p.license],["必要条件",p.requirements],["対応言語",Array.isArray(p.languages)?p.languages.join("、"):p.languages],["タグ",(p.tags||[]).join("、")]].filter(x=>x[1]!==undefined&&x[1]!==null&&String(x[1]).trim()!=="");const sections=[["説明",p.fullDescription||p.description],["主な特徴",p.features],["導入方法",p.installationSteps],["更新履歴",p.changelog],["注意事項",p.notes]].filter(x=>x[1]);$("modalBody").innerHTML='<div class="detail-meta">'+meta.map(x=>'<div><b>'+esc(x[0])+'</b><span>'+esc(Array.isArray(x[1])?x[1].join("、"):x[1])+'</span></div>').join("")+'</div>'+sections.map(x=>'<section class="detail-section"><h3>'+esc(x[0])+'</h3><p>'+esc(x[1])+'</p></section>').join("")+(p.sourceUrl?'<section class="detail-section"><h3>掲載情報について</h3><p>この図鑑に取得できた情報を掲載しています。未取得・未公表の項目は表示していません。内容の確認日：'+esc(p.detailsFetchedAt||"未記録")+'</p></section>':"");
- currentGalleryImages=[...new Set([p.thumbnailUrl,...(Array.isArray(p.galleryImages)?p.galleryImages:[])].filter(Boolean))].slice(0,8);
+ currentGalleryImages=[...new Set([p.thumbnailUrl,...(Array.isArray(p.galleryImages)?p.galleryImages:[])].filter(Boolean))].slice(0,20);
  renderGallery(0);
  $("sourceLink").href=p.sourceUrl;
  $("downloadLink").classList.toggle("hidden",!(p.directDownloadAllowed&&p.directDownloadUrl));

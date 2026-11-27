@@ -69,7 +69,8 @@ function filtered(){
  if(sort==="fav")list.sort((a,b)=>(Number(fav.has(b.id))-Number(fav.has(a.id)))||a.title.localeCompare(b.title,"ja"));
  return list;
 }
-document.addEventListener("error",event=>{const img=event.target;if(!(img instanceof HTMLImageElement))return;img.hidden=true;const fallback=img.nextElementSibling;if(fallback?.classList.contains("image-placeholder"))fallback.hidden=false;},true);\nfunction safeImageUrl(value){
+document.addEventListener("error",event=>{const img=event.target;if(!(img instanceof HTMLImageElement))return;img.hidden=true;const fallback=img.nextElementSibling;if(fallback?.classList.contains("image-placeholder"))fallback.hidden=false;},true);
+function safeImageUrl(value){
  try{const u=new URL(String(value||""),location.href);return u.protocol==="https:"||u.origin===location.origin?u.href:"";}catch{return "";}
 }
 function imageMarkup(url,alt,cls){

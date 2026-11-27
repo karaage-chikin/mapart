@@ -4,7 +4,7 @@ const API = "https://resource-packs-api.karaage-chikin-029.workers.dev";
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const favKey = "bedrock-resource-pack-favorites-v1";
-let packs = [], activeCategory = "すべて", favoritesOnly = false, token = sessionStorage.getItem("resourcePackAdminToken") || "", editingId = null, currentModalId = null;
+let packs = [], activeCategory = "すべて", favoritesOnly = false, token = sessionStorage.getItem("resourcePackAdminToken") || "", editingId = null, currentModalId = null, currentGalleryImages = [];
 const categories = ["すべて", ...new Set(["シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","ブロック・アイテム","UI・シンプル","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","便利・操作","季節・テーマ","テーマ・世界観","その他"])];
 function favorites(){try{return new Set(JSON.parse(localStorage.getItem(favKey)||"[]"));}catch{return new Set();}}
 function setFavorites(set){localStorage.setItem(favKey,JSON.stringify([...set]));}
@@ -18,25 +18,38 @@ function filtered(){
  if(sort==="fav")list.sort((a,b)=>(Number(fav.has(b.id))-Number(fav.has(a.id)))||a.title.localeCompare(b.title,"ja"));
  return list;
 }
+function imageMarkup(url,alt,cls){
+ return '<div class="'+cls+'">'+(url?'<img src="'+esc(url)+'" alt="'+esc(alt)+'" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><div class="image-placeholder" hidden>📦</div>':'<div class="image-placeholder">📦</div>')+'</div>';
+}
 function render(){
- const list=filtered(), fav=favorites();
+ const list=filtered(),fav=favorites();
  $("countStat").textContent=packs.length+"件掲載";
  $("resultCount").textContent=list.length+"件を表示中";
- $("grid").innerHTML=list.length?list.map(p=>'<article class="pack" data-open="'+esc(p.id)+'"><div class="pack-top"><span class="category">'+esc(p.category)+'</span><button class="fav '+(fav.has(p.id)?"on":"")+'" data-fav="'+esc(p.id)+'" aria-label="お気に入り">'+(fav.has(p.id)?"★":"☆")+'</button></div><h2>'+esc(p.title)+'</h2><div class="author">作者：'+esc(p.author||"不明")+'</div><p class="desc">'+esc(p.description)+'</p><div class="pack-bottom"><span class="version">'+esc(p.compatibility||"対応情報は配布元で確認")+'</span><button class="details" data-open="'+esc(p.id)+'">詳細を見る →</button></div>'+(token?'<div class="admin-actions"><button class="btn small" data-edit="'+esc(p.id)+'">編集</button><button class="btn small" data-delete="'+esc(p.id)+'">削除</button></div>':"")+'</article>').join(""):'<div class="empty">該当するパックが見つかりませんでした。検索語やジャンルを変えてみてね。</div>';
+ $("grid").innerHTML=list.length?list.map(p=>'<article class="pack" data-open="'+esc(p.id)+'">'+imageMarkup(p.thumbnailUrl||(p.galleryImages||[])[0]||"",p.title+"の画像","pack-thumb")+'<div class="pack-top"><span class="category">'+esc(p.category)+'</span><button class="fav '+(fav.has(p.id)?"on":"")+'" data-fav="'+esc(p.id)+'" aria-label="お気に入り">'+(fav.has(p.id)?"★":"☆")+'</button></div><h2>'+esc(p.title)+'</h2><div class="author">作者：'+esc(p.author||"不明")+'</div><p class="desc">'+esc(p.description)+'</p><div class="pack-bottom"><span class="version">'+esc(p.compatibility||"対応情報は配布元で確認")+'</span><button class="details" data-open="'+esc(p.id)+'">詳細を見る →</button></div>'+(p.directDownloadAllowed?'<div class="version">サイト内ダウンロード対応</div>':'')+(token?'<div class="admin-actions"><button class="btn small" data-edit="'+esc(p.id)+'">編集</button><button class="btn small" data-delete="'+esc(p.id)+'">削除</button></div>':"")+'</article>').join(""):'<div class="empty">該当するパックが見つかりませんでした。検索語やジャンルを変えてみてね。</div>';
+}
+function renderGallery(index=0){
+ const box=$("modalGallery");
+ if(!currentGalleryImages.length){box.innerHTML=imageMarkup("","画像なし","modal-gallery-main");return;}
+ const safeIndex=Math.max(0,Math.min(index,currentGalleryImages.length-1)),url=currentGalleryImages[safeIndex];
+ box.innerHTML=imageMarkup(url,"リソースパック画像 "+(safeIndex+1),"modal-gallery-main")+(currentGalleryImages.length>1?'<div class="gallery-thumbs">'+currentGalleryImages.map((src,i)=>'<button type="button" data-gallery-index="'+i+'" class="'+(i===safeIndex?"active":"")+'" aria-label="画像 '+(i+1)+'"><img src="'+esc(src)+'" alt="" loading="lazy" referrerpolicy="no-referrer"></button>').join("")+'</div>':"");
 }
 function openDetail(id){
- const p=packs.find(x=>x.id===id); if(!p)return; currentModalId=id;
- $("modalCategory").textContent=p.category; $("modalTitle").textContent=p.title;
+ const p=packs.find(x=>x.id===id);if(!p)return;currentModalId=id;
+ $("modalCategory").textContent=p.category;$("modalTitle").textContent=p.title;
  $("modalBody").innerHTML='<p><b>作者：</b>'+esc(p.author||"不明")+'</p><p>'+esc(p.description)+'</p><p><b>対応情報：</b>'+esc(p.compatibility||"配布元で確認")+'</p><p><b>掲載元：</b>'+esc(p.source||"配布元")+'</p>';
+ currentGalleryImages=[...new Set([p.thumbnailUrl,...(Array.isArray(p.galleryImages)?p.galleryImages:[])].filter(Boolean))].slice(0,8);
+ renderGallery(0);
  $("sourceLink").href=p.sourceUrl;
- const isFav=favorites().has(id); $("modalFav").textContent=isFav?"★ お気に入り済み":"☆ お気に入り";
+ $("downloadLink").classList.toggle("hidden",!(p.directDownloadAllowed&&p.directDownloadUrl));
+ $("downloadLink").textContent="サイト内からダウンロード ↓";
+ const isFav=favorites().has(id);$("modalFav").textContent=isFav?"★ お気に入り済み":"☆ お気に入り";
  $("modalEdit").classList.toggle("hidden",!token);
  $("modal").classList.remove("hidden");
 }
 function toggleFav(id){const f=favorites();f.has(id)?f.delete(id):f.add(id);setFavorites(f);render();if(currentModalId===id)$("modalFav").textContent=f.has(id)?"★ お気に入り済み":"☆ お気に入り";}
 function fillEditor(p){
  editingId=p?.id||null;
- $("editTitle").value=p?.title||"";$("editAuthor").value=p?.author||"";$("editCategory").value=p?.category||"その他";$("editVersion").value=p?.compatibility||"";$("editUrl").value=p?.sourceUrl||"";$("editDescription").value=p?.description||"";
+ $("editTitle").value=p?.title||"";$("editAuthor").value=p?.author||"";$("editCategory").value=p?.category||"その他";$("editVersion").value=p?.compatibility||"";$("editUrl").value=p?.sourceUrl||"";$("editThumbnail").value=p?.thumbnailUrl||"";$("editGallery").value=(p?.galleryImages||[]).join("\n");$("editDownloadUrl").value=p?.directDownloadUrl||"";$("editDownloadAllowed").checked=!!p?.directDownloadAllowed;$("editDescription").value=p?.description||"";
  $("savePack").textContent=editingId?"変更を保存":"登録する";
  $("adminPanel").scrollIntoView({behavior:"smooth",block:"start"});
 }
@@ -87,7 +100,7 @@ $("loginBtn").addEventListener("click",async()=>{
 });
 $("logoutBtn").addEventListener("click",()=>{token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);render();setStatus("ログアウトしました。");});
 $("savePack").addEventListener("click",async()=>{
- const payload={title:$("editTitle").value.trim(),author:$("editAuthor").value.trim(),category:$("editCategory").value,compatibility:$("editVersion").value.trim()||"配布元で確認",sourceUrl:$("editUrl").value.trim(),description:$("editDescription").value.trim(),source:"管理者登録"};
+ const payload={title:$("editTitle").value.trim(),author:$("editAuthor").value.trim(),category:$("editCategory").value,compatibility:$("editVersion").value.trim()||"配布元で確認",sourceUrl:$("editUrl").value.trim(),thumbnailUrl:$("editThumbnail").value.trim(),galleryImages:$("editGallery").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),directDownloadUrl:$("editDownloadUrl").value.trim(),directDownloadAllowed:$("editDownloadAllowed").checked,description:$("editDescription").value.trim(),source:"管理者登録"};
  if(!payload.title||!payload.sourceUrl||!payload.description){setStatus("パック名・説明・配布元URLを入力してください。","error");return;}
  try{const path=editingId?"/api/admin/packs/"+encodeURIComponent(editingId):"/api/admin/packs";const data=await api(path,{method:editingId?"PUT":"POST",body:JSON.stringify(payload)});if(editingId){packs=packs.map(p=>p.id===editingId?data.pack:p);}else{packs.unshift(data.pack);}clearEditor();render();setStatus("登録内容を保存しました。","ok");}
  catch(e){setStatus(e.message,"error");}

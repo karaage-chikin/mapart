@@ -99,7 +99,33 @@ async function resetLoginAttempts(env, request) {
   const key = b64url(new Uint8Array(digest).slice(0,18));
   await env.DB.prepare("DELETE FROM resource_pack_login_attempts WHERE ip_hash = ?").bind(key).run();
 }
+async function discoverMcpedl(env) {
+  const headers = { "User-Agent": "KaraageChikinResourcePackDirectory/1.0", "Accept": "application/json" };
+  const cr = await fetch("https://mcpedl.com/wp-json/wp/v2/categories?slug=texture-packs", {headers});
+  if (!cr.ok) throw new Error("MCPEDLカテゴリを取得できませんでした（HTTP " + cr.status + "）。");
+  const cats = await cr.json();
+  if (!Array.isArray(cats) || !cats[0]?.id) throw new Error("MCPEDLのTexture Packsカテゴリが見つかりません。");
+  const pr = await fetch("https://mcpedl.com/wp-json/wp/v2/posts?categories=" + cats[0].id + "&per_page=50&orderby=date&order=desc&_embed=author", {headers});
+  if (!pr.ok) throw new Error("MCPEDL投稿一覧を取得できませんでした（HTTP " + pr.status + "）。");
+  const posts = await pr.json();
+  if (!Array.isArray(posts)) throw new Error("MCPEDLの応答形式が不正です。");
+  let added=0, skipped=0;
+  for (const p of posts) {
+    const link=String(p.link||"");
+    let valid=false; try { valid=new URL(link).hostname==="mcpedl.com"; } catch {}
+    const clean=s=>String(s||"").replace(/<[^>]*>/g," ").replace(/&amp;/g,"&").replace(/&#8217;|&#8216;/g,"'").replace(/&quot;/g,'"').replace(/&nbsp;/g," ").replace(/\\s+/g," ").trim();
+    const title=clean(p.title?.rendered), description=clean(p.excerpt?.rendered).slice(0,1000), author=String(p._embedded?.author?.[0]?.name||"").slice(0,120);
+    if(!valid||!title||!description){skipped++;continue;}
+    const published=await env.DB.prepare("SELECT id FROM resource_packs WHERE source_url=? LIMIT 1").bind(link).first();
+    if(published){skipped++;continue;}
+    const r=await env.DB.prepare("INSERT OR IGNORE INTO resource_pack_candidates (id,title,author,description,source_url,provider,discovered_at,status) VALUES (?,?,?,?,?,?,?,'pending')").bind(crypto.randomUUID(),title,author,description,link,"MCPEDL",Date.now()).run();
+    if(Number(r?.meta?.changes||0)===1)added++;else skipped++;
+  }
+  return {added,skipped,scanned:posts.length,provider:"MCPEDL"};
+}
+function normalizeCandidate(r){return {id:r.id,title:r.title,author:r.author,description:r.description,sourceUrl:r.source_url,provider:r.provider,discoveredAt:r.discovered_at};}
 export default {
+  async scheduled(controller, env, ctx) { ctx.waitUntil(discoverMcpedl(env).catch(e=>console.error("Scheduled discovery failed",e))); },
   async fetch(request, env) {
     const origin = request.headers.get("Origin") || "";
     if (request.method === "OPTIONS") {
@@ -146,6 +172,26 @@ export default {
     if (url.pathname.startsWith("/api/admin/")) {
       if (!env.SESSION_SECRET || !(await isAdmin(request, env.SESSION_SECRET))) return reply({ error: "管理者としてログインしてください。" }, 401, origin);
       if (request.method === "GET" && url.pathname === "/api/admin/session") return reply({ ok: true }, 200, origin);
+      if (request.method === "GET" && url.pathname === "/api/admin/candidates") {
+        const r=await env.DB.prepare("SELECT id,title,author,description,source_url,provider,discovered_at FROM resource_pack_candidates WHERE status='pending' ORDER BY discovered_at DESC LIMIT 100").all();
+        return reply({candidates:(r.results||[]).map(normalizeCandidate)},200,origin);
+      }
+      if (request.method === "POST" && url.pathname === "/api/admin/discover") {
+        try{return reply(await discoverMcpedl(env),200,origin);}catch(e){console.error(e);return reply({error:e.message||"候補を取得できませんでした。"},502,origin);}
+      }
+      const cm=url.pathname.match(/^\/api\/admin\/candidates\/([A-Za-z0-9_-]{1,80})\/(approve)$/);
+      if(cm && request.method==="POST"){
+        try{
+          const c=await env.DB.prepare("SELECT * FROM resource_pack_candidates WHERE id=? AND status='pending'").bind(cm[1]).first();
+          if(!c)return reply({error:"候補が見つかりません。"},404,origin);
+          const body=await readJson(request), category=String(body.category||"その他").slice(0,60), id=crypto.randomUUID(), now=Date.now();
+          await env.DB.prepare("INSERT INTO resource_packs (id,title,author,category,description,source_url,compatibility,source,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)").bind(id,c.title,c.author,category,c.description,c.source_url,"配布元で確認","MCPEDL自動発見（管理者承認）",now,now).run();
+          await env.DB.prepare("DELETE FROM resource_pack_candidates WHERE id=?").bind(c.id).run();
+          const row=await env.DB.prepare("SELECT * FROM resource_packs WHERE id=?").bind(id).first();
+          return reply({pack:normalize(row)},201,origin);
+        }catch(e){console.error(e);return reply({error:"候補を公開できませんでした。"},500,origin);}
+      }
+      if(cm && request.method==="DELETE"){await env.DB.prepare("DELETE FROM resource_pack_candidates WHERE id=?").bind(cm[1]).run();return reply({ok:true},200,origin);}
       if (request.method === "POST" && url.pathname === "/api/admin/packs") {
         try {
           const body = await readJson(request), invalid = validatePack(body);

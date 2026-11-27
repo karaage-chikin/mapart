@@ -42,8 +42,21 @@ function suggestionItems(q){
 function renderSuggestions(){
  const q=$("search").value,box=$("searchSuggestions"),items=suggestionItems(q);
  if(!items.length){box.classList.add("hidden");$("search").setAttribute("aria-expanded","false");return;}
- box.innerHTML=items.map((v,i)=>'<button type="button" role="option" data-suggest="'+esc(v)+'"><span>'+esc(v)+'</span><small>'+(i===0&&q?"候補":"関連キーワード")+'</small></button>').join("");
+ box.innerHTML=items.map((v,i)=>'<button type="button" role="option" data-suggest="'+esc(v)+'"><span>'+esc(v)+'</span><small>'+(i===0&&q?"候補":"関連キーワード")+'</small></button>').join("")+(q?'<button type="button" data-translate-search="1"><span>入力した言葉を'+(/[ぁ-んァ-ヶ一-龯]/.test(q)?"英語":"日本語")+'に翻訳して検索</span><small>自動翻訳</small></button>':"");
  box.classList.remove("hidden");$("search").setAttribute("aria-expanded","true");
+}
+async function translateSearch(){
+ const q=$("search").value.trim();if(!q)return;
+ const target=/[ぁ-んァ-ヶ一-龯]/.test(q)?"en":"ja";
+ try{
+  const url="https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl="+target+"&dt=t&q="+encodeURIComponent(q);
+  const res=await fetch(url);if(!res.ok)throw new Error("translation unavailable");
+  const data=await res.json(),translated=(data[0]||[]).map(x=>x[0]||"").join("").trim();
+  if(!translated)throw new Error("empty translation");
+  $("search").value=translated;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");render();
+ }catch{
+  window.open("https://translate.google.com/?sl=auto&tl="+target+"&text="+encodeURIComponent(q)+"&op=translate","_blank","noopener,noreferrer");
+ }
 }
 function filtered(){
  const q=normalized($("search").value), terms=expandSearch(q), fav=favorites();
@@ -151,7 +164,7 @@ $("grid").addEventListener("click",e=>{
  const del=e.target.closest("[data-delete]");if(del){e.stopPropagation();deletePack(del.dataset.delete);return;}
  const open=e.target.closest("[data-open]");if(open)openDetail(open.dataset.open);
 });
-$("search").addEventListener("input",()=>{render();renderSuggestions();});$("search").addEventListener("focus",renderSuggestions);$("search").addEventListener("keydown",e=>{if(e.key==="Escape"){$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");}if(e.key==="Enter"){const first=$("searchSuggestions").querySelector("[data-suggest]");if(first&&$("searchSuggestions").contains(document.activeElement)){e.preventDefault();$("search").value=first.dataset.suggest;render();$("searchSuggestions").classList.add("hidden");}}});$("searchSuggestions").addEventListener("click",e=>{const b=e.target.closest("[data-suggest]");if(!b)return;$("search").value=b.dataset.suggest;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");render();$("search").focus();});document.addEventListener("click",e=>{if(!e.target.closest(".search-wrap"))$("searchSuggestions").classList.add("hidden");});$("sort").addEventListener("change",render);
+$("search").addEventListener("input",()=>{render();renderSuggestions();});$("search").addEventListener("focus",renderSuggestions);$("search").addEventListener("keydown",e=>{if(e.key==="Escape"){$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");}if(e.key==="Enter"){const first=$("searchSuggestions").querySelector("[data-suggest]");if(first&&$("searchSuggestions").contains(document.activeElement)){e.preventDefault();$("search").value=first.dataset.suggest;render();$("searchSuggestions").classList.add("hidden");}}});$("searchSuggestions").addEventListener("click",e=>{const b=e.target.closest("[data-suggest]");if(!b)return;$("search").value=b.dataset.suggest;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");render();$("search").focus();});$("searchSuggestions").addEventListener("click",e=>{if(e.target.closest("[data-translate-search]"))translateSearch();});document.addEventListener("click",e=>{if(!e.target.closest(".search-wrap"))$("searchSuggestions").classList.add("hidden");});$("sort").addEventListener("change",render);
 $("favoritesOnly").addEventListener("click",()=>{favoritesOnly=!favoritesOnly;$("favoritesOnly").classList.toggle("primary",favoritesOnly);render();});
 $("adminToggle").addEventListener("click",()=>$("adminPanel").classList.toggle("hidden"));
 $("loginBtn").addEventListener("click",async()=>{

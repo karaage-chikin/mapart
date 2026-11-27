@@ -1,7 +1,7 @@
 (()=>{"use strict";
 const API="https://resource-packs-api.karaage-chikin-029.workers.dev";
 const TOKEN_KEY="resourcePackAdminToken";
-const token=sessionStorage.getItem(TOKEN_KEY)||"";
+const storedToken=sessionStorage.getItem(TOKEN_KEY)||"";\nconst token=/^[A-Za-z0-9_.-]{20,2048}$/.test(storedToken)?storedToken:"";
 const $=id=>document.getElementById(id);
 const PAGE_SIZE=50,MAX_DATE=8640000000000000;
 const ESC_MAP={"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"};

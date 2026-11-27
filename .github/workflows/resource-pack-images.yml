@@ -54,6 +54,14 @@ jobs:
             if (/fps|performance|optimization|lag/.test(t)) return "軽量化";
             return "その他";
           }
+          async function getPage(page) {
+            const url = page === 1
+              ? "https://mcpedl.com/category/texture-packs/"
+              : "https://mcpedl.com/category/texture-packs/page/" + page + "/";
+            const response = await fetch(url, { headers, signal: AbortSignal.timeout(25000) });
+            if (!response.ok) throw new Error("MCPEDL listing page " + page + " HTTP " + response.status);
+            return await response.text();
+          }
           function cardDate(html, index) {
             const before = html.slice(Math.max(0, index - 1800), index);
             const after = html.slice(index, Math.min(html.length, index + 1800));
@@ -117,6 +125,10 @@ jobs:
             }
             const before = packs.length;
             const retained = packs.filter(p => {
+              const title = String(p.title || "");
+              const sourceUrl = String(p.sourceUrl || "");
+              if (restricted.test(title + " " + sourceUrl)) return false;
+              if (p.sourceType === "automatic" && (!title || /^\d+(?:\.\d+)?$/.test(title) || /^image$/i.test(title))) return false;
               if (!p.sourceUpdatedAt) return true;
               const d = new Date(p.sourceUpdatedAt + "T00:00:00Z");
               return Number.isNaN(d.getTime()) || d >= cutoff;

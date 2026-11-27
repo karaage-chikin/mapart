@@ -2002,5 +2002,53 @@
       "https://r2.mcpedl.com/users/3678087/0097ca79e06e5100a17e3b22ba939f67.png",
       "https://r2.mcpedl.com/users/2939006/fd5e69c73d148a233e7895ec9dcc2465.png"
     ]
+  },
+  {
+    "id": "mcpedl-nopumpkinoverlay",
+    "title": "NoPumpkinOverlay",
+    "author": "ChickenAddons",
+    "category": "UI・操作",
+    "description": "カボチャをかぶったときの画面オーバーレイを非表示にするシンプルなリソースパック。",
+    "sourceUrl": "https://mcpedl.com/nopumpkinoverlay/",
+    "compatibility": "26.60（配布元に複数バージョンあり）",
+    "source": "MCPEDL",
+    "sourceType": "curated",
+    "createdAt": "2026-11-27",
+    "thumbnailUrl": "https://media.forgecdn.net/attachments/2279/742/16235-png.png",
+    "galleryImages": [
+      "https://media.forgecdn.net/attachments/2279/742/16235-png.png"
+    ]
+  },
+  {
+    "id": "mcpedl-light-fps",
+    "title": "Light FPS",
+    "author": "The-Zahin-GAMER",
+    "category": "軽量化",
+    "description": "パーティクルやアニメーションを抑え、Light・Balanced・Ultraの3モードで動作の軽さを調整できるパック。",
+    "sourceUrl": "https://mcpedl.com/light-fps/",
+    "compatibility": "26.60（配布元の最新版 v1.4.1）",
+    "source": "MCPEDL",
+    "sourceType": "curated",
+    "createdAt": "2026-11-27",
+    "thumbnailUrl": "https://media.forgecdn.net/attachments/2280/39/1000229897-png.png",
+    "galleryImages": [
+      "https://media.forgecdn.net/attachments/2280/39/1000229897-png.png"
+    ]
+  },
+  {
+    "id": "mcpedl-infinity-visuals",
+    "title": "Infinity Visuals",
+    "author": "WindsScion",
+    "category": "シェーダー",
+    "description": "水面反射、波、PBRテクスチャ、太陽や月の表現などを強化するVibrant Visuals向けパック。",
+    "sourceUrl": "https://mcpedl.com/infinity-visuals-vibrant-visuals-pack/",
+    "compatibility": "Bedrock・Vibrant Visuals対応（対応環境を配布元で確認）",
+    "source": "MCPEDL",
+    "sourceType": "curated",
+    "createdAt": "2026-11-27",
+    "thumbnailUrl": "https://media.forgecdn.net/attachments/1319/319/1000028257-png.png",
+    "galleryImages": [
+      "https://media.forgecdn.net/attachments/1319/319/1000028257-png.png"
+    ]
   }
 ]

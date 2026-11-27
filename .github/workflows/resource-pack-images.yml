@@ -217,21 +217,25 @@ jobs:
                 if (value) found.push(value);
               }
             }
-            for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
+            for (const m of html.matchAll(/<img\\b[^>]*>/gi)) {
               const tag = m[0];
+              const context = html.slice(Math.max(0, m.index - 650), Math.min(html.length, m.index + 650));
+              const clues = (tag + " " + context).toLowerCase();
+              if (/advert|advertisement|\\bad[sx]?\\b|sponsor|promot|banner|revenue|sale|become an author|explore modding|newsletter|subscribe|affiliate|tracking|pixel/.test(clues)) continue;
+              if (/avatar|gravatar|profile|author-photo|user-photo|site-logo|brand-logo|social-icon|share-button/.test(clues)) continue;
               const value = attr(tag, "data-src") || attr(tag, "data-lazy-src") || attr(tag, "src");
               if (value) found.push(value);
               const srcset = attr(tag, "srcset");
-              if (srcset) found.push(srcset.split(",")[0].trim().split(/\s+/)[0]);
+              if (srcset) found.push(srcset.split(",")[0].trim().split(/\\s+/)[0]);
             }
             return [...new Set(found.map(raw => {
               try {
                 const u = new URL(raw);
-                if (u.protocol !== "https:" || !u.hostname.includes(".") || /\.(svg)(?:$|\?)/i.test(u.pathname)) return "";
-                if (/gravatar|overwolf|avatar|logo/i.test(u.hostname + u.pathname)) return "";
+                if (u.protocol !== "https:" || !u.hostname.includes(".") || /\\.(svg)(?:$|\\?)/i.test(u.pathname)) return "";
+                if (/gravatar|overwolf|avatar|logo|doubleclick|googlesyndication|adservice|adsystem/i.test(u.hostname + u.pathname)) return "";
                 return u.href;
               } catch { return ""; }
-            }).filter(Boolean))].slice(0, 8);
+            }).filter(Boolean))].slice(0, 20);
           }
           async function fetchOne(pack) {
             if (!/^https:\/\/(?:mcpedl\.com|www\.curseforge\.com|www\.planetminecraft\.com)\//i.test(pack.sourceUrl || "")) return { pack, images: [] };
@@ -254,7 +258,7 @@ jobs:
               const batch = await Promise.all(targets.slice(i, i + 15).map(fetchOne));
               for (const item of batch) {
                 if (!item.images.length) { failed++; continue; }
-                const combined = [...new Set([...(item.pack.galleryImages || []), ...item.images])].slice(0, 8);
+                const combined = [...new Set([...(item.pack.galleryImages || []), ...item.images])].slice(0, 20);
                 item.pack.thumbnailUrl = item.pack.thumbnailUrl || combined[0];
                 item.pack.galleryImages = combined;
                 item.pack.imagesFetchedAt = new Date().toISOString().slice(0, 10);
@@ -265,6 +269,22 @@ jobs:
             fs.writeFileSync(path, JSON.stringify(packs, null, 2) + "\n");
             console.log(JSON.stringify({ scanned: targets.length, updated, totalImages, withoutImages: failed }, null, 2));
           })().catch(error => { console.error(error); process.exit(1); });
+          NODE
+      - name: Collect full descriptions and pack metadata for in-site details
+        run: |
+          node <<'NODE'
+          import fs from "node:fs";
+          const file = "resource-packs.json";
+          const packs = JSON.parse(fs.readFileSync(file, "utf8"));
+          const headers = { "User-Agent": "Mozilla/5.0 (compatible; BedrockPackDirectory/3.0)", "Accept": "text/html,application/xhtml+xml" };
+          const decode = s => String(s || "").replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;|&#x27;/g,"'").replace(/&nbsp;|&#160;/g," ").replace(/&#8217;|&#8216;/g,"'").replace(/&#8211;/g,"–").replace(/&#8212;/g,"—");
+          const clean = s => decode(String(s || "").replace(/<script[\s\S]*?<\/script>/gi," ").replace(/<style[\s\S]*?<\/style>/gi," ").replace(/<svg[\s\S]*?<\/svg>/gi," ").replace(/<[^>]+>/g," ")).replace(/\s+/g," ").trim();
+          function meta(html,key){const re=new RegExp('<meta[^>]+(?:name|property)=["\\x27]'+key+'["\\x27][^>]+content=["\\x27]([^"\\x27]+)["\\x27]','i');return clean(html.match(re)?.[1]||"");}
+          function jsonLd(html){for(const m of html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){try{const v=JSON.parse(m[1]);const arr=Array.isArray(v)?v:[v];for(const x of arr){const a=x["@graph"]||[x];for(const y of a){if(y&&typeof y==="object"&&(y.description||y.author||y.datePublished||y.dateModified))return y;}}}catch{}}return {};}
+          function articleText(html){const candidates=[...html.matchAll(/<(article|main|div)[^>]*(?:class|id)=["'][^"']*(?:entry-content|post-content|article-content|project-description|description|content-body|markdown-body)[^"']*["'][^>]*>([\s\S]*?)<\/\1>/gi)];let best="";for(const m of candidates){const t=clean(m[2]);if(t.length>best.length&&t.length<18000)best=t;}if(best.length<120){const desc=meta(html,"og:description")||meta(html,"description");return desc||best;}return best.slice(0,12000);}
+          async function one(p){if(!/^https:\/\//i.test(p.sourceUrl||""))return false;if(p.fullDescription&&p.detailsFetchedAt&&p.detailsFetchedAt>=(p.sourceUpdatedAt||""))return false;try{const r=await fetch(p.sourceUrl,{headers,signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error("HTTP "+r.status);const html=(await r.text()).slice(0,5000000);const ld=jsonLd(html);const desc=articleText(html)||clean(ld.description)||meta(html,"og:description")||meta(html,"description");if(desc&&desc.length>30)p.fullDescription=desc;const author=clean(typeof ld.author==="string"?ld.author:ld.author?.name);if(author&&!p.author)p.author=author.slice(0,120);if(ld.datePublished)p.publishedAt=String(ld.datePublished).slice(0,30);if(ld.dateModified)p.updatedAt=String(ld.dateModified).slice(0,30);p.detailsFetchedAt=new Date().toISOString().slice(0,10);return true;}catch(e){console.log("Details unavailable:",p.title,e.message);return false;}}
+          async function run(){let updated=0,failed=0;const targets=packs.filter(p=>/^https:\/\//i.test(p.sourceUrl||"")&&(!p.fullDescription||!p.detailsFetchedAt||p.detailsFetchedAt<(p.sourceUpdatedAt||"")));console.log("Pages to inspect for details:",targets.length);for(let i=0;i<targets.length;i+=12){const results=await Promise.all(targets.slice(i,i+12).map(one));updated+=results.filter(Boolean).length;failed+=results.filter(x=>!x).length;console.log("Detail metadata",Math.min(i+12,targets.length),"/",targets.length,"updated",updated,"failed",failed);}fs.writeFileSync(file,JSON.stringify(packs,null,2)+"\n");console.log(JSON.stringify({targets:targets.length,updated,failed},null,2));}
+          run().catch(e=>{console.error(e);process.exit(1);});
           NODE
       - name: Commit image index
         run: |

@@ -39,7 +39,7 @@ async function fetchOne(pack){
 }
 (async()=>{
  let updated=0,totalImages=0,failed=0;
- const targets=packs.filter(p=>/^https:\/\/(?:mcpedl\.com|www\.curseforge\.com|www\.planetminecraft\.com|modbay\.org)\//i.test(p.sourceUrl||""));
+ const targets=packs.filter(p=>/^https:\/\/(?:mcpedl\.com|www\.curseforge\.com|www\.planetminecraft\.com|modbay\.org)\//i.test(p.sourceUrl||"")&&(!p.imagesFetchedAt||p.imagesFetchedAt<(p.sourceUpdatedAt||p.createdAt||"")));
  console.log("Eligible packs for image enrichment:",targets.length,"of",packs.length);
  for(let i=0;i<targets.length;i+=10){
   const batch=await Promise.all(targets.slice(i,i+10).map(fetchOne));

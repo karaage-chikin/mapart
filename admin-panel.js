@@ -14,8 +14,32 @@ async function init(){
  try{
   const content=$("pageContent");
   if(page==="overview"){
-   const d=await api("/api/admin/monitor/overview"),p=d.packs||{},c=d.candidates||{},a=d.access||{};
-   content.innerHTML=cards([{label:"公開リソースパック（D1登録分）",value:p.count??0},{label:"未承認候補",value:c.count??0},{label:"公開ページ累計アクセス",value:a.count??0},{label:"監査ログ件数",value:d.logs?.count??0}])+'<section class="panel"><h2>最新の画像更新処理</h2>'+rows([{title:d.imageJob?.status||"未実行",body:d.imageJob?.result_json||"処理結果はまだありません。",meta:"開始: "+date(d.imageJob?.started_at)+" / 完了: "+date(d.imageJob?.finished_at)}])+'</section><p class="notice">公開ページのアクセス数は日別の合計値です。個人を特定するIPアドレスは保存せず、管理操作の監査記録ではハッシュ化した識別値を使用します。</p>';
+   const [d,u,g,a]=await Promise.all([
+    api("/api/admin/monitor/overview"),
+    api("/api/admin/monitor/logs?type=update"),
+    api("/api/admin/monitor/logs?type=debug"),
+    api("/api/admin/monitor/access")
+   ]);
+   const p=d.packs||{},c=d.candidates||{},ac=d.access||{},bytes=Number(p.approx_bytes||0);
+   const mini=(items)=>rows(items.slice(0,4).map(x=>({title:x.action,body:x.detail,meta:date(x.created_at)})));
+   const recentAccess=(a.daily||[]).slice(0,5);
+   content.innerHTML=
+    cards([
+     {label:"リソースパック（D1登録分）",value:p.count??0},
+     {label:"未承認候補",value:c.count??0},
+     {label:"累計アクセス",value:ac.count??0},
+     {label:"監査ログ",value:d.logs?.count??0},
+     {label:"パック情報の概算容量",value:(bytes/1048576).toFixed(2)+" MB"}
+    ])+
+    '<div class="overview-grid">'+
+     '<section class="panel overview-panel"><h2>更新履歴 <a href="admin-updates.html">すべて見る →</a></h2>'+mini(u.logs||[])+'</section>'+
+     '<section class="panel overview-panel"><h2>Debug・エラー <a href="admin-debug.html">すべて見る →</a></h2>'+mini(g.logs||[])+'</section>'+
+     '<section class="panel overview-panel"><h2>アクセス記録 <a href="admin-access.html">すべて見る →</a></h2>'+
+      (recentAccess.length?'<table><thead><tr><th>日付</th><th>アクセス数</th></tr></thead><tbody>'+recentAccess.map(x=>'<tr><td>'+esc(x.day)+'</td><td>'+esc(x.count)+'</td></tr>').join("")+'</tbody></table>':'<div class="empty">アクセス記録はまだありません。</div>')+
+     '</section>'+
+     '<section class="panel overview-panel"><h2>更新・画像処理の状態</h2>'+rows([{title:d.imageJob?.status||"未実行",body:d.imageJob?.result_json||"処理結果はまだありません。",meta:"開始: "+date(d.imageJob?.started_at)+" / 完了: "+date(d.imageJob?.finished_at)}])+'<p class="notice"><a href="admin-storage.html">容量の詳細を見る →</a></p></section>'+
+    '</div>'+
+    '<p class="notice">この画面は主要情報を一度に確認する概要画面です。各見出しから詳細ページへ移動できます。</p>';
   }else if(page==="updates"){
    const d=await api("/api/admin/monitor/logs?type=update");
    content.innerHTML='<section class="panel"><h2>更新・管理操作</h2>'+rows((d.logs||[]).map(x=>({title:x.action,body:x.detail,meta:date(x.created_at)})))+'</section>';

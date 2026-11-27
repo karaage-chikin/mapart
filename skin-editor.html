@@ -10,7 +10,7 @@
 </style>
 </head>
 <body><div class="wrap">
-<header><div><h1>Bedrockスキン工房</h1><div class="muted">統合版Minecraftのカスタムスキンを作成・編集</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">⌂ ホームへ戻る</a><span class="badge">開発版 v0.4.4</span></div></header>
+<header><div><h1>Bedrockスキン工房</h1><div class="muted">統合版Minecraftのカスタムスキンを作成・編集</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">⌂ ホームへ戻る</a><span class="badge">開発版 v0.4.5</span></div></header>
 <div class="layout">
 <aside>
 <section class="panel"><h2>1. スキンを準備</h2><div class="row"><button id="newBtn">新規作成</button><button class="secondary" id="openBtn">PNGを読み込む</button><input id="fileInput" type="file" accept="image/png" hidden></div><p class="hint">Bedrock向けの64×64 PNGと128×128 PNGに対応しています。</p><div class="field"><label for="outputSize">新規作成・画像変換のサイズ</label><select id="outputSize" style="width:100%"><option value="128" selected>128×128（高解像度）</option><option value="64">64×64（標準）</option></select><p class="hint">変換時に選択したサイズで生成します。読み込んだ既存スキンのサイズは維持します。</p></div><div class="field"><label for="model">腕のモデル</label><select id="model" style="width:100%"><option value="default">クラシック（Steve・腕4px）</option><option value="slim">スリム（Alex・腕3px）</option></select></div><div class="mini-actions"><button id="undoBtn" class="secondary" disabled>元に戻す</button><button id="clearBtn" class="secondary">全消去</button></div></section>
@@ -110,7 +110,7 @@ async function detectFace(img){
 function drawAtlasFace(c,img,crop,rect,filter="none"){const [sx,sy,sw,sh]=crop,[dx,dy,dw,dh]=rect;c.save();c.imageSmoothingEnabled=false;c.filter=filter;c.drawImage(img,sx,sy,sw,sh,dx,dy,dw,dh);c.restore();}
 function averageColor(img,crop){const [x,y,w,h]=crop,t=document.createElement("canvas");t.width=1;t.height=1;const c=t.getContext("2d");c.drawImage(img,x,y,w,h,0,0,1,1);const d=c.getImageData(0,0,1,1).data;return "rgb("+d[0]+","+d[1]+","+d[2]+")";}
 function makeCharacterAtlas(img,variant=0,faceBox=null){
- const W=img.naturalWidth||img.width,H=img.naturalHeight||img.height,atlas=document.createElement("canvas");atlas.width=64;atlas.height=64;const c=atlas.getContext("2d");c.imageSmoothingEnabled=false;
+ const W=img.naturalWidth||img.width,H=img.naturalHeight||img.height,outSize=Number($("outputSize").value)||128,scale=outSize/64,atlas=document.createElement("canvas");atlas.width=outSize;atlas.height=outSize;const c=atlas.getContext("2d");c.imageSmoothingEnabled=false;c.scale(scale,scale);
  const hue=[0,18,-18,35,-35,70,145,210,285,325,8,48][variant%12],sat=[1,.82,1.12,.9,1.2,.95,1.08,.88][variant%8],filter="hue-rotate("+hue+"deg) saturate("+sat+")";
  const crop=(x,y,w,h)=>[Math.max(0,Math.min(W-1,Math.round(x))),Math.max(0,Math.min(H-1,Math.round(y))),Math.max(1,Math.min(W-Math.round(x),Math.round(w))),Math.max(1,Math.min(H-Math.round(y),Math.round(h)))];
  const head=crop(W*.28,H*.02,W*.44,H*.27),torso=crop(W*.27,H*.29,W*.46,H*.31),armL=crop(W*.08,H*.29,W*.19,H*.32),armR=crop(W*.73,H*.29,W*.19,H*.32),legL=crop(W*.29,H*.62,W*.19,H*.36),legR=crop(W*.52,H*.62,W*.19,H*.36);
@@ -128,7 +128,7 @@ function makeCharacterAtlas(img,variant=0,faceBox=null){
  fill([0,20,4,12],pants);fill([8,20,4,12],pants);fill([12,20,4,12],pants);fill([4,16,4,4],pants);fill([8,16,4,4],pants);if(faceOnly)fill([4,20,4,12],pants);else face(legL,[4,20,4,12]);
  fill([16,52,4,12],pants);fill([24,52,4,12],pants);fill([28,52,4,12],pants);fill([20,48,4,4],pants);fill([24,48,4,4],pants);if(faceOnly)fill([20,52,4,12],pants);else face(legR,[20,52,4,12]);
  c.save();c.globalAlpha=.16;face(head,[40,8,8,8]);face(torso,[20,36,8,12]);face(armR,[44,36,4,12]);face(armL,[52,52,4,12]);face(legL,[4,36,4,12]);face(legR,[4,52,4,12]);c.restore();
- return c.getImageData(0,0,64,64);
+ return c.getImageData(0,0,outSize,outSize);
 }
 async function applyCharacterVariant(variant=0,faceBox=undefined){
  if(!sourceImage)throw new Error("先に画像を読み込んでください。");

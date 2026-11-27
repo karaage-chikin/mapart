@@ -71,6 +71,58 @@ async function page(url){
  }
  throw lastError||new Error("Request failed");
 }
+
+async function scanModBay(){
+ let added=0,stale=0;
+ for(let pageNo=1;pageNo<=maxPages&&added<maxNew;pageNo++){
+  const url=pageNo===1?"https://modbay.org/textures/":"https://modbay.org/textures/page/"+pageNo+"/";
+  const html=await page(url),$=load(html),links=$('a[href*="/textures/"]').toArray();
+  let valid=0,addedThisPage=0;
+  for(const el of links){
+   const a=$(el);let u;try{u=new URL(a.attr("href"),"https://modbay.org");}catch{continue;}
+   const parts=u.pathname.split("/").filter(Boolean);
+   if(u.hostname!=="modbay.org"||parts.length<2||parts[0]!=="textures"||parts[1]==="page"||/^(tag|author|category)$/i.test(parts[1]))continue;
+   valid++;
+   const card=a.closest("article,li,.post,.entry,.card,[class*='post-item'],[class*='texture']").first();
+   const container=card.length?card:a.parent().parent().parent();
+   const title=clean(a.text()||a.attr("title")||a.find("img").attr("alt"));
+   if(title.length<4)continue;
+   if(add("ModBay",u.href,title,$,container,"https://modbay.org")){added++;addedThisPage++;}
+   if(added>=maxNew)break;
+  }
+  console.log("ModBay page",pageNo,"valid links",valid,"added",addedThisPage);
+  if(valid===0){console.warn("ModBay parser found no entries; stopping.");break;}
+  stale=addedThisPage===0?stale+1:0;if(stale>=8)break;
+  await new Promise(resolve=>setTimeout(resolve,450));
+ }
+ return added;
+}
+async function scanPlanetMinecraft(){
+ let added=0,stale=0;
+ for(let pageNo=1;pageNo<=maxPages&&added<maxNew;pageNo++){
+  const url="https://www.planetminecraft.com/texture-packs/?platform=2&p="+(pageNo-1);
+  const html=await page(url),$=load(html),links=$('a[href*="/texture-pack/"]').toArray();
+  let valid=0,addedThisPage=0;
+  for(const el of links){
+   const a=$(el);let u;try{u=new URL(a.attr("href"),"https://www.planetminecraft.com");}catch{continue;}
+   const parts=u.pathname.split("/").filter(Boolean);
+   if(u.hostname!=="www.planetminecraft.com"||parts.length<2||parts[0]!=="texture-pack")continue;
+   valid++;
+   const card=a.closest("article,li,.resource,.r,.project,.tile,[class*='resource'],[class*='project']").first();
+   const container=card.length?card:a.parent().parent().parent();
+   const title=clean(a.text()||a.attr("title")||a.find("img").attr("alt"));
+   if(title.length<4)continue;
+   if(add("Planet Minecraft",u.href,title,$,container,"https://www.planetminecraft.com")){added++;addedThisPage++;}
+   if(added>=maxNew)break;
+  }
+  console.log("Planet Minecraft page",pageNo,"valid links",valid,"added",addedThisPage);
+  if(valid===0){console.warn("Planet Minecraft parser found no entries; stopping.");break;}
+  stale=addedThisPage===0?stale+1:0;if(stale>=8)break;
+  await new Promise(resolve=>setTimeout(resolve,450));
+ }
+ return added;
+}
+
 async function scanCurseForge(){
  let added=0,stale=0;
  for(let pageNo=1;pageNo<=maxPages&&added<maxNew;pageNo++){
@@ -97,7 +149,10 @@ async function scanCurseForge(){
  return added;
 }
 (async()=>{
- const added=await scanCurseForge();
+ const addedCurseForge=await scanCurseForge();
+ const addedModBay=await scanModBay();
+ const addedPlanetMinecraft=await scanPlanetMinecraft();
+ const added=addedCurseForge+addedModBay+addedPlanetMinecraft;
  fs.writeFileSync(file,JSON.stringify(packs,null,2)+"\n");
- console.log(JSON.stringify({addedFromAdditionalSource:added,total:packs.length,cutoff:cutoff.toISOString().slice(0,10),maxPages,maxNew},null,2));
+ console.log(JSON.stringify({addedFromAdditionalSource:added,addedCurseForge,addedModBay,addedPlanetMinecraft,total:packs.length,cutoff:cutoff.toISOString().slice(0,10),maxPages,maxNew},null,2));
 })().catch(error=>{console.error(error);process.exit(1);});

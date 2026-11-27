@@ -8,7 +8,7 @@ let packs = [], activeCategory = "すべて", favoritesOnly = false, token = ses
 const categories = ["すべて", ...new Set(["シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","便利・操作","季節・テーマ","テーマ・世界観","その他"])];
 function favorites(){try{return new Set(JSON.parse(localStorage.getItem(favKey)||"[]"));}catch{return new Set();}}
 function setFavorites(set){localStorage.setItem(favKey,JSON.stringify([...set]));}
-function setStatus(message,type=""){const el=$("adminStatus");el.textContent=message;el.className="status "+type;}
+function setStatus(message,type=""){const editorVisible=!$("editorArea").classList.contains("hidden");const el=$(editorVisible?"adminStatus":"loginStatus");if(el){el.textContent=message;el.className="status "+type;}}
 function categoryNav(){ $("filters").innerHTML=categories.map(c=>'<button class="chip '+(c===activeCategory?"active":"")+'" data-category="'+esc(c)+'">'+esc(c)+'</button>').join(""); }
 function filtered(){
  const q=$("search").value.trim().toLowerCase(), fav=favorites();
@@ -75,7 +75,7 @@ $("loginBtn").addEventListener("click",async()=>{
  const password=$("adminPassword").value;if(!password){setStatus("パスワードを入力してください。","error");return;}
  try{const result=await fetch(API+"/api/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password})});const data=await result.json();if(!result.ok)throw new Error(data.error||"ログインできませんでした。");
  token=data.token;sessionStorage.setItem("resourcePackAdminToken",token);$("adminPassword").value="";showEditor(true);render();setStatus("ログインしました。","ok");
- }catch(e){setStatus(e.message,"error");}
+ }catch(e){if(e.message.includes("設定されていません"))$("adminSetupHint").classList.remove("hidden");setStatus(e.message,"error");}
 });
 $("logoutBtn").addEventListener("click",()=>{token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);render();setStatus("ログアウトしました。");});
 $("savePack").addEventListener("click",async()=>{

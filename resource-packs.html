@@ -48,7 +48,12 @@ footer{text-align:center;padding:22px;color:#6c7086;font-size:.75rem;border-top:
 <input id="editAuthor" class="field" placeholder="作者名">
 <select id="editCategory" class="field"><option>シェーダー</option><option>軽量化</option><option>ブロック・アイテム</option><option>UI・シンプル</option><option>UI・テーマ</option><option>UI・操作</option><option>UI・メニュー</option><option>自然・植物</option><option>ブロック・建築</option><option>サウンド</option><option>空・天候</option><option>水・環境</option><option>モブ・モデル</option><option>アニメーション</option><option>言語・フォント</option><option>便利・農業</option><option>便利・操作</option><option>季節・テーマ</option><option>テーマ・世界観</option><option>その他</option></select>
 <input id="editVersion" class="field" placeholder="対応バージョン・注意点">
-<input id="editUrl" class="field" type="url" placeholder="配布元URL（https://...）">
+<input id="editUrl" class="field" type="url" placeholder="公式配布ページURL（https://...）">
+<input id="editThumbnail" class="field" type="url" placeholder="一覧サムネイル画像URL（https://...）">
+<textarea id="editGallery" class="field" placeholder="ギャラリー画像URL（1行に1つ・最大8枚）"></textarea>
+<input id="editDownloadUrl" class="field" type="url" placeholder="直接ダウンロード用ファイルURL（任意）">
+<label class="checkline"><input id="editDownloadAllowed" type="checkbox"> 作者・配布元がファイルの直接配布を許可していることを確認済み</label>
+<p class="admin-hint">直接ダウンロードURLは、作者または配布元が再配布・直接配信を許可している場合だけ登録してください。未確認ならチェックせず、公式配布ページへのリンクだけにします。</p>
 <textarea id="editDescription" class="field" placeholder="説明"></textarea>
 </div>
 <div class="admin-actions"><button id="savePack" class="btn primary">登録する</button><button id="cancelEdit" class="btn">入力をクリア</button><button id="logoutBtn" class="btn">ログアウト</button></div>

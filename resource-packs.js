@@ -69,12 +69,12 @@ function filtered(){
  if(sort==="fav")list.sort((a,b)=>(Number(fav.has(b.id))-Number(fav.has(a.id)))||a.title.localeCompare(b.title,"ja"));
  return list;
 }
-function safeImageUrl(value){
+document.addEventListener("error",event=>{const img=event.target;if(!(img instanceof HTMLImageElement))return;img.hidden=true;const fallback=img.nextElementSibling;if(fallback?.classList.contains("image-placeholder"))fallback.hidden=false;},true);\nfunction safeImageUrl(value){
  try{const u=new URL(String(value||""),location.href);return u.protocol==="https:"||u.origin===location.origin?u.href:"";}catch{return "";}
 }
 function imageMarkup(url,alt,cls){
  const safe=safeImageUrl(url);
- return '<div class="'+cls+'">'+(safe?'<img src="'+esc(safe)+'" alt="'+esc(alt)+'" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><div class="image-placeholder" hidden>📦</div>':'<div class="image-placeholder">📦</div>')+'</div>';
+ return '<div class="'+cls+'">'+(safe?'<img src="'+esc(safe)+'" alt="'+esc(alt)+'" loading="lazy" referrerpolicy="no-referrer"><div class="image-placeholder" hidden>📦</div>':'<div class="image-placeholder">📦</div>')+'</div>';
 }
 function render(){
  const list=filtered(),fav=favorites();

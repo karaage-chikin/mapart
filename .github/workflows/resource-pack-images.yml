@@ -1,5 +1,6 @@
 name: Resource pack gallery images
 # rerun after the previous image collection completed without a fast-forward push
+# Manual catalogue expansion run: collect up to 900 additional recent unique Bedrock entries.
 
 on:
   push:

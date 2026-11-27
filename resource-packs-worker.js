@@ -146,7 +146,7 @@ function extractPageImages(html) {
     const srcset=tag.match(/srcset=["']([^"']+)["']/i);
     if(srcset)found.push(decodeHtml(srcset[1].split(",")[0].trim().split(/\s+/)[0]));
   }
-  return [...new Set(found.map(raw=>{try{const u=new URL(raw);if(u.protocol!=="https:"||!u.hostname.includes(".")||/\.(svg|gif)(?:$|\?)/i.test(u.pathname))return "";return u.href;}catch{return "";}}).filter(Boolean))].slice(0,8);
+  return [...new Set(found.map(raw=>{try{const u=new URL(raw);if(u.protocol!=="https:"||!u.hostname.includes(".")||/\.(svg)(?:$|\?)/i.test(u.pathname))return "";return u.href;}catch{return "";}}).filter(Boolean))].slice(0,8);
 }
 async function enrichMcpedlImages(env, offset=0, limit=100) {
   const rows=await env.DB.prepare("SELECT id,source_url FROM resource_packs WHERE thumbnail_url='' OR thumbnail_url IS NULL OR gallery_json='[]' OR gallery_json IS NULL ORDER BY id LIMIT ? OFFSET ?").bind(limit,offset).all();

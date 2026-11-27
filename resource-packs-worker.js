@@ -55,7 +55,7 @@ async function isAdmin(request, secret) {
   } catch { return false; }
 }
 function galleryFromJson(value) {
-  try { const parsed=JSON.parse(value||"[]"); return Array.isArray(parsed)?parsed.filter(x=>typeof x==="string").slice(0,8):[]; } catch { return []; }
+  try { const parsed=JSON.parse(value||"[]"); return Array.isArray(parsed)?parsed.filter(x=>typeof x==="string").slice(0,20):[]; } catch { return []; }
 }
 function normalize(row) {
   const allowed=Number(row.direct_download_allowed||0)===1;
@@ -321,16 +321,26 @@ export default {
       if (request.method === "GET" && url.pathname === "/api/admin/monitor/logs") {
         await ensureAdminLogTables(env);
         const type=String(url.searchParams.get("type")||"all");
+        const limit=Math.min(100,Math.max(1,Number.parseInt(url.searchParams.get("limit")||"50",10)||50));
+        const offset=Math.min(1000000,Math.max(0,Number.parseInt(url.searchParams.get("offset")||"0",10)||0));
+        const allowed=["all","update","debug","access"];
+        if(!allowed.includes(type))return reply({error:"ログ種別が不正です。"},400,origin);
+        const count=type==="all"
+          ? await env.DB.prepare("SELECT COUNT(*) AS total FROM resource_pack_admin_logs").first()
+          : await env.DB.prepare("SELECT COUNT(*) AS total FROM resource_pack_admin_logs WHERE type=?").bind(type).first();
         const rows=type==="all"
-          ? await env.DB.prepare("SELECT id,created_at,type,action,detail,ip_hash,user_agent FROM resource_pack_admin_logs ORDER BY id DESC LIMIT 150").all()
-          : await env.DB.prepare("SELECT id,created_at,type,action,detail,ip_hash,user_agent FROM resource_pack_admin_logs WHERE type=? ORDER BY id DESC LIMIT 150").bind(type).all();
-        return reply({logs:rows.results||[]},200,origin);
+          ? await env.DB.prepare("SELECT id,created_at,type,action,detail,ip_hash,user_agent FROM resource_pack_admin_logs ORDER BY id DESC LIMIT ? OFFSET ?").bind(limit,offset).all()
+          : await env.DB.prepare("SELECT id,created_at,type,action,detail,ip_hash,user_agent FROM resource_pack_admin_logs WHERE type=? ORDER BY id DESC LIMIT ? OFFSET ?").bind(type,limit,offset).all();
+        return reply({logs:rows.results||[],total:Number(count?.total||0),limit,offset,hasMore:offset+((rows.results||[]).length)<Number(count?.total||0)},200,origin);
       }
       if (request.method === "GET" && url.pathname === "/api/admin/monitor/access") {
         await ensureAdminLogTables(env);
+        const limit=Math.min(100,Math.max(1,Number.parseInt(url.searchParams.get("limit")||"50",10)||50));
+        const offset=Math.min(1000000,Math.max(0,Number.parseInt(url.searchParams.get("offset")||"0",10)||0));
         const days=await env.DB.prepare("SELECT day,route,count FROM resource_pack_daily_access ORDER BY day DESC LIMIT 90").all();
-        const admins=await env.DB.prepare("SELECT id,created_at,action,detail,ip_hash,user_agent FROM resource_pack_admin_logs WHERE type='access' ORDER BY id DESC LIMIT 150").all();
-        return reply({daily:days.results||[],admin:admins.results||[]},200,origin);
+        const count=await env.DB.prepare("SELECT COUNT(*) AS total FROM resource_pack_admin_logs WHERE type='access'").first();
+        const admins=await env.DB.prepare("SELECT id,created_at,action,detail,ip_hash,user_agent FROM resource_pack_admin_logs WHERE type='access' ORDER BY id DESC LIMIT ? OFFSET ?").bind(limit,offset).all();
+        return reply({daily:days.results||[],admin:admins.results||[],adminTotal:Number(count?.total||0),limit,offset,hasMore:offset+((admins.results||[]).length)<Number(count?.total||0)},200,origin);
       }
 
       if (request.method === "GET" && url.pathname === "/api/admin/candidates") {

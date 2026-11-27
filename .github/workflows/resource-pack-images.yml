@@ -1,4 +1,5 @@
 name: Resource pack gallery images
+# rerun after the previous image collection completed without a fast-forward push
 
 on:
   push:

@@ -10,7 +10,7 @@
 </style>
 </head>
 <body><div class="wrap">
-<header><div><h1>Bedrockスキン工房</h1><div class="muted">統合版Minecraftのカスタムスキンを作成・編集</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">⌂ ホームへ戻る</a><span class="badge">開発版 v0.3.0</span></div></header>
+<header><div><h1>Bedrockスキン工房</h1><div class="muted">統合版Minecraftのカスタムスキンを作成・編集</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">⌂ ホームへ戻る</a><span class="badge">開発版 v0.3.1</span></div></header>
 <div class="layout">
 <aside>
 <section class="panel"><h2>1. スキンを準備</h2><div class="row"><button id="newBtn">新規作成</button><button class="secondary" id="openBtn">PNGを読み込む</button><input id="fileInput" type="file" accept="image/png" hidden></div><p class="hint">Bedrock向けの64×64 PNGと128×128 PNGに対応しています。</p><div class="field"><label for="model">腕のモデル</label><select id="model" style="width:100%"><option value="default">クラシック（Steve・腕4px）</option><option value="slim">スリム（Alex・腕3px）</option></select></div><div class="mini-actions"><button id="undoBtn" class="secondary" disabled>元に戻す</button><button id="clearBtn" class="secondary">全消去</button></div></section>
@@ -31,7 +31,7 @@
 </main>
 </div></div>
 <script type="module">
-import * as skinview3d from "https://cdn.jsdelivr.net/npm/skinview3d@3.4.2/+esm";
+let skinview3d=null;
 const $=id=>document.getElementById(id),canvas=$("skinCanvas"),ctx=canvas.getContext("2d",{willReadFrequently:true});
 let size=64,pixels=new Uint8ClampedArray(64*64*4),tool="pen",color="#89b4fa",drawing=false,history=[],viewer=null,skinUrl=null,sourceImage=null;
 const palette=["#000000","#ffffff","#808080","#c0c0c0","#ff0000","#800000","#ffff00","#808000","#00ff00","#008000","#00ffff","#008080","#0000ff","#000080","#ff00ff","#800080","#f4c2a1","#8d5524","#e0ac69","#c68642","#f1c27d","#ffdbac","#6b3e26","#2d1b0e","#8ecae6","#219ebc","#023047","#fb8500","#e76f51","#2a9d8f","#e9c46a","#f4a261"];
@@ -48,7 +48,7 @@ canvas.addEventListener("pointermove",e=>{if(drawing&&tool!=="fill")paint(e);});
 canvas.addEventListener("pointerup",()=>{drawing=false;});canvas.addEventListener("pointercancel",()=>{drawing=false;});
 
 function imageToCanvas(img,w=size,h=size,mode="cover"){const t=document.createElement("canvas");t.width=w;t.height=h;const c=t.getContext("2d");c.clearRect(0,0,w,h);const scale=mode==="contain"?Math.min(w/img.width,h/img.height):Math.max(w/img.width,h/img.height);const dw=img.width*scale,dh=img.height*scale;c.imageSmoothingEnabled=true;c.drawImage(img,(w-dw)/2,(h-dh)/2,dw,dh);return c;}
-async function loadSourceFile(file){if(!file||!file.type.startsWith("image/"))throw new Error("画像ファイルを選択してください。");const url=URL.createObjectURL(file);const img=new Image();img.src=url;await img.decode();sourceImage=img;URL.revokeObjectURL(url);$("imageStatus").textContent=img.width+"×"+img.height+" の画像を読み込みました。貼り付け位置や自動変換を選べます。";return img;}
+async function loadSourceFile(file){if(!file||!file.type.startsWith("image/"))throw new Error("画像ファイルを選択してください。");const url=URL.createObjectURL(file);const img=new Image();try{await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error("画像を開けませんでした。PNG/JPG/WebPなどの画像ファイルを選び直してください。"));img.src=url;});if(!img.naturalWidth||!img.naturalHeight)throw new Error("画像サイズを取得できませんでした。");sourceImage=img;$("imageStatus").classList.remove("error");$("imageStatus").textContent=img.naturalWidth+"×"+img.naturalHeight+" の画像を読み込みました。貼り付け位置や自動変換を選べます。";return img;}finally{URL.revokeObjectURL(url);}}
 $("imageOpenBtn").onclick=()=>$("imageInput").click();
 $("imageInput").onchange=async e=>{try{await loadSourceFile(e.target.files?.[0]);}catch(err){$("imageStatus").textContent=err.message;$("imageStatus").classList.add("error");}finally{e.target.value="";}};
 
@@ -100,6 +100,6 @@ palette.forEach(c=>{const b=document.createElement("button");b.className="swatch
 $("zoom").oninput=e=>{$("zoomText").textContent=e.target.value+"倍";canvas.style.width=Math.min(100,Number(e.target.value)*8)+"%";};
 $("model").onchange=()=>draw();$("rotate").onchange=e=>{if(viewer)viewer.autoRotate=e.target.checked;};
 $("pose").onchange=e=>{if(!viewer)return;const anim={idle:skinview3d.IdleAnimation,walk:skinview3d.WalkingAnimation,run:skinview3d.RunningAnimation,wave:skinview3d.WaveAnimation}[e.target.value];viewer.animation=new anim();};
-try{viewer=new skinview3d.SkinViewer({canvas:$("skin3d"),width:360,height:480,skin:canvas.toDataURL("image/png"),model:"default",background:0x252538});viewer.autoRotate=true;viewer.controls.enableRotate=true;viewer.controls.enableZoom=true;viewer.animation=new skinview3d.IdleAnimation();$("viewerStatus").textContent="3Dプレビューを読み込みました。";}catch(err){$("viewerStatus").textContent="3Dプレビューを開始できませんでした。ページを再読み込みしてください。";$("viewerStatus").classList.add("error");}
+try{skinview3d=await import("https://cdn.jsdelivr.net/npm/skinview3d@3.4.2/+esm");viewer=new skinview3d.SkinViewer({canvas:$("skin3d"),width:360,height:480,skin:canvas.toDataURL("image/png"),model:"default",background:0x252538});viewer.autoRotate=true;viewer.controls.enableRotate=true;viewer.controls.enableZoom=true;viewer.animation=new skinview3d.IdleAnimation();$("viewerStatus").textContent="3Dプレビューを読み込みました。";}catch(err){$("viewerStatus").textContent="3Dプレビューのみ読み込めませんでした。画像読み込み・2D編集はそのまま使用できます。ネット接続後に再読み込みすると3D表示できます。";$("viewerStatus").classList.add("error");}
 draw();
 </script></body></html>

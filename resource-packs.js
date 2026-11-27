@@ -48,6 +48,14 @@ async function api(path,options={}){
  if(!res.ok)throw new Error(body.error||("APIエラー "+res.status));
  return body;
 }
+const candidateCategories=["その他","シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","ブロック・アイテム","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","季節・テーマ"];
+async function loadCandidates(){
+ const box=$("candidateList");if(!box)return;box.innerHTML='<div class="empty">候補を読み込み中…</div>';
+ try{const data=await api("/api/admin/candidates"),list=data.candidates||[];
+ box.innerHTML=list.length?list.map(c=>'<article class="pack"><h2>'+esc(c.title)+'</h2><div class="author">作者：'+esc(c.author||"不明")+' · '+esc(c.provider)+'</div><p class="desc">'+esc(c.description)+'</p><div class="admin-actions"><a class="btn small" href="'+esc(c.sourceUrl)+'" target="_blank" rel="noopener noreferrer">配布元を確認 ↗</a><select class="field" data-candidate-category="'+esc(c.id)+'">'+candidateCategories.map(x=>'<option>'+esc(x)+'</option>').join("")+'</select><button class="btn primary small" data-approve="'+esc(c.id)+'">確認して公開</button><button class="btn small" data-reject="'+esc(c.id)+'">除外</button></div><div class="version">発見：'+new Date(c.discoveredAt).toLocaleString("ja-JP")+'</div></article>').join(""):'<div class="empty">追加候補はありません。今すぐ候補を探してみてね。</div>';
+ $("candidateStatus").textContent=list.length+"件の未確認候補";
+ }catch(e){box.innerHTML='<div class="empty">候補を読み込めませんでした：'+esc(e.message)+'</div>';}
+}
 async function load(){
  try{
   const response=await fetch("resource-packs.json?v=1.0.0",{cache:"no-store"});
@@ -56,7 +64,7 @@ async function load(){
  }catch{packs=[];}
  try{const live=await api("/api/packs");if(Array.isArray(live.packs))packs=live.packs;}catch(e){console.info("Cloud catalogue unavailable; using bundled catalogue.",e.message);}
  categoryNav();render();
- if(token){try{await api("/api/admin/session");showEditor(true);}catch{token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);}}
+ if(token){try{await api("/api/admin/session");showEditor(true);await loadCandidates();}catch{token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);}}
 }
 function showEditor(loggedIn){
  $("loginArea").classList.toggle("hidden",loggedIn);$("editorArea").classList.toggle("hidden",!loggedIn);
@@ -74,7 +82,7 @@ $("adminToggle").addEventListener("click",()=>$("adminPanel").classList.toggle("
 $("loginBtn").addEventListener("click",async()=>{
  const password=$("adminPassword").value;if(!password){setStatus("パスワードを入力してください。","error");return;}
  try{const result=await fetch(API+"/api/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password})});const data=await result.json();if(!result.ok)throw new Error(data.error||"ログインできませんでした。");
- token=data.token;sessionStorage.setItem("resourcePackAdminToken",token);$("adminPassword").value="";showEditor(true);render();setStatus("ログインしました。","ok");
+ token=data.token;sessionStorage.setItem("resourcePackAdminToken",token);$("adminPassword").value="";showEditor(true);render();await loadCandidates();setStatus("ログインしました。","ok");
  }catch(e){if(e.message.includes("設定されていません"))$("adminSetupHint").classList.remove("hidden");setStatus(e.message,"error");}
 });
 $("logoutBtn").addEventListener("click",()=>{token="";sessionStorage.removeItem("resourcePackAdminToken");showEditor(false);render();setStatus("ログアウトしました。");});
@@ -83,6 +91,13 @@ $("savePack").addEventListener("click",async()=>{
  if(!payload.title||!payload.sourceUrl||!payload.description){setStatus("パック名・説明・配布元URLを入力してください。","error");return;}
  try{const path=editingId?"/api/admin/packs/"+encodeURIComponent(editingId):"/api/admin/packs";const data=await api(path,{method:editingId?"PUT":"POST",body:JSON.stringify(payload)});if(editingId){packs=packs.map(p=>p.id===editingId?data.pack:p);}else{packs.unshift(data.pack);}clearEditor();render();setStatus("登録内容を保存しました。","ok");}
  catch(e){setStatus(e.message,"error");}
+});
+$("discoverNow").addEventListener("click",async()=>{const b=$("discoverNow");b.disabled=true;$("candidateStatus").textContent="MCPEDLを検索中…";try{const r=await api("/api/admin/discover",{method:"POST",body:"{}"});$("candidateStatus").textContent="調査："+r.scanned+"件 / 新規候補："+r.added+"件 / 重複等："+r.skipped+"件";await loadCandidates();}catch(e){$("candidateStatus").textContent=e.message;}finally{b.disabled=false;}});
+$("refreshCandidates").addEventListener("click",loadCandidates);
+$("candidateList").addEventListener("click",async e=>{
+ const a=e.target.closest("[data-approve]"),d=e.target.closest("[data-reject]");
+ if(a){const id=a.dataset.approve,sel=$("candidateList").querySelector('[data-candidate-category="'+CSS.escape(id)+'"]');if(!confirm("配布元でBedrock対応を確認しましたか？確認済みなら公開します。"))return;try{const r=await api("/api/admin/candidates/"+encodeURIComponent(id)+"/approve",{method:"POST",body:JSON.stringify({category:sel?.value||"その他"})});packs.unshift(r.pack);render();await loadCandidates();$("candidateStatus").textContent="承認して公開しました。";}catch(err){$("candidateStatus").textContent=err.message;}}
+ if(d){const id=d.dataset.reject;if(!confirm("この候補を除外しますか？"))return;try{await api("/api/admin/candidates/"+encodeURIComponent(id),{method:"DELETE"});await loadCandidates();}catch(err){$("candidateStatus").textContent=err.message;}}
 });
 $("cancelEdit").addEventListener("click",clearEditor);
 async function deletePack(id){const p=packs.find(x=>x.id===id);if(!p||!confirm("「"+p.title+"」を削除しますか？"))return;try{await api("/api/admin/packs/"+encodeURIComponent(id),{method:"DELETE"});packs=packs.filter(x=>x.id!==id);render();setStatus("削除しました。","ok");}catch(e){setStatus(e.message,"error");}}

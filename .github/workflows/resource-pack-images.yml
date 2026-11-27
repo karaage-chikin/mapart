@@ -68,9 +68,10 @@ jobs:
           }
           (async () => {
             let added = 0, updated = 0, removed = 0, scanned = 0, reachedOld = false;
-            for (let page = 1; page <= 160 && added < 900 && !reachedOld; page++) {
+            let stalePages = 0;
+            for (let page = 1; page <= 110 && added < 900 && !reachedOld; page++) {
               const html = await getPage(page);
-              let pageItems = 0;
+              let pageItems = 0, pageChanges = 0;
               for (const m of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
                 let url;
                 try { url = new URL(m[1].replace(/&amp;/g, "&"), "https://mcpedl.com"); } catch { continue; }
@@ -95,6 +96,7 @@ jobs:
                     delete existing.imagesFetchedAt;
                   }
                   updated++;
+                  pageChanges++;
                   continue;
                 }
                 const slug = parts[0];
@@ -110,13 +112,12 @@ jobs:
                 };
                 packs.push(record);
                 known.set(key.toLowerCase(), record);
-                added++; pageItems++; scanned++;
+                added++; pageItems++; pageChanges++; scanned++;
                 if (added >= 900) break;
               }
-              console.log("MCPEDL page", page, "new", pageItems, "total new", added);
-              if (pageItems === 0 && page > 8 && !reachedOld) {
-                // Continue: pages can contain only records already present in the catalogue.
-              }
+              console.log("MCPEDL page", page, "new", pageItems, "changed", pageChanges, "total new", added);
+              stalePages = pageChanges === 0 ? stalePages + 1 : 0;
+              if (stalePages >= 12) break;
             }
             const before = packs.length;
             const retained = packs.filter(p => {

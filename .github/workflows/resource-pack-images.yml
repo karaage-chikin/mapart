@@ -40,7 +40,7 @@ jobs:
           const restricted = /\b(gun|guns|weapon|weapons|knife|knives|sword|swords|rifle|pistol|shotgun|grenade|ammo|ammunition|blade|crossbow|mace|spear)\b/i;
           const unsafeAtStart = packs.length;
           for (let i = packs.length - 1; i >= 0; i--) {
-            if (restricted.test(String(packs[i].title || "") + " " + String(packs[i].sourceUrl || ""))) packs.splice(i, 1);
+            if (restricted.test(String(packs[i].title || "") + " " + String(packs[i].sourceUrl || "") + " " + String(packs[i].description || ""))) packs.splice(i, 1);
           }
           console.log("Excluded restricted-topic entries:", unsafeAtStart - packs.length);
           function category(title) {
@@ -128,7 +128,7 @@ jobs:
             const retained = packs.filter(p => {
               const title = String(p.title || "");
               const sourceUrl = String(p.sourceUrl || "");
-              if (restricted.test(title + " " + sourceUrl)) return false;
+              if (restricted.test(title + " " + sourceUrl + " " + String(p.description || ""))) return false;
               if (p.sourceType === "automatic" && (!title || /^\d+(?:\.\d+)?$/.test(title) || /^image$/i.test(title))) return false;
               if (!p.sourceUpdatedAt) return true;
               const d = new Date(p.sourceUpdatedAt + "T00:00:00Z");
@@ -169,13 +169,14 @@ jobs:
           function descriptionFrom(html,title) { for(const m of html.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)){const s=clean(m[1]);if(s.length>35&&s.toLowerCase()!==title.toLowerCase())return s.slice(0,600);}return "Minecraft Bedrock Edition向けのリソースパックです。詳しい機能と対応バージョンは配布元ページで確認してください。"; }
           function authorFrom(html) { const s=clean(html),m=s.match(/\bBy\s+([A-Za-z0-9_. -]{2,60}?)(?=\s+(?:Updated|Last updated|Downloads|Views|$))/i);return m?m[1].trim().slice(0,100):""; }
           function add(provider,href,title,fragment,base) {
-            title=clean(title).slice(0,160); if(!title||title.length<4||blocked.test(title+" "+href))return false;
+            title=clean(title).slice(0,160); if(!title||title.length<4)return false;
+            const description=descriptionFrom(fragment,title);if(blocked.test(title+" "+href+" "+description))return false;
             const tk=titleKey(title);if(!tk||titles.has(tk))return false;
             let u;try{u=new URL(href,base);}catch{return false;}if(u.protocol!=="https:")return false;u.hash="";u.search="";
             const canonical=u.origin+u.pathname.replace(/\/+$/,"");if(urls.has(canonical.toLowerCase()))return false;
             const updated=cardDate(fragment);if(!updated||updated<cutoff)return false;
             const date=updated.toISOString().slice(0,10),image=imageFrom(fragment,base),slug=canonical.split("/").filter(Boolean).at(-1)||"pack";
-            packs.push({id:provider.toLowerCase().replace(/[^a-z0-9]+/g,"-")+"-"+slug.replace(/[^a-z0-9_-]/gi,"-").slice(0,56),title,author:authorFrom(fragment),category:category(title),description:descriptionFrom(fragment,title),sourceUrl:canonical+"/",compatibility:"Bedrock向け（配布元でバージョン確認）",source:provider,sourceType:"automatic",createdAt:date,sourceUpdatedAt:date,thumbnailUrl:image,galleryImages:image?[image]:[]});
+            packs.push({id:provider.toLowerCase().replace(/[^a-z0-9]+/g,"-")+"-"+slug.replace(/[^a-z0-9_-]/gi,"-").slice(0,56),title,author:authorFrom(fragment),category:category(title),description,sourceUrl:canonical+"/",compatibility:"Bedrock向け（配布元でバージョン確認）",source:provider,sourceType:"automatic",createdAt:date,sourceUpdatedAt:date,thumbnailUrl:image,galleryImages:image?[image]:[]});
             urls.add(canonical.toLowerCase());titles.add(tk);return true;
           }
           async function page(url){const r=await fetch(url,{headers,signal:AbortSignal.timeout(25000)});if(!r.ok)throw new Error("HTTP "+r.status);return await r.text();}

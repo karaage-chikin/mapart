@@ -87,14 +87,18 @@ function mergeLivePacks(live){
  for(const p of seedPacks)byUrl.set(String(p.sourceUrl||"").replace(/\/+$/,""),p);
  for(const p of (live||[])){
   const key=String(p.sourceUrl||"").replace(/\/+$/,"");
-  const seed=byUrl.get(key)||{};
-  byUrl.set(key,{...seed,...p,thumbnailUrl:p.thumbnailUrl||seed.thumbnailUrl||"",galleryImages:(p.galleryImages&&p.galleryImages.length?p.galleryImages:(seed.galleryImages||[]))});
+  const seed=byUrl.get(key);
+  // MCPEDL entries are governed by the source-updated catalogue. Do not re-add
+  // entries removed by the one-year retention rule from the static index.
+  if(!seed && /mcpedl/i.test(String(p.source||""))) continue;
+  const base=seed||{};
+  byUrl.set(key,{...base,...p,thumbnailUrl:p.thumbnailUrl||base.thumbnailUrl||"",galleryImages:(p.galleryImages&&p.galleryImages.length?p.galleryImages:(base.galleryImages||[]))});
  }
  return [...byUrl.values()];
 }
 async function load(){
  try{
-  const response=await fetch("resource-packs.json?v=1.2.0",{cache:"no-store"});
+  const response=await fetch("resource-packs.json?v=2.0.0",{cache:"no-store"});
   if(!response.ok)throw new Error("seed");
   seedPacks=await response.json();packs=seedPacks;
  }catch{packs=[];}

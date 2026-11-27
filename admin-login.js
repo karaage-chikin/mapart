@@ -1,5 +1,6 @@
 (()=>{"use strict";
-const API=document.querySelector('meta[name="resource-packs-api"]')?.content;if(!API)throw new Error("API endpoint is not configured");\nconst form=document.getElementById("homeAdminLogin"),status=document.getElementById("homeAdminStatus"),button=document.getElementById("homeAdminLoginBtn");
+const API=document.querySelector('meta[name="resource-packs-api"]')?.content;if(!API)throw new Error("API endpoint is not configured");
+const form=document.getElementById("homeAdminLogin"),status=document.getElementById("homeAdminStatus"),button=document.getElementById("homeAdminLoginBtn");
 if(!form)return;
 form.addEventListener("submit",async event=>{
  event.preventDefault();button.disabled=true;status.className="login-status";status.textContent="認証中…";

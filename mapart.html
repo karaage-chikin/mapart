@@ -964,10 +964,6 @@
               fragment.appendChild(li);
             });
             changesList.replaceChildren(fragment);
-            if (data.version) {
-              versionElement.textContent = String(data.version);
-              if (versionLabel) versionLabel.textContent = String(data.version);
-            }
           })
           .catch(() => {
             changesList.replaceChildren();

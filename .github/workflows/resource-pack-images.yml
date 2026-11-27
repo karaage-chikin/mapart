@@ -60,7 +60,7 @@ jobs:
             return [...new Set(found.map(raw => {
               try {
                 const u = new URL(raw);
-                if (u.protocol !== "https:" || !u.hostname.includes(".") || /\.(svg|gif)(?:$|\?)/i.test(u.pathname)) return "";
+                if (u.protocol !== "https:" || !u.hostname.includes(".") || /\.(svg)(?:$|\?)/i.test(u.pathname)) return "";
                 if (/gravatar|overwolf|avatar|logo/i.test(u.hostname + u.pathname)) return "";
                 return u.href;
               } catch { return ""; }

@@ -10,7 +10,7 @@
 </style>
 </head>
 <body><div class="wrap">
-<header><div><h1>Bedrockスキン工房</h1><div class="muted">統合版Minecraftのカスタムスキンを作成・編集</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">⌂ ホームへ戻る</a><span class="badge">開発版 v0.4.0</span></div></header>
+<header><div><h1>Bedrockスキン工房</h1><div class="muted">統合版Minecraftのカスタムスキンを作成・編集</div></div><div class="row" style="flex:0 0 auto"><a href="index.html">⌂ ホームへ戻る</a><span class="badge">開発版 v0.4.1</span></div></header>
 <div class="layout">
 <aside>
 <section class="panel"><h2>1. スキンを準備</h2><div class="row"><button id="newBtn">新規作成</button><button class="secondary" id="openBtn">PNGを読み込む</button><input id="fileInput" type="file" accept="image/png" hidden></div><p class="hint">Bedrock向けの64×64 PNGと128×128 PNGに対応しています。</p><div class="field"><label for="model">腕のモデル</label><select id="model" style="width:100%"><option value="default">クラシック（Steve・腕4px）</option><option value="slim">スリム（Alex・腕3px）</option></select></div><div class="mini-actions"><button id="undoBtn" class="secondary" disabled>元に戻す</button><button id="clearBtn" class="secondary">全消去</button></div></section>
@@ -47,7 +47,7 @@ canvas.addEventListener("pointerdown",e=>{e.preventDefault();drawing=true;canvas
 canvas.addEventListener("pointermove",e=>{if(drawing&&tool!=="fill")paint(e);});
 canvas.addEventListener("pointerup",()=>{drawing=false;});canvas.addEventListener("pointercancel",()=>{drawing=false;});
 
-function imageToCanvas(img,w=size,h=size,mode="cover"){const t=document.createElement("canvas");t.width=w;t.height=h;const c=t.getContext("2d");c.clearRect(0,0,w,h);const scale=mode==="contain"?Math.min(w/img.width,h/img.height):Math.max(w/img.width,h/img.height);const dw=img.width*scale,dh=img.height*scale;c.imageSmoothingEnabled=true;c.drawImage(img,(w-dw)/2,(h-dh)/2,dw,dh);return c;}
+function imageToCanvas(img,w=size,h=size,mode="cover"){const t=document.createElement("canvas");t.width=w;t.height=h;const c=t.getContext("2d");c.clearRect(0,0,w,h);const scale=mode==="contain"?Math.min(w/img.width,h/img.height):Math.max(w/img.width,h/img.height);const dw=img.width*scale,dh=img.height*scale;c.imageSmoothingEnabled=true;c.drawImage(img,(w-dw)/2,(h-dh)/2,dw,dh);return t;}
 async function loadSourceFile(file){if(!file||!file.type.startsWith("image/"))throw new Error("画像ファイルを選択してください。");const url=URL.createObjectURL(file);const img=new Image();try{await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error("画像を開けませんでした。PNG/JPG/WebPなどの画像ファイルを選び直してください。"));img.src=url;});if(!img.naturalWidth||!img.naturalHeight)throw new Error("画像サイズを取得できませんでした。");sourceImage=img;$("imageStatus").classList.remove("error");$("imageStatus").textContent=img.naturalWidth+"×"+img.naturalHeight+" の画像を読み込みました。貼り付け位置や自動変換を選べます。";return img;}finally{URL.revokeObjectURL(url);}}
 $("imageOpenBtn").onclick=()=>$("imageInput").click();
 $("imageInput").onchange=async e=>{try{await loadSourceFile(e.target.files?.[0]);}catch(err){$("imageStatus").textContent=err.message;$("imageStatus").classList.add("error");}finally{e.target.value="";}};
@@ -87,14 +87,17 @@ function makeCharacterAtlas(img,variant=0,faceBox=null){
  const head=crop(W*.28,H*.02,W*.44,H*.27),torso=crop(W*.27,H*.29,W*.46,H*.31),armL=crop(W*.08,H*.29,W*.19,H*.32),armR=crop(W*.73,H*.29,W*.19,H*.32),legL=crop(W*.29,H*.62,W*.19,H*.36),legR=crop(W*.52,H*.62,W*.19,H*.36);
  let faceCrop=head;
  if(faceBox){const padX=faceBox.w*.22,padY=faceBox.h*.20;faceCrop=crop(faceBox.x-padX,faceBox.y-padY,faceBox.w+padX*2,faceBox.h+padY*2);}
- const skin=averageColor(img,head),shirt=averageColor(img,torso),pants=averageColor(img,legL),fill=(r,col)=>{c.fillStyle=col;c.fillRect(...r);},face=(src,r)=>drawAtlasFace(c,img,src,r,filter);
- /* Other five head faces use the estimated head area; the front face uses the detected face crop. */
- [[0,8,8,8],[16,8,8,8],[24,8,8,8],[8,0,8,8],[16,0,8,8]].forEach(r=>face(head,r));face(faceCrop,[8,8,8,8]);
- fill([16,20,4,12],shirt);fill([28,20,4,12],shirt);fill([32,20,8,12],shirt);fill([20,16,8,4],shirt);fill([28,16,8,4],shirt);face(torso,[20,20,8,12]);
- fill([40,20,4,12],skin);fill([48,20,4,12],skin);fill([52,20,4,12],skin);fill([44,16,4,4],skin);fill([48,16,4,4],skin);face(armR,[44,20,4,12]);
- fill([32,52,4,12],skin);fill([40,52,4,12],skin);fill([44,52,4,12],skin);fill([36,48,4,4],skin);fill([40,48,4,4],skin);face(armL,[36,52,4,12]);
- fill([0,20,4,12],pants);fill([8,20,4,12],pants);fill([12,20,4,12],pants);fill([4,16,4,4],pants);fill([8,16,4,4],pants);face(legL,[4,20,4,12]);
- fill([16,52,4,12],pants);fill([24,52,4,12],pants);fill([28,52,4,12],pants);fill([20,48,4,4],pants);fill([24,48,4,4],pants);face(legR,[20,52,4,12]);
+ const faceOnly=!!faceBox&&(faceBox.w/W>.30||faceBox.h/H>.34||H/W<.9);
+ const skin=faceBox?averageColor(img,faceCrop):averageColor(img,head),shirt=faceOnly?"#3976a8":averageColor(img,torso),pants=faceOnly?"#303744":averageColor(img,legL),fill=(r,col)=>{c.fillStyle=col;c.fillRect(...r);},face=(src,r)=>drawAtlasFace(c,img,src,r,filter);
+ /* For face-only portraits, build a complete simple head instead of sampling empty body regions. */
+ if(faceOnly){[[0,8,8,8],[16,8,8,8],[24,8,8,8],[8,0,8,8],[16,0,8,8],[8,8,8,8]].forEach(r=>fill(r,skin));face(faceCrop,[8,8,8,8]);}
+ else {[[0,8,8,8],[16,8,8,8],[24,8,8,8],[8,0,8,8],[16,0,8,8]].forEach(r=>face(head,r));face(faceCrop,[8,8,8,8]);}
+ fill([16,20,4,12],shirt);fill([28,20,4,12],shirt);fill([32,20,8,12],shirt);fill([20,16,8,4],shirt);fill([28,16,8,4],shirt);
+ if(faceOnly){fill([20,20,8,12],shirt);}else face(torso,[20,20,8,12]);
+ fill([40,20,4,12],skin);fill([48,20,4,12],skin);fill([52,20,4,12],skin);fill([44,16,4,4],skin);fill([48,16,4,4],skin);if(faceOnly)fill([44,20,4,12],skin);else face(armR,[44,20,4,12]);
+ fill([32,52,4,12],skin);fill([40,52,4,12],skin);fill([44,52,4,12],skin);fill([36,48,4,4],skin);fill([40,48,4,4],skin);if(faceOnly)fill([36,52,4,12],skin);else face(armL,[36,52,4,12]);
+ fill([0,20,4,12],pants);fill([8,20,4,12],pants);fill([12,20,4,12],pants);fill([4,16,4,4],pants);fill([8,16,4,4],pants);if(faceOnly)fill([4,20,4,12],pants);else face(legL,[4,20,4,12]);
+ fill([16,52,4,12],pants);fill([24,52,4,12],pants);fill([28,52,4,12],pants);fill([20,48,4,4],pants);fill([24,48,4,4],pants);if(faceOnly)fill([20,52,4,12],pants);else face(legR,[20,52,4,12]);
  c.save();c.globalAlpha=.16;face(head,[40,8,8,8]);face(torso,[20,36,8,12]);face(armR,[44,36,4,12]);face(armL,[52,52,4,12]);face(legL,[4,36,4,12]);face(legR,[4,52,4,12]);c.restore();
  return c.getImageData(0,0,64,64);
 }

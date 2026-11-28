@@ -283,9 +283,9 @@ async function fetchPublicDownload(startUrl) {
 async function ensureDeletedTable(env){
  await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_deleted (id TEXT PRIMARY KEY,title TEXT NOT NULL,snapshot_json TEXT NOT NULL,deleted_at INTEGER NOT NULL,restored_at INTEGER)").run();
 }
-async function processPackImages(env,limit=10){
+async function processPackImages(env,limit=10,offset=0){
  await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_image_assets (id TEXT PRIMARY KEY,source_url TEXT NOT NULL UNIQUE,storage_path TEXT NOT NULL DEFAULT '',storage_url TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'pending',http_status INTEGER NOT NULL DEFAULT 0,checked_at INTEGER NOT NULL DEFAULT 0,permission_url TEXT NOT NULL DEFAULT '',error TEXT NOT NULL DEFAULT '')").run();
- const q=await env.DB.prepare("SELECT id,title,thumbnail_url,gallery_json,image_permission_url FROM resource_packs WHERE thumbnail_url!='' OR gallery_json!='[]' ORDER BY updated_at DESC LIMIT ?").bind(Math.min(20,Math.max(1,limit))).all();
+ const q=await env.DB.prepare("SELECT id,title,thumbnail_url,gallery_json,image_permission_url FROM resource_packs WHERE thumbnail_url!='' OR gallery_json!='[]' ORDER BY id LIMIT ? OFFSET ?").bind(Math.min(20,Math.max(1,limit)),Math.max(0,Math.min(1000000,offset))).all();
  const total={packs:(q.results||[]).length,checked:0,stored:0,broken:0,skipped:0};
  for(const row of q.results||[]){
   const urls=[...new Set([row.thumbnail_url,...galleryFromJson(row.gallery_json)].filter(Boolean))].slice(0,20),mapped=new Map();
@@ -540,7 +540,7 @@ export default {
       }
       if(request.method==="POST"&&url.pathname==="/api/admin/images/process"){
         if(!env.SUPABASE_SERVICE_ROLE_KEY)return reply({error:"画像保存用のStorageシークレットが未設定です。"},503,origin);
-        try{return reply(await processPackImages(env,10),200,origin);}
+        try{const body=await readJson(request);return reply(await processPackImages(env,body.limit||10,body.offset||0),200,origin);}
         catch(error){console.error("Image processing failed",error);return reply({error:"画像処理に失敗しました。"},502,origin);}
       }
 

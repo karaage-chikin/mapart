@@ -46,6 +46,7 @@ function authorFrom($,card){
  return "";
 }
 function add(provider,href,title,$,card,base){
+ if(packs.length>=targetTotal)return false;
  title=clean(title).slice(0,160);if(!title||title.length<4)return false;
  let u;try{u=new URL(href,base);}catch{return false;}if(u.protocol!=="https:")return false;
  const canonical=normalizeSourceUrl(u.href);if(!canonical||urls.has(canonical))return false;
@@ -93,7 +94,7 @@ async function scanModBay(){
   }
   console.log("ModBay page",pageNo,"valid links",valid,"added",addedThisPage);
   if(valid===0){console.warn("ModBay parser found no entries; stopping.");break;}
-  stale=addedThisPage===0?stale+1:0;if(stale>=8)break;
+  stale=addedThisPage===0?stale+1:0;if(stale>=1000)break;
   await new Promise(resolve=>setTimeout(resolve,450));
  }
  return added;
@@ -118,7 +119,7 @@ async function scanPlanetMinecraft(){
   }
   console.log("Planet Minecraft page",pageNo,"valid links",valid,"added",addedThisPage);
   if(valid===0){console.warn("Planet Minecraft parser found no entries; stopping.");break;}
-  stale=addedThisPage===0?stale+1:0;if(stale>=8)break;
+  stale=addedThisPage===0?stale+1:0;if(stale>=1000)break;
   await new Promise(resolve=>setTimeout(resolve,450));
  }
  return added;
@@ -150,7 +151,7 @@ async function scanCurseForge(){
   console.log("CurseForge page",pageNo,"unique projects",valid,"added",addedThisPage);
   if(valid===0){console.warn("No valid CurseForge project links found; stopping.");break;}
   stale=addedThisPage===0?stale+1:0;
-  if(stale>=8){console.log("Stopping after 8 valid but unchanged CurseForge pages.");break;}
+  if(stale>=1000){console.log("Stopping after 1000 valid but unchanged CurseForge pages.");break;}
   await new Promise(resolve=>setTimeout(resolve,500));
  }
  return added;

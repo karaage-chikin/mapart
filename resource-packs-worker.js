@@ -511,17 +511,19 @@ export default {
         let supabase = { available:false, usedBytes:null, buckets:[], error:"Supabaseの実使用量を取得できませんでした。" };
         if (env.SUPABASE_SERVICE_ROLE_KEY) {
           try {
-            const response = await fetch(SUPABASE_STORAGE_URL + "/rest/v1/objects?select=bucket_id,metadata&bucket_id=in.(resource-pack-images,resource-pack-files)&limit=10000", {
+            const response = await fetch(SUPABASE_STORAGE_URL + "/rest/v1/rpc/resource_pack_storage_usage", {
+              method:"POST",
               headers: {
                 "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
                 "Authorization": "Bearer " + env.SUPABASE_SERVICE_ROLE_KEY,
-                "Accept-Profile": "storage"
+                "Content-Type":"application/json"
               },
+              body:"{}",
               signal: AbortSignal.timeout(10000)
             });
-            if (!response.ok) throw new Error("Storage metadata API HTTP " + response.status);
+            if (!response.ok) throw new Error("Storage usage RPC HTTP " + response.status);
             const objects = await response.json();
-            if (!Array.isArray(objects)) throw new Error("Storage metadata response is invalid");
+            if (!Array.isArray(objects)) throw new Error("Storage usage response is invalid");
             const bucketMap = new Map([
               ["resource-pack-images",{id:"resource-pack-images",count:0,usedBytes:0,maxFileBytes:5*1024*1024}],
               ["resource-pack-files",{id:"resource-pack-files",count:0,usedBytes:0,maxFileBytes:50*1024*1024}]
@@ -529,9 +531,8 @@ export default {
             for (const object of objects) {
               const bucket = bucketMap.get(object.bucket_id);
               if (!bucket) continue;
-              const size = Number(object.metadata?.size || 0);
-              bucket.count++;
-              if (Number.isFinite(size) && size > 0) bucket.usedBytes += size;
+              bucket.count = Number(object.object_count || 0);
+              bucket.usedBytes = Number(object.used_bytes || 0);
             }
             const buckets = [...bucketMap.values()];
             supabase = { available:true, usedBytes:buckets.reduce((sum,b)=>sum+b.usedBytes,0), buckets, checkedAt:Date.now() };

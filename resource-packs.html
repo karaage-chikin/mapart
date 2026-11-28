@@ -33,7 +33,7 @@ footer{text-align:center;padding:22px;color:#6c7086;font-size:.75rem;border-top:
 <nav id="filters" class="filters" aria-label="ジャンル"></nav>
 <div class="resultline"><span id="resultCount">読み込み中…</span><span>カードを押すと詳細を表示</span></div>
 <section id="grid" class="grid" aria-live="polite"></section>
-<div class="load-more-wrap"><button id="loadMorePacks" class="btn hidden" type="button">もっと読み込む</button></div>
+<div class="load-more-wrap"><button id="prevPacks" class="btn hidden" type="button">← 前のページ</button><span id="pageIndicator" class="version"></span><button id="loadMorePacks" class="btn hidden" type="button">次のページ →</button></div>
 <p class="note">説明・作者・公開日・対応情報など、取得できた公開情報は図鑑内に掲載します。配布元が情報を公開していない項目や取得できなかった項目は表示されません。配布ファイルの入手時のみ配布元ページを利用してください。配布ファイルそのものは当サイトに再アップロードしていません。</p>
 <div class="adminbar"><button id="adminToggle" class="btn small">管理者メニュー</button></div>
 <section id="adminPanel" class="admin hidden">
@@ -58,8 +58,13 @@ footer{text-align:center;padding:22px;color:#6c7086;font-size:.75rem;border-top:
 <input id="editPackFile" class="field" type="file" accept=".mcpack,.mcaddon,.zip,application/zip,application/octet-stream">
 <div class="admin-actions"><button id="uploadPackFile" class="btn">選択したパックをサイト内に保存</button><span id="uploadPackStatus" class="status"></span></div>
 <input id="editDownloadUrl" class="field" type="url" placeholder="直接ダウンロード用ファイルURL（任意）">
+ <input id="editPermissionUrl" class="field" type="url" placeholder="再配布許可の根拠URL（必須：許可ページ・ライセンス）">
+ <input id="editPermissionNote" class="field" placeholder="許可内容のメモ">
+ <input id="editImagePermissionUrl" class="field" type="url" placeholder="画像保存・再掲載の許可根拠URL（任意）">
 <label class="checkline"><input id="editDownloadAllowed" type="checkbox"> 作者・配布元がファイルの直接配布を許可していることを確認済み</label>
-<p class="admin-hint">ファイルをサイト内保存できるのは、作者または配布元が再配布を許可している場合だけです。許可が確認できない場合は、公式配布ページへのリンクだけにしてください。無料容量を守るため、保存枠は最大700MBに制限しています。</p>
+<p class="admin-hint">ファイルをサイト内保存するには再配布許可の根拠URLが必要です。画像も保存する場合は画像利用許可の根拠URLを別途入力してください。</p>
+ <div class="admin-actions"><button id="processImages" class="btn">画像を保存・リンク切れ確認</button><span id="imageProcessStatus" class="status"></span></div>
+ <section class="admin" style="grid-column:1/-1"><h3>削除履歴・復元</h3><div id="trashList" class="rows">ログイン後に表示</div></section>
 <textarea id="editDescription" class="field" placeholder="説明"></textarea>
 </div>
 <div class="admin-actions"><button id="savePack" class="btn primary">登録する</button><button id="cancelEdit" class="btn">入力をクリア</button><button id="logoutBtn" class="btn">ログアウト</button></div>
@@ -68,7 +73,7 @@ footer{text-align:center;padding:22px;color:#6c7086;font-size:.75rem;border-top:
 <div id="adminSetupHint" class="status hidden">管理者パスワードがまだ設定されていません。Cloudflare Workerのシークレット <code>ADMIN_PASSWORD</code> を設定してください。</div>
 </section>
 </main>
-<div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-card"><div class="modal-head"><div><span id="modalCategory" class="category"></span><h2 id="modalTitle"></h2></div><button id="modalClose" class="close" aria-label="閉じる">×</button></div><div id="modalGallery"></div><div id="modalBody"></div><div class="modal-actions"><a id="downloadLink" class="btn primary hidden" href="#" rel="noopener noreferrer">サイト内からダウンロード ↓</a><a id="sourceLink" class="btn" href="#" target="_blank" rel="noopener noreferrer">配布元でダウンロード ↗</a><a id="translateDescription" class="btn" href="#" target="_blank" rel="noopener noreferrer">説明を翻訳 ↗</a><button id="modalFav" class="btn">☆ お気に入り</button></div></div></div>
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="modalTitle" aria-describedby="modalBody"><div class="modal-card" tabindex="-1"><div class="modal-head"><div><span id="modalCategory" class="category"></span><h2 id="modalTitle"></h2></div><button id="modalClose" class="close" aria-label="閉じる">×</button></div><div id="modalGallery"></div><div id="modalBody"></div><div class="modal-actions"><a id="downloadLink" class="btn primary hidden" href="#" rel="noopener noreferrer">サイト内からダウンロード ↓</a><a id="sourceLink" class="btn" href="#" target="_blank" rel="noopener noreferrer">配布元でダウンロード ↗</a><a id="translateDescription" class="btn" href="#" target="_blank" rel="noopener noreferrer">説明を翻訳 ↗</a><button id="modalFav" class="btn">☆ お気に入り</button></div></div></div>
 <footer>Minecraft制作ツール · Bedrock resource pack directory</footer>
-<script src="resource-packs.js?v=3.1.0" defer></script>
+<script src="resource-packs.js?v=3.2.0" defer></script>
 </body></html>

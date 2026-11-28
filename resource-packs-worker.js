@@ -249,10 +249,12 @@ const PACK_STORAGE_LIMIT = 700 * 1024 * 1024;
 function isSafePublicDownloadUrl(value) {
   try {
     const u=new URL(value);
-    const host=u.hostname.toLowerCase().replace(/^\\[|\\]$/g,"");
+    const host=u.hostname.toLowerCase();
+    const ipv4Parts=host.split(".");
+    const isIpv4=ipv4Parts.length===4&&ipv4Parts.every(part=>part.length>0&&[...part].every(c=>c>="0"&&c<="9"));
     if(u.protocol!=="https:"||u.username||u.password||!host.includes("."))return false;
     if(host==="localhost"||host.endsWith(".localhost")||host.endsWith(".local")||host.endsWith(".internal")||host.endsWith(".test")||host.endsWith(".invalid")||host==="metadata.google.internal")return false;
-    if(host.startsWith("[")||/^\\d{1,3}(?:\\.\\d{1,3}){3}$/.test(host))return false;
+    if(host.startsWith("[")||isIpv4)return false;
     return true;
   } catch { return false; }
 }

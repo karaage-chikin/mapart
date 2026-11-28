@@ -142,25 +142,25 @@ function decodeHtml(value) {
     .replace(/&amp;/gi,"&").replace(/&#038;/g,"&").replace(/&quot;/gi,'"')
     .replace(/&apos;/gi,"'").replace(/&#39;|&#x27;/gi,"'")
     .replace(/&lt;/gi,"<").replace(/&gt;/gi,">").replace(/&nbsp;/gi," ")
-    .replace(/&#(\\d+);/g,(_,n)=>{const cp=Number(n);return cp>0&&cp<=0x10ffff?String.fromCodePoint(cp):_;})
+    .replace(/&#(\d+);/g,(_,n)=>{const cp=Number(n);return cp>0&&cp<=0x10ffff?String.fromCodePoint(cp):_;})
     .replace(/&#x([0-9a-f]+);/gi,(_,n)=>{const cp=parseInt(n,16);return cp>0&&cp<=0x10ffff?String.fromCodePoint(cp):_;});
 }
 function extractPageImages(html) {
   const found=[];
-  const metaRe=/<meta\\b[^>]*(?:property|name)=["'](?:og:image|twitter:image|twitter:image:src)["'][^>]*>/gi;
+  const metaRe=/<meta\b[^>]*(?:property|name)=["'](?:og:image|twitter:image|twitter:image:src)["'][^>]*>/gi;
   for(const match of html.matchAll(metaRe)){
     const content=match[0].match(/content=["']([^"']+)["']/i);
     if(content)found.push(decodeHtml(content[1]));
   }
-  const imgRe=/<img\\b[^>]*>/gi;
+  const imgRe=/<img\b[^>]*>/gi;
   for(const match of html.matchAll(imgRe)){
     const tag=match[0];
-    const src=tag.match(/\\b(?:data-src|data-lazy-src|data-original|src)=["']([^"']+)["']/i);
+    const src=tag.match(/\b(?:data-src|data-lazy-src|data-original|src)=["']([^"']+)["']/i);
     if(src)found.push(decodeHtml(src[1]));
     const srcset=tag.match(/srcset=["']([^"']+)["']/i);
     if(srcset){
       const candidates=srcset[1].split(",").map(part=>{
-        const bits=part.trim().split(/\\s+/),descriptor=bits[1]||"1x";
+        const bits=part.trim().split(/\s+/),descriptor=bits[1]||"1x";
         return {url:bits[0],amount:parseFloat(descriptor)||1};
       }).filter(item=>item.url);
       candidates.sort((a,b)=>b.amount-a.amount);
@@ -168,7 +168,7 @@ function extractPageImages(html) {
     }
   }
   return [...new Set(found.map(raw=>{
-    try{const u=new URL(raw);if(u.protocol!=="https:"||!u.hostname.includes(".")||u.hostname==="localhost"||u.hostname.endsWith(".local")||/\\.(svg)(?:$|\\?)/i.test(u.pathname))return "";return u.href;}
+    try{const u=new URL(raw);if(u.protocol!=="https:"||!u.hostname.includes(".")||u.hostname==="localhost"||u.hostname.endsWith(".local")||/\.(svg)(?:$|\?)/i.test(u.pathname))return "";return u.href;}
     catch{return "";}
   }).filter(Boolean))].slice(0,20);
 }

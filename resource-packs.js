@@ -97,13 +97,16 @@ function imageMarkup(url,alt,cls){
  return '<div class="'+cls+'">'+(safe?'<img src="'+esc(safe)+'" alt="'+esc(alt)+'" loading="lazy" referrerpolicy="no-referrer"><div class="image-placeholder" hidden>📦</div>':'<div class="image-placeholder">📦</div>')+'</div>';
 }
 function render(){
- const list=filtered(),fav=favorites(),visible=list.slice(0,visibleLimit);
+ const list=filtered(),fav=favorites(),totalPages=Math.max(1,Math.ceil(list.length/pageSize));
+ currentPage=Math.min(currentPage,totalPages);
+ const offset=(currentPage-1)*pageSize,visible=list.slice(offset,offset+pageSize);
  $("countStat").textContent=packs.length+"件掲載";
- $("resultCount").textContent=Math.min(list.length,visibleLimit)+"件を表示 / 全"+list.length+"件";
- $("loadMorePacks").classList.toggle("hidden",list.length<=visibleLimit);
- $("loadMorePacks").textContent="もっと読み込む（残り"+(list.length-visibleLimit)+"件）";
+ $("resultCount").textContent=(list.length?offset+1:0)+"〜"+Math.min(offset+pageSize,list.length)+"件 / 全"+list.length+"件（"+currentPage+" / "+totalPages+"ページ）";
+ $("loadMorePacks").classList.toggle("hidden",totalPages<=1);$("loadMorePacks").disabled=currentPage>=totalPages;$("loadMorePacks").textContent="次のページ →";
+ if($("prevPacks")){$("prevPacks").classList.toggle("hidden",totalPages<=1);$("prevPacks").disabled=currentPage<=1;}
+ if($("pageIndicator"))$("pageIndicator").textContent=currentPage+" / "+totalPages+"ページ";
  syncSearchUrl();
- $("grid").innerHTML=visible.length?visible.map(p=>'<article class="pack" data-open="'+esc(p.id)+'">'+imageMarkup(p.thumbnailUrl||(p.galleryImages||[])[0]||"",p.title+"の画像","pack-thumb")+'<div class="pack-top"><span class="category">'+esc(p.category)+'</span><button class="fav '+(fav.has(p.id)?"on":"")+'" data-fav="'+esc(p.id)+'" aria-label="お気に入り">'+(fav.has(p.id)?"★":"☆")+'</button></div><h2>'+esc(p.title)+'</h2><div class="author">作者：'+esc(p.author||"不明")+'</div><p class="desc">'+esc(p.description)+'</p><div class="pack-bottom"><span class="version">'+esc(p.compatibility||"対応情報は配布元で確認")+'</span><button class="details" data-open="'+esc(p.id)+'">詳細を見る →</button></div>'+(p.directDownloadAllowed?'<div class="version">サイト内ダウンロード対応</div>':'')+(token?'<div class="admin-actions"><button class="btn small" data-delete="'+esc(p.id)+'">削除</button></div>':"")+'</article>').join("") :'<div class="empty">該当するパックが見つかりませんでした。検索語やジャンルを変えてみてね。</div>';
+ $("grid").innerHTML=visible.length?visible.map(p=>'<article class="pack" data-open="'+esc(p.id)+'">'+imageMarkup(p.thumbnailUrl||(p.galleryImages||[])[0]||"",p.title+"の画像","pack-thumb")+'<div class="pack-top"><span class="category">'+esc(p.category)+'</span><button class="fav '+(fav.has(p.id)?"on":"")+'" data-fav="'+esc(p.id)+'" aria-label="お気に入り">'+(fav.has(p.id)?"★":"☆")+'</button></div><h2>'+esc(p.title)+'</h2><div class="author">作者：'+esc(p.author||"不明")+'</div><p class="desc">'+esc(p.description)+'</p><div class="pack-bottom"><span class="version">'+esc(p.compatibility||"対応情報は配布元で確認")+'</span><button class="details" data-open="'+esc(p.id)+'">詳細を見る →</button></div>'+(p.directDownloadAllowed?'<div class="version">サイト内ダウンロード対応</div>':'')+(token?'<div class="admin-actions"><button class="btn small" data-delete="'+esc(p.id)+'">削除</button></div>':"")+'</article>').join(""):'<div class="empty">該当するパックが見つかりませんでした。検索語やジャンルを変えてみてね。</div>';
 }
 function renderGallery(index=0){
  const box=$("modalGallery");
@@ -315,6 +318,10 @@ $("savePack").addEventListener("click",async()=>{
 });
 $("discoverNow").addEventListener("click",async()=>{const b=$("discoverNow");b.disabled=true;$("candidateStatus").textContent="MCPEDLを検索中…";try{const r=await api("/api/admin/discover",{method:"POST",body:"{}"});$("candidateStatus").textContent="調査："+r.scanned+"件 / 新規候補："+r.added+"件 / 重複等："+r.skipped+"件";await loadCandidates();}catch(e){$("candidateStatus").textContent=e.message;}finally{b.disabled=false;}});
 $("refreshCandidates").addEventListener("click",loadCandidates);
+
+$("processImages")?.addEventListener("click",async()=>{const b=$("processImages");b.disabled=true;$("imageProcessStatus").textContent="画像リンクを確認・許可済み画像を保存中…";try{const r=await api("/api/admin/images/process",{method:"POST",body:JSON.stringify({limit:10})});$("imageProcessStatus").textContent="確認 "+r.checked+"件 / 保存 "+r.stored+"件 / リンク切れ "+r.broken+"件 / 権利確認待ち "+r.skipped+"件";await load();}catch(e){$("imageProcessStatus").textContent=e.message;}finally{b.disabled=false;}});
+$("trashList")?.addEventListener("click",async e=>{const b=e.target.closest("[data-restore]");if(!b)return;if(!confirm("このパックを復元しますか？"))return;try{await api("/api/admin/trash/"+encodeURIComponent(b.dataset.restore)+"/restore",{method:"POST",body:"{}"});await load();await loadTrash();setStatus("復元しました。","ok");}catch(error){setStatus(error.message,"error");}});
+
 $("candidateList").addEventListener("click",async e=>{
  const a=e.target.closest("[data-approve]"),d=e.target.closest("[data-reject]");
  if(a){const id=a.dataset.approve,sel=$("candidateList").querySelector('[data-candidate-category="'+CSS.escape(id)+'"]');if(!confirm("配布元でBedrock対応を確認しましたか？確認済みなら公開します。"))return;try{const r=await api("/api/admin/candidates/"+encodeURIComponent(id)+"/approve",{method:"POST",body:JSON.stringify({category:sel?.value||"その他"})});packs.unshift(r.pack);render();await loadCandidates();$("candidateStatus").textContent="承認して公開しました。";}catch(err){$("candidateStatus").textContent=err.message;}}

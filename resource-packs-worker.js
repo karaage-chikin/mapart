@@ -353,7 +353,7 @@ async function uploadPackToSupabase(env, request, origin) {
       return reply({ error: "ZIP形式のMinecraftパックとして認識できませんでした。ファイルの中身を確認してください。" }, 415, origin);
     }
     await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_storage_usage (id INTEGER PRIMARY KEY CHECK(id=1), used_bytes INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)").run();
-    await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_storage_files (id TEXT PRIMARY KEY, storage_path TEXT NOT NULL UNIQUE, file_name TEXT NOT NULL, size_bytes INTEGER NOT NULL, public_url TEXT NOT NULL, created_at INTEGER NOT NULL)").run();
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_storage_files (id TEXT PRIMARY KEY, storage_path TEXT NOT NULL UNIQUE, file_name TEXT NOT NULL, size_bytes INTEGER NOT NULL, public_url TEXT NOT NULL, created_at INTEGER NOT NULL, permission_url TEXT NOT NULL DEFAULT '')").run();
     await env.DB.prepare("INSERT OR IGNORE INTO resource_pack_storage_usage (id,used_bytes,updated_at) VALUES (1,0,?)").bind(Date.now()).run();
     const reserve = await env.DB.prepare("UPDATE resource_pack_storage_usage SET used_bytes=used_bytes+?,updated_at=? WHERE id=1 AND used_bytes+?<=?").bind(fileSize,Date.now(),fileSize,PACK_STORAGE_LIMIT).run();
     if (Number(reserve?.meta?.changes || 0) !== 1) {
@@ -378,8 +378,8 @@ async function uploadPackToSupabase(env, request, origin) {
     }
     uploaded = true;
     const publicUrl = SUPABASE_STORAGE_URL + "/storage/v1/object/public/resource-pack-files/" + encodedPath;
-    await env.DB.prepare("INSERT INTO resource_pack_storage_files (id,storage_path,file_name,size_bytes,public_url,created_at) VALUES (?,?,?,?,?,?)")
-      .bind(crypto.randomUUID(),storagePath,safeName,fileSize,publicUrl,Date.now()).run();
+    await env.DB.prepare("INSERT INTO resource_pack_storage_files (id,storage_path,file_name,size_bytes,public_url,created_at,permission_url) VALUES (?,?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(),storagePath,safeName,fileSize,publicUrl,Date.now(),permissionUrl).run();
     const usage = await env.DB.prepare("SELECT used_bytes FROM resource_pack_storage_usage WHERE id=1").first();
     return reply({ ok: true, fileName: safeName, size: fileSize, publicUrl, usedBytes: Number(usage?.used_bytes || 0), limitBytes: PACK_STORAGE_LIMIT }, 200, origin);
   } catch (error) {

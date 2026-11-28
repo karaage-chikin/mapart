@@ -370,9 +370,9 @@
   },
   {
     "id": "seed-016",
-    "title": "Greg's backrooms tweeks!",
+    "title": "Greg's backrooms tweaks!",
     "author": "namenotgreg",
-    "category": "テーマ・世界観",
+    "category": "その他",
     "description": "Backrooms系コンテンツ向けに一部のテクスチャを変更。",
     "sourceUrl": "https://mcpedl.com/gregs-backrooms-stuff/",
     "compatibility": "配布元で確認",
@@ -905,16 +905,16 @@
       "https://cdn.mcpedl.com/web/content/logo.png",
       "https://media.forgecdn.net/attachments/2251/547/mcpedl-png.png",
       "https://media.forgecdn.net/attachments/2255/153/mcpedl-png.png",
-      "https://media.forgecdn.net/attachments/2251/552/mcpedl_thumbnail_1280x720-png.png",
+      "https://media.forgecdn.net/attachments/2248/33/mcpedl-png.png",
       "https://cdn.mcpedl.com/web/ow_logo.png"
     ],
-    "imagesFetchedAt": "2026-11-27",
-    "sourceUpdatedAt": "2026-11-26",
-    "fullDescription": "Complete v2.0.0 rebuild with 5 gear-icon subpacks: Balanced , PvP , High Animated , Ultra Static , and Potato Cull . Safe motion-only animation stripping (preserves armor, elytra, crossbows, baby mobs, and Creeper swelling!). Keeps essential combat/critical/XP particles visible in Balanced & PvP modes, plus opaque fast leaves, multi-biome no-fog visibility, and 31 distance-culling render controllers. 100% Achievement Friendly.",
+    "imagesFetchedAt": "2026-11-28",
+    "sourceUpdatedAt": "2026-11-28",
+    "fullDescription": "The only real MCPE FPS booster. Strip particles, mob animations and texture flicker to cut lag and heat, hold smooth gameplay on 1.21+, and beat every other…",
     "detailsFiltered": false,
-    "publishedAt": "2026-10-12 08:33:13Z",
-    "updatedAt": "2026-11-26 19:38:32Z",
-    "detailsFetchedAt": "2026-11-27"
+    "publishedAt": "2026-10-12",
+    "updatedAt": "2026-11-28",
+    "detailsFetchedAt": "2026-11-28"
   },
   {
     "id": "seed-036",
@@ -5839,22 +5839,22 @@
     "source": "MCPEDL",
     "sourceType": "automatic",
     "createdAt": "2026-11-27",
-    "sourceUpdatedAt": "2026-11-27",
+    "sourceUpdatedAt": "2026-11-28",
     "thumbnailUrl": "https://media.forgecdn.net/attachments/2255/153/mcpedl-png.png",
     "galleryImages": [
       "https://media.forgecdn.net/attachments/2255/153/mcpedl-png.png",
       "https://cdn.mcpedl.com/web/content/logo.png",
       "https://media.forgecdn.net/attachments/2251/547/mcpedl-png.png",
-      "https://media.forgecdn.net/attachments/2251/552/mcpedl_thumbnail_1280x720-png.png",
       "https://media.forgecdn.net/attachments/2248/33/mcpedl-png.png",
+      "https://media.forgecdn.net/attachments/2251/552/mcpedl_thumbnail_1280x720-png.png",
       "https://cdn.mcpedl.com/web/ow_logo.png"
     ],
-    "imagesFetchedAt": "2026-11-27",
-    "fullDescription": "v1.0.4 Fixed Removed leftover files from another pack that had been bundled in by mistake. Every ore now has its own bright, easy-to-tell-apart color. Glowing ores are now part of every X-Ray mode by default. Added Chests, trapped chests, ender chests, shulker boxes and barrels glow in bright colors and show up through the rock. New \"Ancient City\" mode: only sculk, ancient debris and other deep dark finds stay visible.",
+    "imagesFetchedAt": "2026-11-28",
+    "fullDescription": "See every ore instantly with glowing color-coded borders! Achievement-friendly Bedrock X-Ray with 4 modes (Full X-Ray, Safe Mining, Nether Debris, Glowing Or…",
     "detailsFiltered": false,
-    "publishedAt": "2026-11-23 09:52:49Z",
-    "updatedAt": "2026-11-27 07:56:47Z",
-    "detailsFetchedAt": "2026-11-27"
+    "publishedAt": "2026-11-23",
+    "updatedAt": "2026-11-28",
+    "detailsFetchedAt": "2026-11-28"
   },
   {
     "id": "mcpedl-newb-complementary",
@@ -8375,7 +8375,7 @@
   {
     "id": "mcpedl-newb-x-solstice",
     "title": "Newb X Solstice",
-    "author": "",
+    "author": "Minecraft Bedrock. MB Loader is required to load this shader",
     "category": "その他",
     "description": "Minecraft Bedrock向けリソースパック。詳しい説明・対応バージョンは取得できた情報を掲載します。",
     "sourceUrl": "https://mcpedl.com/newb-x-solstice/",
@@ -8383,7 +8383,7 @@
     "source": "MCPEDL",
     "sourceType": "automatic",
     "createdAt": "2026-11-22",
-    "sourceUpdatedAt": "2026-11-21",
+    "sourceUpdatedAt": "2026-11-28",
     "thumbnailUrl": "https://media.forgecdn.net/attachments/2248/738/picsart_26-11-21_18-43-02-219-jpg.jpg",
     "galleryImages": [
       "https://media.forgecdn.net/attachments/2248/738/picsart_26-11-21_18-43-02-219-jpg.jpg",
@@ -8393,12 +8393,12 @@
       "https://r2.mcpedl.com/submissions/129006/100/file00000000d80061f6843ff3d8328177d8conversationid67f9aeb3ee4c800c855f80c9f2da6daemessageid365a926ca9a441ffadf3c5f8302bed02_1-520x245.png",
       "https://cdn.mcpedl.com/web/ow_logo.png"
     ],
-    "imagesFetchedAt": "2026-11-27",
+    "imagesFetchedAt": "2026-11-28",
     "fullDescription": "A moody, atmospheric Newb shader variant for Minecraft Bedrock: volumetric and block clouds, aurora, foamy water, and a blackhole in the end.",
     "detailsFiltered": false,
-    "publishedAt": "2026-11-03 13:32:29Z",
-    "updatedAt": "2026-11-21 11:45:24Z",
-    "detailsFetchedAt": "2026-11-27"
+    "publishedAt": "2026-11-03",
+    "updatedAt": "2026-11-28",
+    "detailsFetchedAt": "2026-11-28"
   },
   {
     "id": "mcpedl-rem-ui-re-zero-anime-girl-animated-menu",
@@ -12163,7 +12163,7 @@
   },
   {
     "id": "mcpedl-furina-sky-genshin-impact",
-    "title": "Furina Sky | Genshin Impact",
+    "title": "Furina Sky | Genshin Impact | Anime Custom Sky",
     "author": "",
     "category": "その他",
     "description": "Minecraft Bedrock向けリソースパック。詳しい説明・対応バージョンは取得できた情報を掲載します。",
@@ -12172,22 +12172,22 @@
     "source": "MCPEDL",
     "sourceType": "automatic",
     "createdAt": "2026-11-16",
-    "sourceUpdatedAt": "2026-11-17",
+    "sourceUpdatedAt": "2026-11-28",
     "thumbnailUrl": "https://media.forgecdn.net/attachments/2219/132/furina_thumbnail-jpeg.jpeg",
     "galleryImages": [
       "https://media.forgecdn.net/attachments/2219/132/furina_thumbnail-jpeg.jpeg",
       "https://cdn.mcpedl.com/web/content/logo.png",
-      "https://media.forgecdn.net/attachments/2080/476/rem-jpeg.jpeg",
       "https://media.forgecdn.net/attachments/2189/958/night_vision_thumbnail-jpeg.jpeg",
-      "https://media.forgecdn.net/attachments/1995/719/mcpedl_fps_boost-jpeg.jpeg",
+      "https://media.forgecdn.net/attachments/2030/294/xray_thumbnail-jpg.jpg",
+      "https://media.forgecdn.net/attachments/2080/476/rem-jpeg.jpeg",
       "https://cdn.mcpedl.com/web/ow_logo.png"
     ],
-    "imagesFetchedAt": "2026-11-27",
+    "imagesFetchedAt": "2026-11-28",
     "fullDescription": "Transform Minecraft Bedrock & MCPE with Furina Sky, a Genshin Impact-inspired anime sky texture pack featuring beautiful blue skies, detailed Furina artwork,…",
     "detailsFiltered": false,
-    "publishedAt": "2026-11-17 10:19:05Z",
-    "updatedAt": "2026-11-17 10:22:01Z",
-    "detailsFetchedAt": "2026-11-27"
+    "publishedAt": "2026-11-17",
+    "updatedAt": "2026-11-28",
+    "detailsFetchedAt": "2026-11-28"
   },
   {
     "id": "mcpedl-foxdritgs-ambient-particles",
@@ -12556,22 +12556,22 @@
     "source": "MCPEDL",
     "sourceType": "automatic",
     "createdAt": "2026-11-16",
-    "sourceUpdatedAt": "2026-11-16",
+    "sourceUpdatedAt": "2026-11-28",
     "thumbnailUrl": "https://media.forgecdn.net/attachments/2061/913/watermark-removed-gemini_generat-png.png",
     "galleryImages": [
       "https://media.forgecdn.net/attachments/2061/913/watermark-removed-gemini_generat-png.png",
       "https://cdn.mcpedl.com/web/content/logo.png",
-      "https://media.forgecdn.net/attachments/2260/441/solva-visuals-in-a-glowing-oak-f-png.png",
       "https://media.forgecdn.net/attachments/2272/165/instant-structures_-palace-cast-png.png",
+      "https://media.forgecdn.net/attachments/2260/441/solva-visuals-in-a-glowing-oak-f-png.png",
       "https://media.forgecdn.net/attachments/2089/5/watermark-removed.png",
       "https://cdn.mcpedl.com/web/ow_logo.png"
     ],
-    "imagesFetchedAt": "2026-11-27",
-    "fullDescription": "v1.2 Changelog Added glow to diamond, emerald, gold, lapis, redstone and coal blocks Added glow to netherite block Added glow to copper blocks (all 4 stages) Added glow to budding amethyst, crying obsidian, sculk, sculk catalyst, enchanting table and respawn anchor",
+    "imagesFetchedAt": "2026-11-28",
+    "fullDescription": "Glowing Ores makes every ore glow so you never miss a vein again. Vibrant, eye-catching textures that light up the dark and make caving a whole new experience.",
     "detailsFiltered": false,
-    "publishedAt": "2026-10-16 10:46:52Z",
-    "updatedAt": "2026-11-16 07:35:29Z",
-    "detailsFetchedAt": "2026-11-27"
+    "publishedAt": "2026-10-16",
+    "updatedAt": "2026-11-28",
+    "detailsFetchedAt": "2026-11-28"
   },
   {
     "id": "mcpedl-raptorgam3r4058",
@@ -58985,25 +58985,25 @@
     "source": "MCPEDL",
     "sourceType": "automatic",
     "createdAt": "2026-10-13",
-    "sourceUpdatedAt": "2026-10-13",
+    "sourceUpdatedAt": "2026-11-28",
     "thumbnailUrl": "https://media.forgecdn.net/attachments/1868/260/20260815_09332-2048kb-jpg.jpg",
     "galleryImages": [
       "https://media.forgecdn.net/attachments/1868/260/20260815_09332-2048kb-jpg.jpg",
       "https://cdn.mcpedl.com/web/content/logo.png",
       "https://media.forgecdn.net/attachments/2154/938/buildmatica_plus_thumbnail_v2-png.png",
-      "https://media.forgecdn.net/attachments/1392/125/1000454239-png-png.png",
       "https://media.forgecdn.net/attachments/2048/110/buildmatica_thumbnail-png.png",
+      "https://media.forgecdn.net/attachments/1391/46/1000424075-png-png.png",
       "https://r2.mcpedl.com/users/4335055/df0f2721d7545504e5b2340b141b8d8f.png",
       "https://r2.mcpedl.com/users/5664432/de70b308fe5a980f97fbbd868fbd5bb9.png",
       "https://r2.mcpedl.com/users/5068514/41a9e33351944db956a2c5bd4a1d4c5c.png",
       "https://cdn.mcpedl.com/web/ow_logo.png"
     ],
-    "imagesFetchedAt": "2026-11-27",
+    "imagesFetchedAt": "2026-11-28",
     "fullDescription": "See live health bars above every mob and player — sheep, pig, villager, Warden and more! Two subpacks included: Always Visible or Only When Hit for 5 seconds…",
     "detailsFiltered": false,
     "publishedAt": "2026-08-15",
-    "updatedAt": "2026-10-13",
-    "detailsFetchedAt": "2026-11-27"
+    "updatedAt": "2026-11-28",
+    "detailsFetchedAt": "2026-11-28"
   },
   {
     "id": "mcpedl-force-pixelated-shadows-c97e5c1ff48f",
@@ -92215,13 +92215,13 @@
     "source": "MCPEDL",
     "sourceType": "automatic",
     "createdAt": "2026-07-27",
-    "sourceUpdatedAt": "2026-07-27",
+    "sourceUpdatedAt": "2026-11-28",
     "thumbnailUrl": "https://media.forgecdn.net/attachments/1802/261/mcpedl-jpg.jpg",
     "galleryImages": [
       "https://media.forgecdn.net/attachments/1802/261/mcpedl-jpg.jpg",
       "https://cdn.mcpedl.com/web/content/logo.png",
+      "https://media.forgecdn.net/attachments/1371/294/mcpedl-jpeg.jpeg",
       "https://media.forgecdn.net/attachments/1392/548/mcpedl-png.png",
-      "https://media.forgecdn.net/attachments/1371/832/mcpedl-png.png",
       "https://r2.mcpedl.com/users/3087306/a8edb64a505bef257f4e455268e84c13.png",
       "https://r2.mcpedl.com/users/4291450/a56da898ff697007cc1fc147c573c19b.png",
       "https://r2.mcpedl.com/users/3479886/43ad03e3bf75729caf449597f1c42f4a.png",
@@ -92233,12 +92233,12 @@
       "https://r2.mcpedl.com/users/3438683/ab279b7cb9a6df9b2eeb3b9a31af40a6.png",
       "https://cdn.mcpedl.com/web/ow_logo.png"
     ],
-    "imagesFetchedAt": "2026-11-27",
+    "imagesFetchedAt": "2026-11-28",
     "fullDescription": "With this new texture, the details glow in the dark, creating a magical and eye-catching look. Whether exploring caves or fighting at night, your armor will…",
     "detailsFiltered": false,
     "publishedAt": "2025-10-25",
-    "updatedAt": "2026-07-27",
-    "detailsFetchedAt": "2026-11-27"
+    "updatedAt": "2026-11-28",
+    "detailsFetchedAt": "2026-11-28"
   },
   {
     "id": "mcpedl-reze-c665c670faca",
@@ -107674,7 +107674,7 @@
     "source": "MCPEDL",
     "sourceType": "automatic",
     "createdAt": "2026-11-23",
-    "sourceUpdatedAt": "2026-11-23",
+    "sourceUpdatedAt": "2026-11-28",
     "thumbnailUrl": "https://media.forgecdn.net/attachments/1608/793/file_00000000c014720891195a42f32c4afe-png.png",
     "galleryImages": [
       "https://media.forgecdn.net/attachments/1608/793/file_00000000c014720891195a42f32c4afe-png.png",
@@ -107688,12 +107688,12 @@
       "https://r2.mcpedl.com/users/4117860/01f4cb8376c2c8b5700c5c5a36d92106.png",
       "https://cdn.mcpedl.com/web/ow_logo.png"
     ],
-    "imagesFetchedAt": "2026-11-27",
+    "imagesFetchedAt": "2026-11-28",
     "fullDescription": "",
     "detailsFiltered": true,
     "publishedAt": "2026-04-01",
-    "updatedAt": "2026-11-23",
-    "detailsFetchedAt": "2026-11-27"
+    "updatedAt": "2026-11-28",
+    "detailsFetchedAt": "2026-11-28"
   },
   {
     "id": "mcpedl-pink-diamond-5a15e9a59d56",
@@ -136113,6 +136113,90 @@
     "detailsFiltered": true,
     "publishedAt": "2026-10-19",
     "updatedAt": "2026-10-19",
+    "detailsFetchedAt": "2026-11-28",
+    "imagesFetchedAt": "2026-11-28"
+  },
+  {
+    "id": "mcpedl-pvp-lite-clean-pvp-core-pvp-pro-e2867af885ae",
+    "title": "PvP Lite | CleanPvP Core & PvP Pro",
+    "author": "",
+    "category": "ブロック・建築",
+    "description": "Minecraft Bedrock向けリソースパック。詳しい説明・対応バージョンは取得できた情報を掲載します。",
+    "sourceUrl": "https://mcpedl.com/pvp-lite-clean-pvp-core-pvp-pro/",
+    "compatibility": "Bedrock向け（配布元でバージョン確認）",
+    "source": "MCPEDL",
+    "sourceType": "automatic",
+    "createdAt": "2026-11-28",
+    "sourceUpdatedAt": "2026-11-28",
+    "thumbnailUrl": "https://media.forgecdn.net/attachments/2271/929/thumbnail-jpg.jpg",
+    "galleryImages": [
+      "https://media.forgecdn.net/attachments/2271/929/thumbnail-jpg.jpg",
+      "https://cdn.mcpedl.com/web/content/logo.png",
+      "https://media.forgecdn.net/attachments/2189/958/night_vision_thumbnail-jpeg.jpeg",
+      "https://media.forgecdn.net/attachments/2030/294/xray_thumbnail-jpg.jpg",
+      "https://media.forgecdn.net/attachments/2080/476/rem-jpeg.jpeg",
+      "https://cdn.mcpedl.com/web/ow_logo.png"
+    ],
+    "fullDescription": "",
+    "detailsFiltered": true,
+    "publishedAt": "2026-11-25",
+    "updatedAt": "2026-11-28",
+    "detailsFetchedAt": "2026-11-28",
+    "imagesFetchedAt": "2026-11-28"
+  },
+  {
+    "id": "mcpedl-lunar-client-be-3fa7aabfa5d4",
+    "title": "Lunar Client | BE",
+    "author": "",
+    "category": "その他",
+    "description": "Minecraft Bedrock向けリソースパック。詳しい説明・対応バージョンは取得できた情報を掲載します。",
+    "sourceUrl": "https://mcpedl.com/lunar-client-be/",
+    "compatibility": "Bedrock向け（配布元でバージョン確認）",
+    "source": "MCPEDL",
+    "sourceType": "automatic",
+    "createdAt": "2026-11-28",
+    "sourceUpdatedAt": "2026-11-28",
+    "thumbnailUrl": "https://media.forgecdn.net/attachments/2080/601/lunar_thumbnail-jpg.jpg",
+    "galleryImages": [
+      "https://media.forgecdn.net/attachments/2080/601/lunar_thumbnail-jpg.jpg",
+      "https://cdn.mcpedl.com/web/content/logo.png",
+      "https://media.forgecdn.net/attachments/2189/958/night_vision_thumbnail-jpeg.jpeg",
+      "https://media.forgecdn.net/attachments/2030/294/xray_thumbnail-jpg.jpg",
+      "https://media.forgecdn.net/attachments/2080/476/rem-jpeg.jpeg",
+      "https://cdn.mcpedl.com/web/ow_logo.png"
+    ],
+    "fullDescription": "The ultimate Lunar Client experience for Minecraft Bedrock & MCPE! Custom esports UI, 100% original crystalline PvP textures, low shield, low fire, clean gla…",
+    "detailsFiltered": false,
+    "publishedAt": "2026-10-20",
+    "updatedAt": "2026-11-28",
+    "detailsFetchedAt": "2026-11-28",
+    "imagesFetchedAt": "2026-11-28"
+  },
+  {
+    "id": "mcpedl-particle-disabler-fps-boost-optimizer-97a0e4d83fec",
+    "title": "Particle Disabler | FPS Boost | Optimizer",
+    "author": "",
+    "category": "軽量化",
+    "description": "Minecraft Bedrock向けリソースパック。詳しい説明・対応バージョンは取得できた情報を掲載します。",
+    "sourceUrl": "https://mcpedl.com/particle-disabler-fps-boost-optimizer/",
+    "compatibility": "Bedrock向け（配布元でバージョン確認）",
+    "source": "MCPEDL",
+    "sourceType": "automatic",
+    "createdAt": "2026-11-28",
+    "sourceUpdatedAt": "2026-11-28",
+    "thumbnailUrl": "https://media.forgecdn.net/attachments/2012/308/partical_disabler_thumbnail-jpg.jpg",
+    "galleryImages": [
+      "https://media.forgecdn.net/attachments/2012/308/partical_disabler_thumbnail-jpg.jpg",
+      "https://cdn.mcpedl.com/web/content/logo.png",
+      "https://media.forgecdn.net/attachments/2189/958/night_vision_thumbnail-jpeg.jpeg",
+      "https://media.forgecdn.net/attachments/2030/294/xray_thumbnail-jpg.jpg",
+      "https://media.forgecdn.net/attachments/2080/476/rem-jpeg.jpeg",
+      "https://cdn.mcpedl.com/web/ow_logo.png"
+    ],
+    "fullDescription": "Particles Disabler is a Minecraft Bedrock performance and PvP utility pack that removes distracting particles, reduces visual clutter, and offers All Off, Pv…",
+    "detailsFiltered": false,
+    "publishedAt": "2026-10-06",
+    "updatedAt": "2026-11-28",
     "detailsFetchedAt": "2026-11-28",
     "imagesFetchedAt": "2026-11-28"
   },

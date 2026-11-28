@@ -99,8 +99,9 @@ async function loadLogs(type,page,seq){
  const all=d.logs||[],serverPaged=Number.isFinite(Number(d.total));
  const total=serverPaged?number(d.total):all.length;
  const list=serverPaged?all:all.slice(offset,offset+PAGE_SIZE);
+ const progress=await expansionPanel();
  const hasMore=serverPaged?Boolean(d.hasMore):offset+PAGE_SIZE<total;
- $("pageContent").innerHTML='<section class="panel"><h2>'+(type==="update"?"更新・管理操作":"Debug・エラー記録")+'</h2>'+rows(list.map(x=>({title:x.action,body:x.detail,meta:formatDate(x.created_at)+" / "+x.type})))+pager("logs",page,total,hasMore)+'</section>';
+ $("pageContent").innerHTML=progress+'<section class="panel"><h2>'+(type==="update"?"更新・管理操作":"Debug・エラー記録")+'</h2>'+rows(list.map(x=>({title:x.action,body:x.detail,meta:formatDate(x.created_at)+" / "+x.type})))+pager("logs",page,total,hasMore)+'</section>';
  status("全"+total+"件中 "+(total?offset+1:0)+"〜"+(offset+list.length)+"件を表示","good");
 }
 async function loadStorage(seq){

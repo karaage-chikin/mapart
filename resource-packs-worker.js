@@ -500,6 +500,82 @@ export default {
         const dbMeta=await env.DB.prepare("SELECT COUNT(*) AS tables FROM sqlite_master WHERE type='table'").first();
         return reply({packs,candidates,logs,access,imageJob,dbMeta,checkedAt:Date.now()},200,origin);
       }
+      if (request.method === "GET" && url.pathname === "/api/admin/monitor/storage") {
+        await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_storage_usage (id INTEGER PRIMARY KEY CHECK(id=1), used_bytes INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)").run();
+        await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_storage_files (id TEXT PRIMARY KEY, storage_path TEXT NOT NULL UNIQUE, file_name TEXT NOT NULL, size_bytes INTEGER NOT NULL, public_url TEXT NOT NULL, created_at INTEGER NOT NULL, permission_url TEXT NOT NULL DEFAULT '')").run();
+        await env.DB.prepare("INSERT OR IGNORE INTO resource_pack_storage_usage (id,used_bytes,updated_at) VALUES (1,0,?)").bind(Date.now()).run();
+        const dbProbe = await env.DB.prepare("SELECT COUNT(*) AS tables FROM sqlite_master WHERE type='table'").all();
+        const dbUsedBytes = Number(dbProbe?.meta?.size_after || 0);
+        const uploadUsage = await env.DB.prepare("SELECT used_bytes,updated_at FROM resource_pack_storage_usage WHERE id=1").first();
+        const packFiles = await env.DB.prepare("SELECT COUNT(*) AS count,COALESCE(SUM(size_bytes),0) AS used_bytes FROM resource_pack_storage_files").first();
+        let supabase = { available:false, usedBytes:null, buckets:[], error:"Supabaseの実使用量を取得できませんでした。" };
+        if (env.SUPABASE_SERVICE_ROLE_KEY) {
+          try {
+            const response = await fetch(SUPABASE_STORAGE_URL + "/rest/v1/objects?select=bucket_id,metadata&bucket_id=in.(resource-pack-images,resource-pack-files)&limit=10000", {
+              headers: {
+                "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
+                "Authorization": "Bearer " + env.SUPABASE_SERVICE_ROLE_KEY,
+                "Accept-Profile": "storage"
+              },
+              signal: AbortSignal.timeout(10000)
+            });
+            if (!response.ok) throw new Error("Storage metadata API HTTP " + response.status);
+            const objects = await response.json();
+            if (!Array.isArray(objects)) throw new Error("Storage metadata response is invalid");
+            const bucketMap = new Map([
+              ["resource-pack-images",{id:"resource-pack-images",count:0,usedBytes:0,maxFileBytes:5*1024*1024}],
+              ["resource-pack-files",{id:"resource-pack-files",count:0,usedBytes:0,maxFileBytes:50*1024*1024}]
+            ]);
+            for (const object of objects) {
+              const bucket = bucketMap.get(object.bucket_id);
+              if (!bucket) continue;
+              const size = Number(object.metadata?.size || 0);
+              bucket.count++;
+              if (Number.isFinite(size) && size > 0) bucket.usedBytes += size;
+            }
+            const buckets = [...bucketMap.values()];
+            supabase = { available:true, usedBytes:buckets.reduce((sum,b)=>sum+b.usedBytes,0), buckets, checkedAt:Date.now() };
+          } catch (error) {
+            supabase.error = String(error?.message || error).slice(0,180);
+          }
+        } else {
+          supabase.error = "Storage API用シークレットが未設定です。";
+        }
+        let github = { available:false, sizeBytes:null, error:"GitHub情報を取得できませんでした。" };
+        let expansion = { available:false, status:"unknown", conclusion:null, url:"", createdAt:null };
+        try {
+          const response = await fetch("https://api.github.com/repos/karaage-chikin/tool", {
+            headers:{"Accept":"application/vnd.github+json","User-Agent":"KaraageChikinAdminDashboard/1.0"},
+            signal:AbortSignal.timeout(8000)
+          });
+          if (!response.ok) throw new Error("GitHub repository API HTTP " + response.status);
+          const data = await response.json();
+          github = { available:true, sizeBytes:Number(data.size || 0)*1024, checkedAt:Date.now() };
+        } catch (error) {
+          github.error = String(error?.message || error).slice(0,180);
+        }
+        try {
+          const response = await fetch("https://api.github.com/repos/karaage-chikin/tool/actions/workflows/resource-packs-expanded.yml/runs?per_page=1", {
+            headers:{"Accept":"application/vnd.github+json","User-Agent":"KaraageChikinAdminDashboard/1.0"},
+            signal:AbortSignal.timeout(8000)
+          });
+          if (!response.ok) throw new Error("GitHub Actions API HTTP " + response.status);
+          const data = await response.json();
+          const run = data.workflow_runs?.[0];
+          if (run) expansion = {available:true,status:run.status||"unknown",conclusion:run.conclusion||null,url:run.html_url||"",createdAt:run.created_at||null,runNumber:run.run_number||null};
+          else expansion = {available:true,status:"not_started",conclusion:null,url:"",createdAt:null};
+        } catch (error) {
+          expansion.error = String(error?.message || error).slice(0,180);
+        }
+        return reply({
+          d1:{available:dbUsedBytes>0,usedBytes:dbUsedBytes,databaseLimitBytes:500*1024*1024,accountFreeLimitBytes:5*1024*1024*1024,tables:Number(dbProbe?.results?.[0]?.tables||0)},
+          supabase,
+          packUploadGuard:{usedBytes:Number(uploadUsage?.used_bytes||0),limitBytes:PACK_STORAGE_LIMIT,files:Number(packFiles?.count||0),trackedFileBytes:Number(packFiles?.used_bytes||0),updatedAt:Number(uploadUsage?.updated_at||0)},
+          github,
+          expansion,
+          checkedAt:Date.now()
+        },200,origin);
+      }
       if (request.method === "GET" && url.pathname === "/api/admin/monitor/logs") {
         await ensureAdminLogTables(env);
         const type=String(url.searchParams.get("type")||"all");

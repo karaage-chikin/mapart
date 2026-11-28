@@ -8,7 +8,8 @@ const urls=new Set(packs.map(p=>normalizeSourceUrl(p.sourceUrl)).filter(Boolean)
 const titles=new Set(packs.map(p=>titleKey(p.title)));
 const ids=new Set(packs.map(p=>p.id));
 const headers={"User-Agent":"Mozilla/5.0 (compatible; KaraageChikinBedrockPackDirectory/3.1)","Accept":"text/html,application/xhtml+xml"};
-const maxNew=Math.max(1,Math.min(20000,Number(process.env.MAX_NEW_PACKS)||3000));
+const targetTotal=Math.max(1,Math.min(50000,Number(process.env.TARGET_TOTAL_PACKS)||10000));
+const maxNew=Math.max(0,Math.min(20000,Number(process.env.MAX_NEW_PACKS)||3000,targetTotal-packs.length));
 const maxPages=Math.max(1,Math.min(1000,Number(process.env.MAX_ADDITIONAL_PAGES)||80));
 const clean=s=>String(s||"").replace(/\s+/g," ").trim();
 function cardDate($,card){
@@ -126,28 +127,35 @@ async function scanPlanetMinecraft(){
 async function scanCurseForge(){
  let added=0,stale=0;
  for(let pageNo=1;pageNo<=maxPages&&added<maxNew;pageNo++){
-  const html=await page("https://www.curseforge.com/minecraft-bedrock/search?class=texture-packs&page="+pageNo+"&pageSize=50&sortBy=latest+update&version=26.0");
+  const html=await page("https://www.curseforge.com/minecraft-bedrock/search?class=texture-packs&page="+pageNo+"&pageSize=50&sortBy=latest+update");
   const $=load(html),links=$('a[href*="/minecraft-bedrock/texture-packs/"]').toArray();
   let valid=0,addedThisPage=0;
+  const seen=new Set();
   for(const el of links){
-   const a=$(el);let url;try{url=new URL(a.attr("href"),"https://www.curseforge.com");}catch{continue;}
-   if(url.hostname!=="www.curseforge.com"||url.pathname.split("/").filter(Boolean).length<3)continue;
-   valid++;
+   const a=$(el);let u;try{u=new URL(a.attr("href"),"https://www.curseforge.com");}catch{continue;}
+   const parts=u.pathname.split("/").filter(Boolean);
+   if(u.hostname!=="www.curseforge.com"||parts.length!==3||parts[0]!=="minecraft-bedrock"||parts[1]!=="texture-packs")continue;
+   u.search="";u.hash="";
+   if(seen.has(u.href))continue;seen.add(u.href);valid++;
    const card=a.closest("article,li,[data-testid*='project'],[class*='project-card'],[class*='projectCard'],[class*='result']").first();
-   const container=card.length?card:a.parent().parent();
-   const title=clean(a.text()||a.attr("title")||a.find("img").attr("alt"));
-   if(!title)continue;
-   if(add("CurseForge",url.href,title,$,container,"https://www.curseforge.com")){added++;addedThisPage++;}
+   const ancestors=a.parents().toArray().slice(0,9).map(el=>$(el));
+   const dateContainer=ancestors.find(node=>{const t=clean(node.text());return t.length>60&&t.length<3000&&/\\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{1,2},?\\s+\\d{4}\\b|\\b\\d{4}-\\d{2}-\\d{2}\\b/i.test(t);});
+   const container=dateContainer||(card.length?card:a.parent().parent().parent());
+   let title=clean(a.text()||a.attr("title")||a.find("img").attr("alt"));
+   title=title.replace(/^Image:\\s*/i,"").replace(/\\s+logo$/i,"").trim();
+   if(!title||title.length<4||/^download$/i.test(title))continue;
+   if(add("CurseForge",u.href,title,$,container,"https://www.curseforge.com")){added++;addedThisPage++;}
    if(added>=maxNew)break;
   }
-  console.log("CurseForge page",pageNo,"valid links",valid,"added",addedThisPage);
-  if(valid===0){console.warn("No valid listing links found; stopping rather than assuming an empty page.");break;}
+  console.log("CurseForge page",pageNo,"unique projects",valid,"added",addedThisPage);
+  if(valid===0){console.warn("No valid CurseForge project links found; stopping.");break;}
   stale=addedThisPage===0?stale+1:0;
-  if(stale>=8){console.log("Stopping after 8 valid but unchanged pages.");break;}
+  if(stale>=8){console.log("Stopping after 8 valid but unchanged CurseForge pages.");break;}
   await new Promise(resolve=>setTimeout(resolve,500));
  }
  return added;
 }
+
 (async()=>{
  const results={};
  const save=()=>fs.writeFileSync(file,JSON.stringify(packs,null,2)+"\n");

@@ -2,6 +2,8 @@ name: Expand Bedrock Resource Pack Catalogue
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 18 * * *"
   push:
     branches:
       - main
@@ -15,7 +17,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: resource-pack-catalogue-expansion
+  group: resource-pack-catalogue
   cancel-in-progress: false
 
 jobs:
@@ -24,8 +26,9 @@ jobs:
     timeout-minutes: 60
     env:
       MAX_MCPEDL_PAGES: "1000"
-      MAX_NEW_PACKS: "9000"
-      MAX_ADDITIONAL_PAGES: "120"
+      MAX_NEW_PACKS: "10000"
+      TARGET_TOTAL_PACKS: "10000"
+      MAX_ADDITIONAL_PAGES: "260"
       STALE_PAGE_LIMIT: "12"
     steps:
       - uses: actions/checkout@v4

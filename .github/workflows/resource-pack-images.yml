@@ -3,13 +3,6 @@ name: Resource pack gallery images
 # Manual catalogue expansion run: collect up to 3,000 additional recent unique Bedrock entries.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/resource-pack-images.yml"
-      - "scripts/resource-pack-*.mjs"
-  schedule:
-    - cron: "0 18 * * *"
   workflow_dispatch:
 
 permissions:
@@ -17,12 +10,13 @@ permissions:
 
 env:
   MAX_MCPEDL_PAGES: "1000"
-  MAX_NEW_PACKS: "3000"
-  MAX_ADDITIONAL_PAGES: "80"
+  MAX_NEW_PACKS: "10000"
+  TARGET_TOTAL_PACKS: "10000"
+  MAX_ADDITIONAL_PAGES: "260"
   STALE_PAGE_LIMIT: "12"
 
 concurrency:
-  group: resource-pack-gallery-images
+  group: resource-pack-catalogue
   cancel-in-progress: false
 
 jobs:

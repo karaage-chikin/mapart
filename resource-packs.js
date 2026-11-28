@@ -260,7 +260,7 @@ $("search").addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=
  if(e.key==="Escape"){box.classList.add("hidden");$("search").setAttribute("aria-expanded","false");$("search").removeAttribute("aria-activedescendant");suggestionActiveIndex=-1;return;}
  if((e.key==="ArrowDown"||e.key==="ArrowUp")&&!box.classList.contains("hidden")&&options.length){e.preventDefault();const step=e.key==="ArrowDown"?1:-1;suggestionActiveIndex=(suggestionActiveIndex+step+options.length)%options.length;options.forEach((option,i)=>option.setAttribute("aria-selected",String(i===suggestionActiveIndex)));$("search").setAttribute("aria-activedescendant","search-option-"+suggestionActiveIndex);return;}
  if(e.key==="Enter"&&suggestionActiveIndex>=0&&options[suggestionActiveIndex]){e.preventDefault();$("search").value=options[suggestionActiveIndex].dataset.suggest;box.classList.add("hidden");$("search").setAttribute("aria-expanded","false");$("search").removeAttribute("aria-activedescendant");suggestionActiveIndex=-1;visibleLimit=60;render();}
-});$("searchSuggestions").addEventListener("click",e=>{const b=e.target.closest("[data-suggest]");if(!b)return;$("search").value=b.dataset.suggest;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");render();$("search").focus();});$("searchSuggestions").addEventListener("click",e=>{if(e.target.closest("[data-translate-search]"))translateSearch();});document.addEventListener("click",e=>{if(!e.target.closest(".search-wrap"))$("searchSuggestions").classList.add("hidden");});$("sort").addEventListener("change",()=>{visibleLimit=60;render();});
+});$("searchSuggestions").addEventListener("click",e=>{const b=e.target.closest("[data-suggest]");if(!b)return;$("search").value=b.dataset.suggest;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");$("search").removeAttribute("aria-activedescendant");suggestionActiveIndex=-1;visibleLimit=60;render();$("search").focus();});$("searchSuggestions").addEventListener("click",e=>{if(e.target.closest("[data-translate-search]"))translateSearch();});document.addEventListener("click",e=>{if(!e.target.closest(".search-wrap"))$("searchSuggestions").classList.add("hidden");});$("sort").addEventListener("change",()=>{visibleLimit=60;render();});
 $("loadMorePacks").addEventListener("click",()=>{visibleLimit+=60;render();});
 $("favoritesOnly").addEventListener("click",()=>{favoritesOnly=!favoritesOnly;visibleLimit=60;$("favoritesOnly").classList.toggle("primary",favoritesOnly);render();});
 $("adminToggle").addEventListener("click",()=>$("adminPanel").classList.toggle("hidden"));
@@ -327,9 +327,19 @@ $("downloadLink").addEventListener("click",async e=>{
 });
 $("modalGallery").addEventListener("click",e=>{const b=e.target.closest("[data-gallery-index]");if(b)renderGallery(Number(b.dataset.galleryIndex));});
 
-$("modalClose").addEventListener("click",()=>$("modal").classList.add("hidden"));
-$("modal").addEventListener("click",e=>{if(e.target===$("modal"))$("modal").classList.add("hidden");});
+$("modalClose").addEventListener("click",closeModal);
+$("modal").addEventListener("click",e=>{if(e.target===$("modal"))closeModal();});
 $("modalFav").addEventListener("click",()=>currentModalId&&toggleFav(currentModalId));
-document.addEventListener("keydown",e=>{if(e.key==="Escape")$("modal").classList.add("hidden");});
+document.addEventListener("keydown",e=>{
+ const modal=$("modal");if(modal.classList.contains("hidden"))return;
+ if(e.key==="Escape"){closeModal();return;}
+ if(e.key==="Tab"){
+  const focusable=[...modal.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(el=>!el.closest(".hidden")&&el.getClientRects().length);
+  if(!focusable.length)return;
+  const first=focusable[0],last=focusable[focusable.length-1];
+  if(e.shiftKey&&(document.activeElement===first||!modal.contains(document.activeElement))){e.preventDefault();last.focus();}
+  else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+ }
+});
 load();
 })();

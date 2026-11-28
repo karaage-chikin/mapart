@@ -11,7 +11,7 @@ const headers={"User-Agent":"Mozilla/5.0 (compatible; KaraageChikinBedrockPackDi
 const maxPages=Math.max(1,Math.min(5000,Number(process.env.MAX_MCPEDL_PAGES)||1000));
 const targetTotal=Math.max(1,Math.min(50000,Number(process.env.TARGET_TOTAL_PACKS)||10000));
 const maxNew=Math.max(0,Math.min(20000,Number(process.env.MAX_NEW_PACKS)||3000,targetTotal-packs.length));
-const staleLimit=Math.max(3,Math.min(50,Number(process.env.STALE_PAGE_LIMIT)||12));
+const staleLimit=Math.max(3,Math.min(5000,Number(process.env.STALE_PAGE_LIMIT)||1000));
 const clean=s=>String(s||"").replace(/\s+/g," ").trim();
 async function getPage(page){
  const url=page===1?"https://mcpedl.com/category/texture-packs/":"https://mcpedl.com/category/texture-packs/page/"+page+"/";

@@ -63,5 +63,14 @@ jobs:
             echo "No catalogue changes."
           else
             git commit -m "Expand Bedrock resource pack catalogue"
-            git push
+            for attempt in 1 2 3; do
+              git fetch origin main
+              git rebase origin/main
+              if git push; then
+                exit 0
+              fi
+              sleep $((attempt * 2))
+            done
+            echo "Could not push catalogue after rebasing onto the latest main branch."
+            exit 1
           fi

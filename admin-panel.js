@@ -67,7 +67,7 @@ async function expansionPanel(){
 }
 function storageMeter(label,used,limit,detail,unlimited=false){
  const u=number(used),l=number(limit),pct=unlimited||!l?null:Math.min(100,u/l*100);
- return '<div class="storage-item"><div class="storage-head"><strong>'+esc(label)+'</strong><b>'+formatBytes(u)+(l?' / '+formatBytes(l):'')+'</b></div>'+(pct===null?'<div class="meter meter-neutral"><span style="width:100%"></span></div>':'<div class="meter"><span style="width:'+pct.toFixed(2)+'%"></span></div>')+'<div class="storage-foot"><span>'+(pct===null?"固定上限なし・使用量のみ":pct.toFixed(2)+"% 使用")+'</span><span>'+esc(detail||"")+'</span></div></div>';
+ return '<div class="storage-item"><div class="storage-head"><strong>'+esc(label)+'</strong><b>'+formatBytes(u)+(l?' / '+formatBytes(l):'')+'</b></div>'+(pct===null?'<div class="capacity-no-limit">上限未設定（使用量のみ表示）</div>':'<div class="meter"><span style="width:'+pct.toFixed(2)+'%"></span></div>')+'<div class="storage-foot"><span>'+(pct===null?"固定上限なし・使用量のみ":pct.toFixed(2)+"% 使用")+'</span><span>'+esc(detail||"")+'</span></div></div>';
 }
 async function loadOverview(seq){
  const specs=[

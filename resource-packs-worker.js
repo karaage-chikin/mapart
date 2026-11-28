@@ -378,8 +378,14 @@ async function uploadPackToSupabase(env, request, origin) {
     }
     uploaded = true;
     const publicUrl = SUPABASE_STORAGE_URL + "/storage/v1/object/public/resource-pack-files/" + encodedPath;
-    await env.DB.prepare("INSERT INTO resource_pack_storage_files (id,storage_path,file_name,size_bytes,public_url,created_at,permission_url) VALUES (?,?,?,?,?,?,?)")
-      .bind(crypto.randomUUID(),storagePath,safeName,fileSize,publicUrl,Date.now(),permissionUrl).run();
+    try {
+      await env.DB.prepare("INSERT INTO resource_pack_storage_files (id,storage_path,file_name,size_bytes,public_url,created_at,permission_url) VALUES (?,?,?,?,?,?,?)")
+        .bind(crypto.randomUUID(),storagePath,safeName,fileSize,publicUrl,Date.now(),permissionUrl).run();
+    } catch (metadataError) {
+      const removed=await fetch(SUPABASE_STORAGE_URL+"/storage/v1/object/resource-pack-files/"+encodedPath,{method:"DELETE",headers:{"apikey":key,"Authorization":"Bearer "+key}}).then(r=>r.ok).catch(()=>false);
+      if(removed){await env.DB.prepare("UPDATE resource_pack_storage_usage SET used_bytes=MAX(0,used_bytes-?),updated_at=? WHERE id=1").bind(fileSize,Date.now()).run().catch(()=>{});reserved=false;uploaded=false;}
+      throw metadataError;
+    }
     const usage = await env.DB.prepare("SELECT used_bytes FROM resource_pack_storage_usage WHERE id=1").first();
     return reply({ ok: true, fileName: safeName, size: fileSize, publicUrl, usedBytes: Number(usage?.used_bytes || 0), limitBytes: PACK_STORAGE_LIMIT }, 200, origin);
   } catch (error) {

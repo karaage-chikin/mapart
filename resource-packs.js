@@ -245,6 +245,7 @@ $("uploadPackFile").addEventListener("click",async()=>{
  const file=$("editPackFile").files?.[0];
  if(!file){$("uploadPackStatus").textContent="先にファイルを選択してください。";return;}
  if(!token){$("uploadPackStatus").textContent="管理者ログインが必要です。";return;}
+ if(!$("editDownloadAllowed").checked){$("uploadPackStatus").textContent="作者・配布元の再配布許可を確認し、下の確認欄にチェックしてからアップロードしてください。";return;}
  if(!/\.(mcpack|mcaddon|zip)$/i.test(file.name)||file.size>50*1024*1024){$("uploadPackStatus").textContent="mcpack / mcaddon / zip形式、50MB以下のファイルを選んでください。";return;}
  const button=$("uploadPackFile");button.disabled=true;$("uploadPackStatus").textContent="アップロード中…";
  try{
@@ -256,7 +257,6 @@ $("uploadPackFile").addEventListener("click",async()=>{
   let data;try{data=await response.json();}catch{throw new Error("サーバーから正しい応答がありません。");}
   if(!response.ok)throw new Error(data.error||("アップロードエラー "+response.status));
   $("editDownloadUrl").value=data.publicUrl;
-  $("editDownloadAllowed").checked=true;
   $("uploadPackStatus").textContent="保存完了："+data.fileName+"（"+(data.size/1024/1024).toFixed(2)+"MB）。登録時にサイト内ダウンロードURLが設定されます。";
  }catch(error){$("uploadPackStatus").textContent=error.name==="AbortError"?"アップロードがタイムアウトしました。":error.message;}
  finally{button.disabled=false;}

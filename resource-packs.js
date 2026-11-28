@@ -5,10 +5,23 @@ if (!API) throw new Error("API endpoint is not configured");
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const favKey = "bedrock-resource-pack-favorites-v1";
-let packs = [], seedPacks = [], activeCategory = "すべて", favoritesOnly = false, token = sessionStorage.getItem("resourcePackAdminToken") || "", currentModalId = null, currentGalleryImages = [];
+let packs = [], seedPacks = [], activeCategory = "すべて", favoritesOnly = false, visibleLimit = 60, searchTimer = 0, token = sessionStorage.getItem("resourcePackAdminToken") || "", currentModalId = null, currentGalleryImages = [];
 const tokenExpiry=Number(sessionStorage.getItem("resourcePackAdminTokenExpiresAt")||0);
 if(tokenExpiry&&tokenExpiry<=Date.now()){token="";sessionStorage.removeItem("resourcePackAdminToken");sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");}
 const categories = ["すべて", ...new Set(["シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","ブロック・アイテム","UI・シンプル","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","便利・操作","季節・テーマ","テーマ・世界観","その他"])];
+const initialSearchParams=new URLSearchParams(location.search);
+if(initialSearchParams.has("q"))$("search").value=initialSearchParams.get("q")||"";
+if(categories.includes(initialSearchParams.get("category")))activeCategory=initialSearchParams.get("category");
+if(initialSearchParams.get("sort")&&["new","az","fav","updated","author"].includes(initialSearchParams.get("sort")))$("sort").value=initialSearchParams.get("sort");
+favoritesOnly=initialSearchParams.get("fav")==="1";
+$("favoritesOnly").classList.toggle("primary",favoritesOnly);
+function syncSearchUrl(){
+ const p=new URLSearchParams(),q=$("search").value.trim(),sort=$("sort").value;
+ if(q)p.set("q",q);if(activeCategory!=="すべて")p.set("category",activeCategory);
+ if(favoritesOnly)p.set("fav","1");if(sort!=="new")p.set("sort",sort);
+ const next=location.pathname+(p.toString()?"?"+p.toString():"")+location.hash;
+ history.replaceState(null,"",next);
+}
 function favorites(){try{return new Set(JSON.parse(localStorage.getItem(favKey)||"[]"));}catch{return new Set();}}
 function setFavorites(set){localStorage.setItem(favKey,JSON.stringify([...set]));}
 function setStatus(message,type=""){const editorVisible=!$("editorArea").classList.contains("hidden");const el=$(editorVisible?"adminStatus":"loginStatus");if(el){el.textContent=message;el.className="status "+type;}}
@@ -70,6 +83,8 @@ function filtered(){
  const sort=$("sort").value;
  if(sort==="az")list.sort((a,b)=>a.title.localeCompare(b.title,"ja"));
  if(sort==="fav")list.sort((a,b)=>(Number(fav.has(b.id))-Number(fav.has(a.id)))||a.title.localeCompare(b.title,"ja"));
+ if(sort==="updated")list.sort((a,b)=>String(b.sourceUpdatedAt||b.updatedAt||b.createdAt||"").localeCompare(String(a.sourceUpdatedAt||a.updatedAt||a.createdAt||"")));
+ if(sort==="author")list.sort((a,b)=>String(a.author||"").localeCompare(String(b.author||""),"ja")||a.title.localeCompare(b.title,"ja"));
  return list;
 }
 document.addEventListener("error",event=>{const img=event.target;if(!(img instanceof HTMLImageElement))return;img.hidden=true;const fallback=img.nextElementSibling;if(fallback?.classList.contains("image-placeholder"))fallback.hidden=false;},true);
@@ -81,10 +96,13 @@ function imageMarkup(url,alt,cls){
  return '<div class="'+cls+'">'+(safe?'<img src="'+esc(safe)+'" alt="'+esc(alt)+'" loading="lazy" referrerpolicy="no-referrer"><div class="image-placeholder" hidden>📦</div>':'<div class="image-placeholder">📦</div>')+'</div>';
 }
 function render(){
- const list=filtered(),fav=favorites();
+ const list=filtered(),fav=favorites(),visible=list.slice(0,visibleLimit);
  $("countStat").textContent=packs.length+"件掲載";
- $("resultCount").textContent=list.length+"件を表示中";
- $("grid").innerHTML=list.length?list.map(p=>'<article class="pack" data-open="'+esc(p.id)+'">'+imageMarkup(p.thumbnailUrl||(p.galleryImages||[])[0]||"",p.title+"の画像","pack-thumb")+'<div class="pack-top"><span class="category">'+esc(p.category)+'</span><button class="fav '+(fav.has(p.id)?"on":"")+'" data-fav="'+esc(p.id)+'" aria-label="お気に入り">'+(fav.has(p.id)?"★":"☆")+'</button></div><h2>'+esc(p.title)+'</h2><div class="author">作者：'+esc(p.author||"不明")+'</div><p class="desc">'+esc(p.description)+'</p><div class="pack-bottom"><span class="version">'+esc(p.compatibility||"対応情報は配布元で確認")+'</span><button class="details" data-open="'+esc(p.id)+'">詳細を見る →</button></div>'+(p.directDownloadAllowed?'<div class="version">サイト内ダウンロード対応</div>':'')+(token?'<div class="admin-actions"><button class="btn small" data-delete="'+esc(p.id)+'">削除</button></div>':"")+'</article>').join(""):'<div class="empty">該当するパックが見つかりませんでした。検索語やジャンルを変えてみてね。</div>';
+ $("resultCount").textContent=Math.min(list.length,visibleLimit)+"件を表示 / 全"+list.length+"件";
+ $("loadMorePacks").classList.toggle("hidden",list.length<=visibleLimit);
+ $("loadMorePacks").textContent="もっと読み込む（残り"+(list.length-visibleLimit)+"件）";
+ syncSearchUrl();
+ $("grid").innerHTML=visible.length?visible.map(p=>'<article class="pack" data-open="'+esc(p.id)+'">'+imageMarkup(p.thumbnailUrl||(p.galleryImages||[])[0]||"",p.title+"の画像","pack-thumb")+'<div class="pack-top"><span class="category">'+esc(p.category)+'</span><button class="fav '+(fav.has(p.id)?"on":"")+'" data-fav="'+esc(p.id)+'" aria-label="お気に入り">'+(fav.has(p.id)?"★":"☆")+'</button></div><h2>'+esc(p.title)+'</h2><div class="author">作者：'+esc(p.author||"不明")+'</div><p class="desc">'+esc(p.description)+'</p><div class="pack-bottom"><span class="version">'+esc(p.compatibility||"対応情報は配布元で確認")+'</span><button class="details" data-open="'+esc(p.id)+'">詳細を見る →</button></div>'+(p.directDownloadAllowed?'<div class="version">サイト内ダウンロード対応</div>':'')+(token?'<div class="admin-actions"><button class="btn small" data-delete="'+esc(p.id)+'">削除</button></div>':"")+'</article>').join("") :'<div class="empty">該当するパックが見つかりませんでした。検索語やジャンルを変えてみてね。</div>';
 }
 function renderGallery(index=0){
  const box=$("modalGallery");
@@ -226,8 +244,9 @@ $("grid").addEventListener("click",e=>{
  const del=e.target.closest("[data-delete]");if(del){e.stopPropagation();deletePack(del.dataset.delete);return;}
  const open=e.target.closest("[data-open]");if(open)openDetail(open.dataset.open);
 });
-$("search").addEventListener("input",()=>{render();renderSuggestions();});$("search").addEventListener("focus",renderSuggestions);$("search").addEventListener("keydown",e=>{if(e.key==="Escape"){$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");}if(e.key==="Enter"){const first=$("searchSuggestions").querySelector("[data-suggest]");if(first&&$("searchSuggestions").contains(document.activeElement)){e.preventDefault();$("search").value=first.dataset.suggest;render();$("searchSuggestions").classList.add("hidden");}}});$("searchSuggestions").addEventListener("click",e=>{const b=e.target.closest("[data-suggest]");if(!b)return;$("search").value=b.dataset.suggest;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");render();$("search").focus();});$("searchSuggestions").addEventListener("click",e=>{if(e.target.closest("[data-translate-search]"))translateSearch();});document.addEventListener("click",e=>{if(!e.target.closest(".search-wrap"))$("searchSuggestions").classList.add("hidden");});$("sort").addEventListener("change",render);
-$("favoritesOnly").addEventListener("click",()=>{favoritesOnly=!favoritesOnly;$("favoritesOnly").classList.toggle("primary",favoritesOnly);render();});
+$("search").addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{visibleLimit=60;render();renderSuggestions();},140);});$("search").addEventListener("focus",renderSuggestions);$("search").addEventListener("keydown",e=>{if(e.key==="Escape"){$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");}if(e.key==="Enter"){const first=$("searchSuggestions").querySelector("[data-suggest]");if(first&&$("searchSuggestions").contains(document.activeElement)){e.preventDefault();$("search").value=first.dataset.suggest;render();$("searchSuggestions").classList.add("hidden");}}});$("searchSuggestions").addEventListener("click",e=>{const b=e.target.closest("[data-suggest]");if(!b)return;$("search").value=b.dataset.suggest;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");render();$("search").focus();});$("searchSuggestions").addEventListener("click",e=>{if(e.target.closest("[data-translate-search]"))translateSearch();});document.addEventListener("click",e=>{if(!e.target.closest(".search-wrap"))$("searchSuggestions").classList.add("hidden");});$("sort").addEventListener("change",()=>{visibleLimit=60;render();});
+$("loadMorePacks").addEventListener("click",()=>{visibleLimit+=60;render();});
+$("favoritesOnly").addEventListener("click",()=>{favoritesOnly=!favoritesOnly;visibleLimit=60;$("favoritesOnly").classList.toggle("primary",favoritesOnly);render();});
 $("adminToggle").addEventListener("click",()=>$("adminPanel").classList.toggle("hidden"));
 $("loginBtn").addEventListener("click",async()=>{
  const password=$("adminPassword").value;if(!password){setStatus("パスワードを入力してください。","error");return;}

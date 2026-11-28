@@ -5,7 +5,7 @@ if (!API) throw new Error("API endpoint is not configured");
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const favKey = "bedrock-resource-pack-favorites-v1";
-let packs = [], seedPacks = [], activeCategory = "すべて", favoritesOnly = false, visibleLimit = 60, searchTimer = 0, token = sessionStorage.getItem("resourcePackAdminToken") || "", currentModalId = null, currentGalleryImages = [];
+let packs = [], seedPacks = [], activeCategory = "すべて", favoritesOnly = false, visibleLimit = 60, searchTimer = 0, suggestionActiveIndex = -1, modalReturnFocus = null, token = sessionStorage.getItem("resourcePackAdminToken") || "", currentModalId = null, currentGalleryImages = [];
 const tokenExpiry=Number(sessionStorage.getItem("resourcePackAdminTokenExpiresAt")||0);
 if(tokenExpiry&&tokenExpiry<=Date.now()){token="";sessionStorage.removeItem("resourcePackAdminToken");sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");}
 const categories = ["すべて", ...new Set(["シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","ブロック・アイテム","UI・シンプル","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","便利・操作","季節・テーマ","テーマ・世界観","その他"])];
@@ -58,8 +58,9 @@ function suggestionItems(q){
 }
 function renderSuggestions(){
  const q=$("search").value,box=$("searchSuggestions"),items=suggestionItems(q);
- if(!items.length){box.classList.add("hidden");$("search").setAttribute("aria-expanded","false");return;}
- box.innerHTML=items.map((v,i)=>'<button type="button" role="option" data-suggest="'+esc(v)+'"><span>'+esc(v)+'</span><small>'+(i===0&&q?"候補":"関連キーワード")+'</small></button>').join("")+(q?'<button type="button" data-translate-search="1"><span>入力した言葉を'+(/[ぁ-んァ-ヶ一-龯]/.test(q)?"英語":"日本語")+'に翻訳して検索</span><small>自動翻訳</small></button>':"");
+ if(!items.length){box.classList.add("hidden");$("search").setAttribute("aria-expanded","false");$("search").removeAttribute("aria-activedescendant");suggestionActiveIndex=-1;return;}
+ suggestionActiveIndex=-1;$("search").removeAttribute("aria-activedescendant");
+ box.innerHTML=items.map((v,i)=>'<button id="search-option-'+i+'" type="button" role="option" aria-selected="false" data-suggest="'+esc(v)+'"><span>'+esc(v)+'</span><small>'+(i===0&&q?"候補":"関連キーワード")+'</small></button>').join("")+(q?'<button type="button" data-translate-search="1"><span>入力した言葉を'+(/[ぁ-んァ-ヶ一-龯]/.test(q)?"英語":"日本語")+'に翻訳して検索</span><small>自動翻訳</small></button>':"");
  box.classList.remove("hidden");$("search").setAttribute("aria-expanded","true");
 }
 async function translateSearch(){
@@ -111,7 +112,7 @@ function renderGallery(index=0){
  box.innerHTML=imageMarkup(url,"リソースパック画像 "+(safeIndex+1),"modal-gallery-main")+(currentGalleryImages.length>1?'<div class="gallery-thumbs">'+currentGalleryImages.map((src,i)=>'<button type="button" data-gallery-index="'+i+'" class="'+(i===safeIndex?"active":"")+'" aria-label="画像 '+(i+1)+'"><img src="'+esc(src)+'" alt="" loading="lazy" referrerpolicy="no-referrer"></button>').join("")+'</div>':"");
 }
 function openDetail(id){
- const p=packs.find(x=>x.id===id);if(!p)return;currentModalId=id;
+ const p=packs.find(x=>x.id===id);if(!p)return;modalReturnFocus=document.activeElement;currentModalId=id;
  $("modalCategory").textContent=p.category;$("modalTitle").textContent=p.title;
  const meta=[["作者",p.author],["対応バージョン",p.compatibility||p.versions],["配布元",p.source],["公開日",p.publishedAt||p.createdAt],["最終更新日",p.sourceUpdatedAt||p.updatedAt],["ダウンロード数",p.downloads],["ファイルサイズ",p.fileSize],["ライセンス",p.license],["必要条件",p.requirements],["対応言語",Array.isArray(p.languages)?p.languages.join("、"):p.languages],["タグ",(p.tags||[]).join("、")]].filter(x=>x[1]!==undefined&&x[1]!==null&&String(x[1]).trim()!=="");const sections=[["説明",p.fullDescription||p.description],["主な特徴",p.features],["導入方法",p.installationSteps],["更新履歴",p.changelog],["注意事項",p.notes]].filter(x=>x[1]);$("modalBody").innerHTML='<div class="detail-meta">'+meta.map(x=>'<div><b>'+esc(x[0])+'</b><span>'+esc(Array.isArray(x[1])?x[1].join("、"):x[1])+'</span></div>').join("")+'</div>'+sections.map(x=>'<section class="detail-section"><h3>'+esc(x[0])+'</h3><p>'+esc(x[1])+'</p></section>').join("")+(p.sourceUrl?'<section class="detail-section"><h3>掲載情報について</h3><p>この図鑑に取得できた情報を掲載しています。未取得・未公表の項目は表示していません。内容の確認日：'+esc(p.detailsFetchedAt||"未記録")+'</p></section>':"");
  currentGalleryImages=[...new Set([p.thumbnailUrl,...(Array.isArray(p.galleryImages)?p.galleryImages:[])].map(safeImageUrl).filter(Boolean))].slice(0,20);
@@ -123,7 +124,12 @@ function openDetail(id){
  const isJapanese=/[ぁ-んァ-ヶ一-龯]/.test((p.fullDescription||p.description||""));
  $("translateDescription").href="https://translate.google.com/?sl=auto&tl="+(isJapanese?"en":"ja")+"&text="+encodeURIComponent(p.fullDescription||p.description||"")+"&op=translate";
  $("translateDescription").textContent=isJapanese?"英語に翻訳 ↗":"日本語に翻訳 ↗";
- $("modal").classList.remove("hidden");
+ $("modal").classList.remove("hidden");$("modalClose").focus();
+}
+function closeModal(){
+ $("modal").classList.add("hidden");
+ if(modalReturnFocus&&typeof modalReturnFocus.focus==="function")modalReturnFocus.focus();
+ modalReturnFocus=null;
 }
 function toggleFav(id){const f=favorites();f.has(id)?f.delete(id):f.add(id);setFavorites(f);render();if(currentModalId===id)$("modalFav").textContent=f.has(id)?"★ お気に入り済み":"☆ お気に入り";}
 function clearEditor(){
@@ -205,10 +211,14 @@ function mergeLivePacks(live){
 function catalogueNotice(message,kind="warning"){
  let el=$("catalogueNotice");
  if(!el){el=document.createElement("div");el.id="catalogueNotice";el.className="catalogue-notice";$("grid").before(el);}
- el.textContent=message;el.dataset.kind=kind;el.hidden=!message;
+ el.replaceChildren(document.createTextNode(message));
+ if(message){const button=document.createElement("button");button.type="button";button.className="btn small";button.textContent="再試行";button.addEventListener("click",()=>load());el.append(document.createTextNode(" "),button);}
+ el.dataset.kind=kind;el.hidden=!message;
 }
 async function load(){
  let seedError=null,liveError=null;
+ $("resultCount").textContent="図鑑を読み込み中…";$("grid").setAttribute("aria-busy","true");
+ $("grid").innerHTML=Array.from({length:6},()=>'<div class="skeleton-pack" aria-hidden="true"><div class="skeleton-image"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div></div>').join("");
  try{
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
   let response;try{response=await fetch("resource-packs.json",{cache:"no-store",signal:controller.signal});}finally{clearTimeout(timer);}
@@ -221,7 +231,7 @@ async function load(){
   if(Array.isArray(live.packs))packs=mergeLivePacks(live.packs);
   else throw new Error("公開APIのデータ形式が不正です。");
  }catch(error){liveError=error;console.info("Cloud catalogue unavailable.",error.message);}
- categoryNav();render();
+ categoryNav();render();$("grid").removeAttribute("aria-busy");
  if(seedError&&liveError)catalogueNotice("図鑑データを読み込めませんでした。通信を確認して再読み込みしてください。","error");
  else if(seedError)catalogueNotice("基本カタログを読み込めませんでした。現在表示できるデータは公開API分のみです。","warning");
  else if(liveError)catalogueNotice("追加データとの同期に失敗しました。基本カタログを表示しています。","warning");
@@ -238,13 +248,19 @@ async function load(){
 function showEditor(loggedIn){
  $("loginArea").classList.toggle("hidden",loggedIn);$("editorArea").classList.toggle("hidden",!loggedIn);
 }
-$("filters").addEventListener("click",e=>{const b=e.target.closest("[data-category]");if(!b)return;activeCategory=b.dataset.category;categoryNav();render();});
+$("filters").addEventListener("click",e=>{const b=e.target.closest("[data-category]");if(!b)return;activeCategory=b.dataset.category;visibleLimit=60;categoryNav();render();});
 $("grid").addEventListener("click",e=>{
+ const reset=e.target.closest("[data-reset-search]");if(reset){$("search").value="";activeCategory="すべて";favoritesOnly=false;$("sort").value="new";$("favoritesOnly").classList.remove("primary");visibleLimit=60;categoryNav();render();return;}
  const fav=e.target.closest("[data-fav]");if(fav){e.stopPropagation();toggleFav(fav.dataset.fav);return;}
  const del=e.target.closest("[data-delete]");if(del){e.stopPropagation();deletePack(del.dataset.delete);return;}
  const open=e.target.closest("[data-open]");if(open)openDetail(open.dataset.open);
 });
-$("search").addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{visibleLimit=60;render();renderSuggestions();},140);});$("search").addEventListener("focus",renderSuggestions);$("search").addEventListener("keydown",e=>{if(e.key==="Escape"){$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");}if(e.key==="Enter"){const first=$("searchSuggestions").querySelector("[data-suggest]");if(first&&$("searchSuggestions").contains(document.activeElement)){e.preventDefault();$("search").value=first.dataset.suggest;render();$("searchSuggestions").classList.add("hidden");}}});$("searchSuggestions").addEventListener("click",e=>{const b=e.target.closest("[data-suggest]");if(!b)return;$("search").value=b.dataset.suggest;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");render();$("search").focus();});$("searchSuggestions").addEventListener("click",e=>{if(e.target.closest("[data-translate-search]"))translateSearch();});document.addEventListener("click",e=>{if(!e.target.closest(".search-wrap"))$("searchSuggestions").classList.add("hidden");});$("sort").addEventListener("change",()=>{visibleLimit=60;render();});
+$("search").addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{visibleLimit=60;render();renderSuggestions();},140);});$("search").addEventListener("focus",renderSuggestions);$("search").addEventListener("keydown",e=>{
+ const box=$("searchSuggestions"),options=[...box.querySelectorAll("[data-suggest]")];
+ if(e.key==="Escape"){box.classList.add("hidden");$("search").setAttribute("aria-expanded","false");$("search").removeAttribute("aria-activedescendant");suggestionActiveIndex=-1;return;}
+ if((e.key==="ArrowDown"||e.key==="ArrowUp")&&!box.classList.contains("hidden")&&options.length){e.preventDefault();const step=e.key==="ArrowDown"?1:-1;suggestionActiveIndex=(suggestionActiveIndex+step+options.length)%options.length;options.forEach((option,i)=>option.setAttribute("aria-selected",String(i===suggestionActiveIndex)));$("search").setAttribute("aria-activedescendant","search-option-"+suggestionActiveIndex);return;}
+ if(e.key==="Enter"&&suggestionActiveIndex>=0&&options[suggestionActiveIndex]){e.preventDefault();$("search").value=options[suggestionActiveIndex].dataset.suggest;box.classList.add("hidden");$("search").setAttribute("aria-expanded","false");$("search").removeAttribute("aria-activedescendant");suggestionActiveIndex=-1;visibleLimit=60;render();}
+});$("searchSuggestions").addEventListener("click",e=>{const b=e.target.closest("[data-suggest]");if(!b)return;$("search").value=b.dataset.suggest;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");render();$("search").focus();});$("searchSuggestions").addEventListener("click",e=>{if(e.target.closest("[data-translate-search]"))translateSearch();});document.addEventListener("click",e=>{if(!e.target.closest(".search-wrap"))$("searchSuggestions").classList.add("hidden");});$("sort").addEventListener("change",()=>{visibleLimit=60;render();});
 $("loadMorePacks").addEventListener("click",()=>{visibleLimit+=60;render();});
 $("favoritesOnly").addEventListener("click",()=>{favoritesOnly=!favoritesOnly;visibleLimit=60;$("favoritesOnly").classList.toggle("primary",favoritesOnly);render();});
 $("adminToggle").addEventListener("click",()=>$("adminPanel").classList.toggle("hidden"));

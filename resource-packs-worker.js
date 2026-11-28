@@ -546,7 +546,7 @@ export default {
         let expansion = { available:false, status:"unknown", conclusion:null, url:"", createdAt:null };
         try {
           const response = await fetch("https://api.github.com/repos/karaage-chikin/tool", {
-            headers:{"Accept":"application/vnd.github+json","User-Agent":"KaraageChikinAdminDashboard/1.0"},
+            headers:{"Accept":"application/vnd.github+json","User-Agent":"KaraageChikinAdminDashboard/1.0",...(env.GITHUB_ACTIONS_TOKEN?{"Authorization":"Bearer "+env.GITHUB_ACTIONS_TOKEN}:{})},
             signal:AbortSignal.timeout(8000)
           });
           if (!response.ok) throw new Error("GitHub repository API HTTP " + response.status);
@@ -557,7 +557,7 @@ export default {
         }
         try {
           const response = await fetch("https://api.github.com/repos/karaage-chikin/tool/actions/workflows/resource-packs-expanded.yml/runs?per_page=10", {
-            headers:{"Accept":"application/vnd.github+json","User-Agent":"KaraageChikinAdminDashboard/1.0"},
+            headers:{"Accept":"application/vnd.github+json","User-Agent":"KaraageChikinAdminDashboard/1.0",...(env.GITHUB_ACTIONS_TOKEN?{"Authorization":"Bearer "+env.GITHUB_ACTIONS_TOKEN}:{})},
             signal:AbortSignal.timeout(8000)
           });
           if (!response.ok) throw new Error("GitHub Actions API HTTP " + response.status);

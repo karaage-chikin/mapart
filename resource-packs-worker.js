@@ -13,10 +13,10 @@ function cors(origin) {
     "X-Content-Type-Options": "nosniff"
   };
 }
-function reply(data, status, origin) {
+function reply(data, status, origin, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...cors(origin) }
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...cors(origin), ...extraHeaders }
   });
 }
 function b64url(bytes) {
@@ -245,6 +245,33 @@ async function recordPublicAccess(env, route) {
 
 const SUPABASE_STORAGE_URL = "https://dvtjubxgmmmpemibefne.supabase.co";
 const PACK_STORAGE_LIMIT = 700 * 1024 * 1024;
+
+function isSafePublicDownloadUrl(value) {
+  try {
+    const u=new URL(value);
+    const host=u.hostname.toLowerCase().replace(/^\\[|\\]$/g,"");
+    if(u.protocol!=="https:"||u.username||u.password||!host.includes("."))return false;
+    if(host==="localhost"||host.endsWith(".localhost")||host.endsWith(".local")||host.endsWith(".internal")||host.endsWith(".test")||host.endsWith(".invalid")||host==="metadata.google.internal")return false;
+    if(host.startsWith("[")||/^\\d{1,3}(?:\\.\\d{1,3}){3}$/.test(host))return false;
+    return true;
+  } catch { return false; }
+}
+async function fetchPublicDownload(startUrl) {
+  let current=startUrl;
+  for(let hop=0;hop<=5;hop++){
+    if(!isSafePublicDownloadUrl(current))throw new Error("unsafe download URL or redirect");
+    const response=await fetch(current,{redirect:"manual",headers:{"User-Agent":"KaraageChikinResourcePackDirectory/1.2"},signal:AbortSignal.timeout(30000)});
+    if(response.status>=300&&response.status<400){
+      const location=response.headers.get("Location");
+      if(!location||hop===5)throw new Error("download redirect limit exceeded");
+      current=new URL(location,current).href;
+      continue;
+    }
+    return response;
+  }
+  throw new Error("download redirect limit exceeded");
+}
+
 async function uploadPackToSupabase(env, request, origin) {
   if (!env.SUPABASE_SERVICE_ROLE_KEY) {
     return reply({ error: "Supabaseのアップロード用シークレット SUPABASE_SERVICE_ROLE_KEY が未設定です。Cloudflare WorkerのSecretsに追加してください。" }, 503, origin);
@@ -358,8 +385,8 @@ export default {
         const row=await env.DB.prepare("SELECT title,direct_download_url,direct_download_allowed FROM resource_packs WHERE id=?").bind(downloadMatch[1]).first();
         if(!row||Number(row.direct_download_allowed)!==1||!row.direct_download_url)return reply({error:"このパックはサイト内ダウンロードに対応していません。公式配布ページを利用してください。"},404,origin);
         const target=new URL(row.direct_download_url);
-        if(target.protocol!=="https:")return reply({error:"安全でないダウンロード先です。"},400,origin);
-        const upstream=await fetch(target.href,{redirect:"follow",headers:{"User-Agent":"KaraageChikinResourcePackDirectory/1.1"}});
+        if(!isSafePublicDownloadUrl(target.href))return reply({error:"安全でないダウンロード先です。"},400,origin);
+        const upstream=await fetchPublicDownload(target.href);
         if(!upstream.ok||!upstream.body)return reply({error:"配布ファイルを取得できませんでした（HTTP "+upstream.status+"）。"},502,origin);
         const type=(upstream.headers.get("Content-Type")||"application/octet-stream").split(";")[0].toLowerCase();
         if(type.startsWith("text/")||type==="application/json"||type==="application/xhtml+xml")return reply({error:"配布元がファイルではなくWebページを返しました。"},415,origin);
@@ -375,7 +402,7 @@ export default {
     if (request.method === "POST" && url.pathname === "/api/admin/login") {
       if (!env.ADMIN_PASSWORD || !env.SESSION_SECRET) return reply({ error: "管理者認証がまだ設定されていません。管理者用シークレットを設定してください。" }, 503, origin);
       try {
-        if (!(await loginAllowed(env, request))) return reply({ error: "ログイン試行回数の上限です。15分ほど待ってください。" }, 429, origin);
+        if (!(await loginAllowed(env, request))) return reply({ error: "ログイン試行回数の上限です。15分ほど待ってください。" }, 429, origin, { "Retry-After": "900" });
         const body = await readJson(request);
         const supplied = String(body.password || "");
         const a = await crypto.subtle.digest("SHA-256", encoder.encode(supplied));

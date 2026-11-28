@@ -45,6 +45,30 @@ function pager(kind,page,total,hasMore){
  const prev=page>0, next=Boolean(hasMore);
  return '<div class="pager"><button type="button" data-page="'+kind+'" data-step="-1" '+(!prev?"disabled":"")+'>前へ</button><span>'+(page+1)+'ページ目 / '+Math.max(1,Math.ceil(number(total)/PAGE_SIZE))+'ページ</span><button type="button" data-page="'+kind+'" data-step="1" '+(!next?"disabled":"")+'>次へ</button></div>';
 }
+async function expansionPanel(){
+ let count=null,run=null,error="";
+ try{
+  const [catalogue,monitor]=await Promise.all([
+   fetch("./resource-packs.json",{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("図鑑JSONを取得できません");return r.json();}),
+   api("/api/admin/monitor/storage")
+  ]);
+  count=Array.isArray(catalogue)?catalogue.length:(Array.isArray(catalogue?.packs)?catalogue.packs.length:null);
+  run=monitor.expansion||null;
+ }catch(e){error=e?.message||"取得に失敗しました";}
+ const pct=count===null?0:Math.min(100,count/10000*100);
+ const remaining=count===null?null:Math.max(0,10000-count);
+ let state="状態不明",stateClass="muted";
+ if(run?.status==="pending"||run?.status==="queued"){state="実行待ち";stateClass="waiting";}
+ else if(run?.status==="in_progress"){state="実行中";stateClass="running";}
+ else if(run?.status==="completed"&&run?.conclusion==="success"){state="完了";stateClass="done";}
+ else if(run?.status==="completed"){state="処理終了："+(run.conclusion||"結果不明");stateClass="error";}
+ else if(run?.status==="not_started"){state="未実行";stateClass="muted";}
+ return '<section class="panel expansion-panel"><h2>図鑑の拡張処理</h2><div class="progress-head"><strong>'+(count===null?"件数を取得できません":count.toLocaleString("ja-JP")+" / 10,000件")+'</strong><span class="job-state '+stateClass+'">'+esc(state)+'</span></div><div class="meter" role="progressbar" aria-label="図鑑の拡張進捗" aria-valuemin="0" aria-valuemax="10000" aria-valuenow="'+(count===null?0:count)+'"><span style="width:'+pct.toFixed(2)+'%"></span></div><div class="progress-foot"><span>'+(count===null?esc(error):"達成率 "+pct.toFixed(1)+"%")+'</span><span>'+(remaining===null?"": "残り "+remaining.toLocaleString("ja-JP")+"件")+'</span></div><p class="notice">図鑑JSONの登録件数を表示しています。D1の管理者登録分とは重複する場合があるため、別集計です。実行状態はGitHub Actionsの最新実行を参照します。</p>'+(run?.url?'<a href="'+esc(run.url)+'" target="_blank" rel="noopener noreferrer">拡張処理の実行ログを開く ↗</a>':"")+'</section>';
+}
+function storageMeter(label,used,limit,detail,unlimited=false){
+ const u=number(used),l=number(limit),pct=unlimited||!l?null:Math.min(100,u/l*100);
+ return '<div class="storage-item"><div class="storage-head"><strong>'+esc(label)+'</strong><b>'+formatBytes(u)+(l?' / '+formatBytes(l):'')+'</b></div>'+(pct===null?'<div class="meter meter-neutral"><span style="width:100%"></span></div>':'<div class="meter"><span style="width:'+pct.toFixed(2)+'%"></span></div>')+'<div class="storage-foot"><span>'+(pct===null?"固定上限なし・使用量のみ":pct.toFixed(2)+"% 使用")+'</span><span>'+esc(detail||"")+'</span></div></div>';
+}
 async function loadOverview(seq){
  const specs=[
   ["overview","/api/admin/monitor/overview"],
@@ -57,7 +81,7 @@ async function loadOverview(seq){
  const data={};const errors=[];
  results.forEach((r,i)=>{if(r.status==="fulfilled")data[specs[i][0]]=r.value;else errors.push(specs[i][0]+": "+r.reason.message);});
  const d=data.overview||{},p=d.packs||{},c=d.candidates||{},ac=d.access||{};
- let html=cards([{label:"リソースパック（D1登録分）",value:number(p.count)},{label:"未承認候補",value:number(c.count)},{label:"累計アクセス",value:number(ac.count)},{label:"監査ログ",value:number(d.logs?.count)},{label:"パック情報の概算容量",value:formatBytes(p.approx_bytes)}]);
+ let html=cards([{label:"リソースパック（D1登録分）",value:number(p.count)},{label:"未承認候補",value:number(c.count)},{label:"累計アクセス",value:number(ac.count)},{label:"監査ログ",value:number(d.logs?.count)},{label:"パック情報の概算容量",value:formatBytes(p.approx_bytes)}]);\n html+=await expansionPanel();
  html+='<div class="overview-grid">';
  html+='<section class="panel overview-panel"><h2>更新履歴</h2>'+(data.updates?rows((data.updates.logs||[]).map(x=>({title:x.action,body:x.detail,meta:formatDate(x.created_at)}))):failurePanel({message:errors.find(x=>x.startsWith("updates"))||"取得失敗"}))+'</section>';
  html+='<section class="panel overview-panel"><h2>Debug・エラー</h2>'+(data.debug?rows((data.debug.logs||[]).map(x=>({title:x.action,body:x.detail,meta:formatDate(x.created_at)}))):failurePanel({message:errors.find(x=>x.startsWith("debug"))||"取得失敗"}))+'</section>';
@@ -79,10 +103,24 @@ async function loadLogs(type,page,seq){
  status("全"+total+"件中 "+(total?offset+1:0)+"〜"+(offset+list.length)+"件を表示","good");
 }
 async function loadStorage(seq){
- const d=await api("/api/admin/monitor/overview");if(seq!==requestSequence)return;
- const bytes=number(d.packs?.approx_bytes);
- $("pageContent").innerHTML=cards([{label:"D1登録パック",value:number(d.packs?.count)},{label:"パック情報の概算サイズ",value:formatBytes(bytes)},{label:"候補データ",value:number(d.candidates?.count)},{label:"監査ログ",value:number(d.logs?.count)}])+'<section class="panel"><h2>容量について</h2><p class="notice">概算サイズはパック情報の文字数から算出しています。D1の物理使用量やGitHubリポジトリ容量とは異なります。画像本体は原則として外部URL参照です。</p></section>';
- status("最終確認: "+formatDate(Date.now()),"good");
+ const [d,overview]=await Promise.all([api("/api/admin/monitor/storage"),api("/api/admin/monitor/overview")]);
+ if(seq!==requestSequence)return;
+ const d1=d.d1||{},sb=d.supabase||{},guard=d.packUploadGuard||{},gh=d.github||{};
+ let html=await expansionPanel();
+ html+=cards([{label:"Cloudflare D1",value:d1.available?formatBytes(d1.usedBytes):"取得不可"},{label:"Supabase Storage",value:sb.available?formatBytes(sb.usedBytes):"取得不可"},{label:"GitHubリポジトリ",value:gh.available?formatBytes(gh.sizeBytes):"取得不可"},{label:"パック情報（文字数概算）",value:formatBytes(overview.packs?.approx_bytes)}]);
+ html+='<section class="panel"><h2>保存先ごとの使用容量</h2>';
+ if(d1.available)html+=storageMeter("Cloudflare D1（mapart_data）",d1.usedBytes,d1.databaseLimitBytes,"Workers FreeのDB単体上限500MiB。アカウント全体のFree枠は5GiB。");
+ else html+='<p class="notice">Cloudflare D1の実使用量を取得できませんでした。</p>';
+ if(sb.available){
+  html+=storageMeter("Supabase Storage（画像＋パック合計）",sb.usedBytes,1024*1024*1024,"Free枠1GiB・両バケット共有");
+  html+='<div class="storage-subgrid">'+(sb.buckets||[]).map(b=>'<div class="storage-subcard"><strong>'+esc(b.id)+'</strong><div>'+formatBytes(b.usedBytes)+' · '+number(b.count)+'ファイル</div><small>1ファイル上限 '+formatBytes(b.maxFileBytes)+'</small></div>').join("")+'</div>';
+ }else html+='<p class="notice">Supabase Storageの実使用量：'+esc(sb.error||"取得不可")+'。実際の容量はSupabase管理画面でも確認できます。</p>';
+ if(gh.available)html+=storageMeter("GitHubリポジトリ（tool）",gh.sizeBytes,null,"GitHub APIのリポジトリサイズ。固定の公開容量上限は設定されていません。",true);
+ else html+='<p class="notice">GitHubリポジトリ容量を取得できませんでした：'+esc(gh.error||"")+'</p>';
+ html+=storageMeter("パック保存のアプリ側安全枠",guard.usedBytes,guard.limitBytes,number(guard.files)+"ファイルをD1で管理");
+ html+='</section><section class="panel"><h2>容量の見方・注意点</h2><p class="notice">Supabaseの1GiBは2つの公開バケットで共有されます。各バケットの5MiB／50MiBは1ファイルごとの上限です。パック保存の700MiBはアプリ側で設けた追加の安全枠で、Supabaseの契約容量とは別です。Cloudflare D1の数値はD1 APIのsize_afterを使った実DBサイズです。GitHubは現在サイズのみ表示し、固定上限がないため達成率は出していません。</p></section>';
+ $("pageContent").innerHTML=html;
+ status("最終確認: "+formatDate(d.checkedAt||Date.now()),"good");
 }
 async function loadAccess(page,seq){
  const offset=page*PAGE_SIZE,d=await api("/api/admin/monitor/access?limit="+PAGE_SIZE+"&offset="+offset);
@@ -138,4 +176,6 @@ async function init(){
  currentPage=pageFromHash();renderPage();
 }
 init();
+
+.expansion-panel{border-color:#89b4fa88}.progress-head,.storage-head,.progress-foot,.storage-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.progress-head strong{font-size:clamp(1.3rem,3vw,2rem);font-weight:850}.job-state{font-size:.85rem;font-weight:750;padding:5px 10px;border-radius:999px;background:#45475a}.job-state.waiting{color:#f9e2af;background:#f9e2af18}.job-state.running{color:#89dceb;background:#89dceb18}.job-state.done{color:#a6e3a1;background:#a6e3a118}.meter{height:14px;margin:12px 0 8px;background:#11111b;border:1px solid #45475a;border-radius:999px;overflow:hidden}.meter>span{display:block;height:100%;background:linear-gradient(90deg,#89b4fa,#a6e3a1);border-radius:inherit;min-width:0;transition:width .35s ease}.meter-neutral>span{background:#89b4fa66}.progress-foot,.storage-foot{font-size:.82rem;color:var(--muted)}.storage-item{padding:14px 0;border-bottom:1px solid var(--border)}.storage-item:last-child{border-bottom:0}.storage-head strong{font-size:.95rem}.storage-head b{font-variant-numeric:tabular-nums}.storage-subgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}.storage-subcard{padding:12px;border:1px solid var(--border);border-radius:10px;background:#181825}.storage-subcard strong,.storage-subcard small{display:block}.storage-subcard div{margin:6px 0}.storage-subcard small{color:var(--muted)}
 })();

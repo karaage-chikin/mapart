@@ -151,6 +151,15 @@ async function api(path,options={}){
  finally{clearTimeout(timer);}
 }
 const candidateCategories=["その他","シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","ブロック・アイテム","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","季節・テーマ"];
+
+async function loadTrash(){
+ const box=$("trashList");if(!box||!token)return;
+ box.innerHTML='<div class="empty">削除履歴を読み込み中…</div>';
+ try{const data=await api("/api/admin/trash"),items=data.items||[];
+ box.innerHTML=items.length?items.map(x=>'<div class="admin-actions" style="align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding:8px 0"><span>'+esc(x.title)+' <small>'+esc(formatDateJst(x.deleted_at))+'</small></span><button class="btn small" data-restore="'+esc(x.id)+'">復元</button></div>').join(""):'<p class="note">削除履歴はありません。</p>';
+ }catch(error){box.textContent="削除履歴を読み込めませんでした："+error.message;}
+}
+
 async function loadCandidates(){
  const box=$("candidateList");if(!box)return;box.innerHTML='<div class="empty">候補を読み込み中…</div>';
  try{const data=await api("/api/admin/candidates"),list=data.candidates||[];
@@ -238,7 +247,7 @@ async function load(){
  else catalogueNotice("");
  if(packs.some(p=>!p.thumbnailUrl&&!(p.galleryImages||[]).length))pollGalleryImages();
  if(token){
-  try{await api("/api/admin/session");showEditor(true);await loadCandidates();}
+  try{await api("/api/admin/session");showEditor(true);await loadCandidates();await loadTrash();}
   catch(error){
    if(/401|ログインしてください|認証/i.test(error.message)){token="";sessionStorage.removeItem("resourcePackAdminToken");sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");showEditor(false);setStatus("ログイン期限が切れました。再度ログインしてください。","error");}
    else{showEditor(false);setStatus("管理者認証サーバーに接続できません。通信を確認して再読み込みしてください。","error");}
@@ -272,7 +281,7 @@ $("loginBtn").addEventListener("click",async()=>{
   if(typeof data.token!=="string"||!/^[A-Za-z0-9_.-]{20,2048}$/.test(data.token))throw new Error("認証応答が不正です。");
   token=data.token;sessionStorage.setItem("resourcePackAdminToken",token);
   if(data.expiresIn)sessionStorage.setItem("resourcePackAdminTokenExpiresAt",String(Date.now()+Number(data.expiresIn)));
-  $("adminPassword").value="";showEditor(true);render();await loadCandidates();setStatus("ログインしました。","ok");
+  $("adminPassword").value="";showEditor(true);render();await loadCandidates();await loadTrash();setStatus("ログインしました。","ok");
  }catch(e){if(e.message.includes("設定されていません"))$("adminSetupHint").classList.remove("hidden");setStatus(e.message,"error");}
 });
 $("logoutBtn").addEventListener("click",()=>{token="";sessionStorage.removeItem("resourcePackAdminToken");sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");showEditor(false);render();setStatus("ログアウトしました。");});
@@ -285,7 +294,7 @@ $("uploadPackFile").addEventListener("click",async()=>{
  if(!/\.(mcpack|mcaddon|zip)$/i.test(file.name)||file.size>50*1024*1024){$("uploadPackStatus").textContent="mcpack / mcaddon / zip形式、50MB以下のファイルを選んでください。";return;}
  const button=$("uploadPackFile");button.disabled=true;$("uploadPackStatus").textContent="アップロード中…";
  try{
-  const form=new FormData();form.append("file",file);
+  const form=new FormData();form.append("file",file);form.append("permissionUrl",$("editPermissionUrl").value.trim());
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
   let response;
   try{response=await fetch(API+"/api/admin/storage/upload",{method:"POST",headers:{Authorization:"Bearer "+token},body:form,cache:"no-store",signal:controller.signal});}
@@ -312,7 +321,7 @@ $("candidateList").addEventListener("click",async e=>{
  if(d){const id=d.dataset.reject;if(!confirm("この候補を除外しますか？"))return;try{await api("/api/admin/candidates/"+encodeURIComponent(id),{method:"DELETE"});await loadCandidates();}catch(err){$("candidateStatus").textContent=err.message;}}
 });
 $("cancelEdit").addEventListener("click",clearEditor);
-async function deletePack(id){const p=packs.find(x=>x.id===id);if(!p||!confirm("「"+p.title+"」を削除しますか？"))return;try{await api("/api/admin/packs/"+encodeURIComponent(id),{method:"DELETE"});packs=packs.filter(x=>x.id!==id);render();setStatus("削除しました。","ok");}catch(e){setStatus(e.message,"error");}}
+async function deletePack(id){const p=packs.find(x=>x.id===id);if(!p||!confirm("「"+p.title+"」を削除しますか？"))return;try{await api("/api/admin/packs/"+encodeURIComponent(id),{method:"DELETE"});packs=packs.filter(x=>x.id!==id);render();await loadTrash();setStatus("削除履歴に保存しました。復元できます。","ok");}catch(e){setStatus(e.message,"error");}}
 $("downloadLink").addEventListener("click",async e=>{
  e.preventDefault();const p=packs.find(x=>x.id===currentModalId);if(!p||!p.directDownloadAllowed)return;
  const button=$("downloadLink"),label=button.textContent;button.textContent="ダウンロード準備中…";button.classList.add("disabled");

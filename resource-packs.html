@@ -51,9 +51,11 @@ footer{text-align:center;padding:22px;color:#6c7086;font-size:.75rem;border-top:
 <input id="editUrl" class="field" type="url" placeholder="公式配布ページURL（https://...）">
 <input id="editThumbnail" class="field" type="url" placeholder="一覧サムネイル画像URL（https://...）">
 <textarea id="editGallery" class="field" placeholder="ギャラリー画像URL（1行に1つ・最大20枚）"></textarea>
+<input id="editPackFile" class="field" type="file" accept=".mcpack,.mcaddon,.zip,application/zip,application/octet-stream">
+<div class="admin-actions"><button id="uploadPackFile" class="btn">選択したパックをサイト内に保存</button><span id="uploadPackStatus" class="status"></span></div>
 <input id="editDownloadUrl" class="field" type="url" placeholder="直接ダウンロード用ファイルURL（任意）">
 <label class="checkline"><input id="editDownloadAllowed" type="checkbox"> 作者・配布元がファイルの直接配布を許可していることを確認済み</label>
-<p class="admin-hint">直接ダウンロードURLは、作者または配布元が再配布・直接配信を許可している場合だけ登録してください。未確認ならチェックせず、公式配布ページへのリンクだけにします。</p>
+<p class="admin-hint">ファイルをサイト内保存できるのは、作者または配布元が再配布を許可している場合だけです。許可が確認できない場合は、公式配布ページへのリンクだけにしてください。無料容量を守るため、保存枠は最大700MBに制限しています。</p>
 <textarea id="editDescription" class="field" placeholder="説明"></textarea>
 </div>
 <div class="admin-actions"><button id="savePack" class="btn primary">登録する</button><button id="cancelEdit" class="btn">入力をクリア</button><button id="logoutBtn" class="btn">ログアウト</button></div>

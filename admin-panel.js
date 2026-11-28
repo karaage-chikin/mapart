@@ -46,15 +46,19 @@ function pager(kind,page,total,hasMore){
  return '<div class="pager"><button type="button" data-page="'+kind+'" data-step="-1" '+(!prev?"disabled":"")+'>前へ</button><span>'+(page+1)+'ページ目 / '+Math.max(1,Math.ceil(number(total)/PAGE_SIZE))+'ページ</span><button type="button" data-page="'+kind+'" data-step="1" '+(!next?"disabled":"")+'>次へ</button></div>';
 }
 async function expansionPanel(){
- let count=null,run=null,error="";
+ let count=null,run=null,catalogueError="",monitorError="";
  try{
-  const [catalogue,monitor]=await Promise.all([
-   fetch("./resource-packs.json",{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("図鑑JSONを取得できません");return r.json();}),
-   api("/api/admin/monitor/storage")
-  ]);
+  const response=await fetch("./resource-packs.json",{cache:"no-store"});
+  if(!response.ok)throw new Error("図鑑JSON HTTP "+response.status);
+  const catalogue=await response.json();
   count=Array.isArray(catalogue)?catalogue.length:(Array.isArray(catalogue?.packs)?catalogue.packs.length:null);
+  if(count===null)throw new Error("図鑑JSONの形式が想定と異なります");
+ }catch(e){catalogueError=e?.message||"図鑑件数を取得できません";}
+ try{
+  const monitor=await api("/api/admin/monitor/storage");
   run=monitor.expansion||null;
- }catch(e){error=e?.message||"取得に失敗しました";}
+  if(run?.available===false)monitorError=run.error||"GitHub Actionsの実行状況を取得できません";
+ }catch(e){monitorError=e?.message||"実行状況を取得できません";}
  const pct=count===null?0:Math.min(100,count/10000*100);
  const remaining=count===null?null:Math.max(0,10000-count);
  let state="状態不明",stateClass="muted";
@@ -67,7 +71,10 @@ async function expansionPanel(){
  else if(run?.status==="completed"&&run?.conclusion==="success"){state="完了";stateClass="done";}
  else if(run?.status==="completed"){state="処理終了："+(run.conclusion||"結果不明");stateClass="error";}
  else if(run?.status==="not_started"){state="未実行";stateClass="muted";}
- return '<section class="panel expansion-panel"><h2>図鑑の拡張処理</h2><div class="progress-head"><strong>'+(count===null?"件数を取得できません":count.toLocaleString("ja-JP")+" / 10,000件")+'</strong><span class="job-state '+stateClass+'">'+esc(state)+'</span></div><div class="meter" role="progressbar" aria-label="図鑑の拡張進捗" aria-valuemin="0" aria-valuemax="10000" aria-valuenow="'+(count===null?0:count)+'"><span style="width:'+pct.toFixed(2)+'%"></span></div><div class="progress-foot"><span>'+(count===null?esc(error):"達成率 "+pct.toFixed(1)+"%")+'</span><span>'+(remaining===null?"": "残り "+remaining.toLocaleString("ja-JP")+"件")+'</span></div><p class="notice">図鑑JSONの登録件数を表示しています。D1の管理者登録分とは重複する場合があるため、別集計です。実行状態はGitHub Actionsの最新実行を参照します。</p>'+(run?.url?'<a href="'+esc(run.url)+'" target="_blank" rel="noopener noreferrer">拡張処理の実行ログを開く ↗</a>':"")+'</section>';
+ const countText=count===null?"件数取得不可":count.toLocaleString("ja-JP")+" / 10,000件";
+ const progressText=count===null?catalogueError:"達成率 "+pct.toFixed(1)+"%";
+ const etaText=runningCount||waitingCount?"予想終了時刻：処理速度を計測中（実測値が取れ次第表示）":"予想終了時刻：実行中の処理がないため算出対象なし";
+ return '<section class="panel expansion-panel"><h2>図鑑の拡張処理</h2><div class="progress-head"><strong>'+countText+'</strong><span class="job-state '+stateClass+'">'+esc(state)+'</span></div><div class="meter" role="progressbar" aria-label="図鑑の拡張進捗" aria-valuemin="0" aria-valuemax="10000" aria-valuenow="'+(count===null?0:count)+'"><span style="width:'+pct.toFixed(2)+'%"></span></div><div class="progress-foot"><span>'+esc(progressText)+'</span><span>'+(remaining===null?"":"残り "+remaining.toLocaleString("ja-JP")+"件")+'</span></div><p class="notice">図鑑JSONの登録件数とGitHub Actionsの実行状態は別々に取得します。一方が失敗しても、もう一方の表示は維持します。D1の管理者登録分とは重複する場合があるため別集計です。</p><p class="notice">'+esc(etaText)+'</p>'+(monitorError?'<p class="notice error">実行状況の取得エラー：'+esc(monitorError)+'</p>':"")+(run?.url?'<a href="'+esc(run.url)+'" target="_blank" rel="noopener noreferrer">拡張処理の実行ログを開く ↗</a>':"")+'</section>';
 }
 function storageMeter(label,used,limit,detail,unlimited=false){
  const u=number(used),l=number(limit),pct=unlimited||!l?null:Math.min(100,u/l*100);

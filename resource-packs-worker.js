@@ -266,13 +266,14 @@ async function uploadPackToSupabase(env, request, origin) {
       console.error("Supabase Storage upload rejected", upstream.status, message.slice(0,300));
       return reply({ error: "Supabaseへの保存に失敗しました（HTTP " + upstream.status + "）。容量・ファイル形式・接続設定を確認してください。" }, 502, origin);
     }
-    uploaded = true;\n    const publicUrl = SUPABASE_STORAGE_URL + "/storage/v1/object/public/resource-pack-files/" + encodedPath;
+    uploaded = true;
+    const publicUrl = SUPABASE_STORAGE_URL + "/storage/v1/object/public/resource-pack-files/" + encodedPath;
     await env.DB.prepare("INSERT INTO resource_pack_storage_files (id,storage_path,file_name,size_bytes,public_url,created_at) VALUES (?,?,?,?,?,?)")
       .bind(crypto.randomUUID(),storagePath,safeName,fileSize,publicUrl,Date.now()).run();
     const usage = await env.DB.prepare("SELECT used_bytes FROM resource_pack_storage_usage WHERE id=1").first();
     return reply({ ok: true, fileName: safeName, size: fileSize, publicUrl, usedBytes: Number(usage?.used_bytes || 0), limitBytes: PACK_STORAGE_LIMIT }, 200, origin);
   } catch (error) {
-    if (reserved) {
+    if (reserved && !uploaded) {
       await env.DB.prepare("UPDATE resource_pack_storage_usage SET used_bytes=MAX(0,used_bytes-?),updated_at=? WHERE id=1").bind(fileSize,Date.now()).run().catch(()=>{});
     }
     console.error("Supabase pack upload failed", error);

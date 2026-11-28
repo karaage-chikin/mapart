@@ -85,7 +85,9 @@ async function run(){
   console.log("Detail metadata",Math.min(i+8,targets.length),"/",targets.length,"updated",updated,"failed",failed);
   await new Promise(resolve=>setTimeout(resolve,200));
  }
- fs.writeFileSync(file,JSON.stringify(packs,null,2)+"\n");
- console.log(JSON.stringify({targets:targets.length,updated,failed},null,2));
+ const before=packs.length;
+ const retained=packs.filter(p=>!isRestricted(p.title,p.sourceUrl,p.description,p.fullDescription,Array.isArray(p.tags)?p.tags.join(" "):p.tags,p.category));
+ fs.writeFileSync(file,JSON.stringify(retained,null,2)+"\n");
+ console.log(JSON.stringify({targets:targets.length,updated,failed,filteredRestricted:before-retained.length,total:retained.length},null,2));
 }
 run().catch(error=>{console.error(error);process.exit(1);});

@@ -78,7 +78,7 @@ function cardDate($,card){
  }
  const before=packs.length;
  const retained=packs.filter(p=>{
-  if(isRestricted(p.title,p.sourceUrl,p.description))return false;
+  if(isRestricted(p.title,p.sourceUrl,p.description,p.fullDescription,Array.isArray(p.tags)?p.tags.join(" "):p.tags,p.category))return false;
   if(p.sourceType==="automatic"&&(!p.title||/^\d+(?:\.\d+)?$/.test(p.title)||/^image$/i.test(p.title)))return false;
   if(!p.sourceUpdatedAt)return true;
   const d=new Date(p.sourceUpdatedAt+"T00:00:00Z");

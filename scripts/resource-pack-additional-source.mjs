@@ -139,10 +139,10 @@ async function scanCurseForge(){
    if(seen.has(u.href))continue;seen.add(u.href);valid++;
    const card=a.closest("article,li,[data-testid*='project'],[class*='project-card'],[class*='projectCard'],[class*='result']").first();
    const ancestors=a.parents().toArray().slice(0,9).map(el=>$(el));
-   const dateContainer=ancestors.find(node=>{const t=clean(node.text());return t.length>60&&t.length<3000&&/\\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{1,2},?\\s+\\d{4}\\b|\\b\\d{4}-\\d{2}-\\d{2}\\b/i.test(t);});
+   const dateContainer=ancestors.find(node=>{const t=clean(node.text());return t.length>60&&t.length<3000&&!!cardDate($,node);});
    const container=dateContainer||(card.length?card:a.parent().parent().parent());
    let title=clean(a.text()||a.attr("title")||a.find("img").attr("alt"));
-   title=title.replace(/^Image:\\s*/i,"").replace(/\\s+logo$/i,"").trim();
+   title=title.replace(/^Image:\s*/i,"").replace(/\s+logo$/i,"").trim();
    if(!title||title.length<4||/^download$/i.test(title))continue;
    if(add("CurseForge",u.href,title,$,container,"https://www.curseforge.com")){added++;addedThisPage++;}
    if(added>=maxNew)break;

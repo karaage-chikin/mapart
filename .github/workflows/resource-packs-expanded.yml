@@ -49,10 +49,10 @@ jobs:
         run: node scripts/resource-pack-sync.mjs
       - name: Collect from additional sources
         run: node scripts/resource-pack-additional-source.mjs
-      - name: Fetch pack gallery images
-        run: node scripts/resource-pack-image-enrichment.mjs
       - name: Fetch descriptions and metadata
         run: node scripts/resource-pack-detail-enrichment.mjs
+      - name: Fetch pack gallery images
+        run: node scripts/resource-pack-image-enrichment.mjs
       - name: Commit catalogue updates
         run: |
           git config user.name "github-actions[bot]"

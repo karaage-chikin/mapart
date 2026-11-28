@@ -58,8 +58,12 @@ async function expansionPanel(){
  const pct=count===null?0:Math.min(100,count/10000*100);
  const remaining=count===null?null:Math.max(0,10000-count);
  let state="状態不明",stateClass="muted";
- if(run?.status==="pending"||run?.status==="queued"){state="実行待ち";stateClass="waiting";}
- else if(run?.status==="in_progress"){state="実行中";stateClass="running";}
+ const activeRuns=Array.isArray(run?.activeRuns)?run.activeRuns:[];
+ const runningCount=activeRuns.filter(x=>x.status==="in_progress").length;
+ const waitingCount=activeRuns.filter(x=>x.status==="pending"||x.status==="queued").length;
+ if(runningCount&&waitingCount){state="実行中 "+runningCount+"件・実行待ち "+waitingCount+"件";stateClass="running";}
+ else if(runningCount){state="実行中 "+runningCount+"件";stateClass="running";}
+ else if(waitingCount){state="実行待ち "+waitingCount+"件";stateClass="waiting";}
  else if(run?.status==="completed"&&run?.conclusion==="success"){state="完了";stateClass="done";}
  else if(run?.status==="completed"){state="処理終了："+(run.conclusion||"結果不明");stateClass="error";}
  else if(run?.status==="not_started"){state="未実行";stateClass="muted";}

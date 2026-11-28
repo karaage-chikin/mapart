@@ -91,8 +91,8 @@ async function readJson(request) {
 }
 async function loginAllowed(env, request) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(ip + ":resource-pack-admin"));
-  const key = b64url(new Uint8Array(digest).slice(0,18));
+  const digest = await hmac(env.SESSION_SECRET || "missing-session-secret", "resource-pack-login-ip:" + ip);
+  const key = b64url(digest.slice(0,18));
   const now = Math.floor(Date.now()/1000);
   const row = await env.DB.prepare(
     "INSERT INTO resource_pack_login_attempts (ip_hash, attempts, window_started) VALUES (?, 1, ?) " +
@@ -105,8 +105,8 @@ async function loginAllowed(env, request) {
 }
 async function resetLoginAttempts(env, request) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(ip + ":resource-pack-admin"));
-  const key = b64url(new Uint8Array(digest).slice(0,18));
+  const digest = await hmac(env.SESSION_SECRET || "missing-session-secret", "resource-pack-login-ip:" + ip);
+  const key = b64url(digest.slice(0,18));
   await env.DB.prepare("DELETE FROM resource_pack_login_attempts WHERE ip_hash = ?").bind(key).run();
 }
 function extractPostImages(post) {
@@ -118,35 +118,59 @@ function extractPostImages(post) {
   return [...new Set(urls.map(raw=>{try{const u=new URL(raw);return u.protocol==="https:"&&(u.hostname==="mcpedl.com"||u.hostname.endsWith(".mcpedl.com"))?u.href:"";}catch{return "";}}).filter(Boolean))].slice(0,20);
 }
 async function fetchMcpedlPosts() {
-  const headers={"User-Agent":"KaraageChikinResourcePackDirectory/1.1","Accept":"application/json"};
-  const cr=await fetch("https://mcpedl.com/wp-json/wp/v2/categories?slug=texture-packs",{headers});
+  const headers={"User-Agent":"KaraageChikinResourcePackDirectory/1.2 (+https://karaage-chikin.github.io/tool/)","Accept":"application/json"};
+  const cr=await fetch("https://mcpedl.com/wp-json/wp/v2/categories?slug=texture-packs",{headers,signal:AbortSignal.timeout(12000)});
   if(!cr.ok)throw new Error("MCPEDLカテゴリを取得できませんでした（HTTP "+cr.status+"）。");
   const cats=await cr.json();
   if(!Array.isArray(cats)||!cats[0]?.id)throw new Error("MCPEDLのTexture Packsカテゴリが見つかりません。");
-  const pr=await fetch("https://mcpedl.com/wp-json/wp/v2/posts?categories="+cats[0].id+"&per_page=100&orderby=date&order=desc&_embed=author,wp:featuredmedia",{headers});
-  if(!pr.ok)throw new Error("MCPEDL投稿一覧を取得できませんでした（HTTP "+pr.status+"）。");
-  const posts=await pr.json();if(!Array.isArray(posts))throw new Error("MCPEDLの応答形式が不正です.");
+  const posts=[];
+  for(let page=1;page<=10;page++){
+    const url="https://mcpedl.com/wp-json/wp/v2/posts?categories="+cats[0].id+"&per_page=100&page="+page+"&orderby=date&order=desc&_embed=author,wp:featuredmedia";
+    const response=await fetch(url,{headers,signal:AbortSignal.timeout(15000)});
+    if(response.status===400&&page>1)break;
+    if(!response.ok)throw new Error("MCPEDL投稿一覧を取得できませんでした（HTTP "+response.status+" / page "+page+"）。");
+    const batch=await response.json();
+    if(!Array.isArray(batch))throw new Error("MCPEDLの応答形式が不正です。");
+    posts.push(...batch);
+    const totalPages=Number(response.headers.get("X-WP-TotalPages")||0);
+    if(!batch.length||(totalPages&&page>=totalPages))break;
+  }
   return posts;
 }
 function decodeHtml(value) {
-  return String(value||"").replace(/&amp;/g,"&").replace(/&#038;/g,"&").replace(/&quot;/g,'"').replace(/&#39;|&#x27;/gi,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">");
+  return String(value||"")
+    .replace(/&amp;/gi,"&").replace(/&#038;/g,"&").replace(/&quot;/gi,'"')
+    .replace(/&apos;/gi,"'").replace(/&#39;|&#x27;/gi,"'")
+    .replace(/&lt;/gi,"<").replace(/&gt;/gi,">").replace(/&nbsp;/gi," ")
+    .replace(/&#(\\d+);/g,(_,n)=>{const cp=Number(n);return cp>0&&cp<=0x10ffff?String.fromCodePoint(cp):_;})
+    .replace(/&#x([0-9a-f]+);/gi,(_,n)=>{const cp=parseInt(n,16);return cp>0&&cp<=0x10ffff?String.fromCodePoint(cp):_;});
 }
 function extractPageImages(html) {
   const found=[];
-  const metaRe=/<meta\b[^>]*(?:property|name)=["'](?:og:image|twitter:image|twitter:image:src)["'][^>]*>/gi;
-  for(const m of html.matchAll(metaRe)){
-    const content=m[0].match(/content=["']([^"']+)["']/i);
+  const metaRe=/<meta\\b[^>]*(?:property|name)=["'](?:og:image|twitter:image|twitter:image:src)["'][^>]*>/gi;
+  for(const match of html.matchAll(metaRe)){
+    const content=match[0].match(/content=["']([^"']+)["']/i);
     if(content)found.push(decodeHtml(content[1]));
   }
-  const imgRe=/<img\b[^>]*>/gi;
-  for(const m of html.matchAll(imgRe)){
-    const tag=m[0];
-    const v=tag.match(/\b(?:data-src|data-lazy-src|src)=["']([^"']+)["']/i);
-    if(v)found.push(decodeHtml(v[1]));
+  const imgRe=/<img\\b[^>]*>/gi;
+  for(const match of html.matchAll(imgRe)){
+    const tag=match[0];
+    const src=tag.match(/\\b(?:data-src|data-lazy-src|data-original|src)=["']([^"']+)["']/i);
+    if(src)found.push(decodeHtml(src[1]));
     const srcset=tag.match(/srcset=["']([^"']+)["']/i);
-    if(srcset)found.push(decodeHtml(srcset[1].split(",")[0].trim().split(/\s+/)[0]));
+    if(srcset){
+      const candidates=srcset[1].split(",").map(part=>{
+        const bits=part.trim().split(/\\s+/),descriptor=bits[1]||"1x";
+        return {url:bits[0],amount:parseFloat(descriptor)||1};
+      }).filter(item=>item.url);
+      candidates.sort((a,b)=>b.amount-a.amount);
+      if(candidates[0])found.push(decodeHtml(candidates[0].url));
+    }
   }
-  return [...new Set(found.map(raw=>{try{const u=new URL(raw);if(u.protocol!=="https:"||!u.hostname.includes(".")||/\.(svg)(?:$|\?)/i.test(u.pathname))return "";return u.href;}catch{return "";}}).filter(Boolean))].slice(0,20);
+  return [...new Set(found.map(raw=>{
+    try{const u=new URL(raw);if(u.protocol!=="https:"||!u.hostname.includes(".")||u.hostname==="localhost"||u.hostname.endsWith(".local")||/\\.(svg)(?:$|\\?)/i.test(u.pathname))return "";return u.href;}
+    catch{return "";}
+  }).filter(Boolean))].slice(0,20);
 }
 async function enrichMcpedlImages(env, offset=0, limit=20) {
   const rows=await env.DB.prepare("SELECT id,source_url FROM resource_packs WHERE thumbnail_url='' OR thumbnail_url IS NULL OR gallery_json='[]' OR gallery_json IS NULL ORDER BY id LIMIT ? OFFSET ?").bind(limit,offset).all();

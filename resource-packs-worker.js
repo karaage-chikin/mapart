@@ -218,6 +218,68 @@ async function recordPublicAccess(env, route) {
   } catch(error) { console.warn("Public access counter failed",String(error?.message||error)); }
 }
 
+
+const SUPABASE_STORAGE_URL = "https://dvtjubxgmmmpemibefne.supabase.co";
+const PACK_STORAGE_LIMIT = 700 * 1024 * 1024;
+async function uploadPackToSupabase(env, request, origin) {
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+    return reply({ error: "Supabaseのアップロード用シークレット SUPABASE_SERVICE_ROLE_KEY が未設定です。Cloudflare WorkerのSecretsに追加してください。" }, 503, origin);
+  }
+  const length = Number(request.headers.get("Content-Length") || 0);
+  if (length > 52 * 1024 * 1024) return reply({ error: "アップロード上限は50MBです。" }, 413, origin);
+  let reserved = false, fileSize = 0;
+  try {
+    const form = await request.formData();
+    const file = form.get("file");
+    if (!file || typeof file.arrayBuffer !== "function") return reply({ error: "アップロードするファイルを選択してください。" }, 400, origin);
+    fileSize = Number(file.size || 0);
+    if (!fileSize || fileSize > 50 * 1024 * 1024) return reply({ error: "ファイルは1バイト以上、50MB以下にしてください。" }, 413, origin);
+    const originalName = String(file.name || "resource-pack.mcpack").normalize("NFKC");
+    if (!/\.(mcpack|mcaddon|zip)$/i.test(originalName)) return reply({ error: "対応形式は .mcpack / .mcaddon / .zip です。" }, 415, origin);
+    const safeName = originalName.replace(/[^\p{L}\p{N}._ -]/gu, "_").replace(/\s+/g, "_").replace(/^\.+/, "").slice(0, 100) || "resource-pack.mcpack";
+    const bytes = await file.arrayBuffer();
+    const head = new Uint8Array(bytes.slice(0, 4));
+    if (head[0] !== 0x50 || head[1] !== 0x4b || ![0x03,0x05,0x07].includes(head[2])) {
+      return reply({ error: "ZIP形式のMinecraftパックとして認識できませんでした。ファイルの中身を確認してください。" }, 415, origin);
+    }
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_storage_usage (id INTEGER PRIMARY KEY CHECK(id=1), used_bytes INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL)").run();
+    await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_storage_files (id TEXT PRIMARY KEY, storage_path TEXT NOT NULL UNIQUE, file_name TEXT NOT NULL, size_bytes INTEGER NOT NULL, public_url TEXT NOT NULL, created_at INTEGER NOT NULL)").run();
+    await env.DB.prepare("INSERT OR IGNORE INTO resource_pack_storage_usage (id,used_bytes,updated_at) VALUES (1,0,?)").bind(Date.now()).run();
+    const reserve = await env.DB.prepare("UPDATE resource_pack_storage_usage SET used_bytes=used_bytes+?,updated_at=? WHERE id=1 AND used_bytes+?<=?").bind(fileSize,Date.now(),fileSize,PACK_STORAGE_LIMIT).run();
+    if (Number(reserve?.meta?.changes || 0) !== 1) {
+      const current = await env.DB.prepare("SELECT used_bytes FROM resource_pack_storage_usage WHERE id=1").first();
+      return reply({ error: "サイト内保存の安全容量に達したため、新しいファイルは保存できません。配布元リンクを利用してください。", usedBytes: Number(current?.used_bytes || 0), limitBytes: PACK_STORAGE_LIMIT }, 507, origin);
+    }
+    reserved = true;
+    const storagePath = "packs/" + crypto.randomUUID() + "/" + safeName;
+    const encodedPath = storagePath.split("/").map(encodeURIComponent).join("/");
+    const key = env.SUPABASE_SERVICE_ROLE_KEY;
+    const upstream = await fetch(SUPABASE_STORAGE_URL + "/storage/v1/object/resource-pack-files/" + encodedPath, {
+      method: "POST",
+      headers: { "apikey": key, "Authorization": "Bearer " + key, "Content-Type": "application/octet-stream", "x-upsert": "false", "cache-control": "31536000" },
+      body: bytes
+    });
+    if (!upstream.ok) {
+      const message = await upstream.text().catch(() => "");
+      await env.DB.prepare("UPDATE resource_pack_storage_usage SET used_bytes=MAX(0,used_bytes-?),updated_at=? WHERE id=1").bind(fileSize,Date.now()).run();
+      reserved = false;
+      console.error("Supabase Storage upload rejected", upstream.status, message.slice(0,300));
+      return reply({ error: "Supabaseへの保存に失敗しました（HTTP " + upstream.status + "）。容量・ファイル形式・接続設定を確認してください。" }, 502, origin);
+    }
+    const publicUrl = SUPABASE_STORAGE_URL + "/storage/v1/object/public/resource-pack-files/" + encodedPath;
+    await env.DB.prepare("INSERT INTO resource_pack_storage_files (id,storage_path,file_name,size_bytes,public_url,created_at) VALUES (?,?,?,?,?,?)")
+      .bind(crypto.randomUUID(),storagePath,safeName,fileSize,publicUrl,Date.now()).run();
+    const usage = await env.DB.prepare("SELECT used_bytes FROM resource_pack_storage_usage WHERE id=1").first();
+    return reply({ ok: true, fileName: safeName, size: fileSize, publicUrl, usedBytes: Number(usage?.used_bytes || 0), limitBytes: PACK_STORAGE_LIMIT }, 200, origin);
+  } catch (error) {
+    if (reserved) {
+      await env.DB.prepare("UPDATE resource_pack_storage_usage SET used_bytes=MAX(0,used_bytes-?),updated_at=? WHERE id=1").bind(fileSize,Date.now()).run().catch(()=>{});
+    }
+    console.error("Supabase pack upload failed", error);
+    return reply({ error: "ファイル保存中にエラーが発生しました。既存ファイルは削除していません。" }, 500, origin);
+  }
+}
+
 export default {
   async scheduled(controller, env, ctx) { ctx.waitUntil((async()=>{await ensureAdminLogTables(env);await auditEvent(env,{headers:new Headers()},"update","scheduled_started","定期更新を開始");try{const images=await enrichMcpedlImages(env,0,20);const posts=await fetchMcpedlPosts();const discovery=await discoverMcpedl(env,posts);await auditEvent(env,{headers:new Headers()},"update","scheduled_completed",JSON.stringify({images,discovery}).slice(0,450));}catch(e){await auditEvent(env,{headers:new Headers()},"debug","scheduled_failed",String(e?.message||e));console.error("Scheduled discovery/image refresh failed",e);}})()); },
   async fetch(request, env, ctx) {
@@ -307,6 +369,9 @@ export default {
     if (url.pathname.startsWith("/api/admin/")) {
       if (!env.SESSION_SECRET || !(await isAdmin(request, env.SESSION_SECRET))) return reply({ error: "管理者としてログインしてください。" }, 401, origin);
       await auditEvent(env,request,request.method==="GET"?"access":"update","admin_"+request.method.toLowerCase(),url.pathname);
+      if (request.method === "POST" && url.pathname === "/api/admin/storage/upload") {
+        return await uploadPackToSupabase(env, request, origin);
+      }
       if (request.method === "GET" && url.pathname === "/api/admin/session") return reply({ ok: true }, 200, origin);
       if (request.method === "GET" && url.pathname === "/api/admin/monitor/overview") {
         await ensureAdminLogTables(env);

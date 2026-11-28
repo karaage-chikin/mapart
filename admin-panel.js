@@ -81,7 +81,8 @@ async function loadOverview(seq){
  const data={};const errors=[];
  results.forEach((r,i)=>{if(r.status==="fulfilled")data[specs[i][0]]=r.value;else errors.push(specs[i][0]+": "+r.reason.message);});
  const d=data.overview||{},p=d.packs||{},c=d.candidates||{},ac=d.access||{};
- let html=cards([{label:"リソースパック（D1登録分）",value:number(p.count)},{label:"未承認候補",value:number(c.count)},{label:"累計アクセス",value:number(ac.count)},{label:"監査ログ",value:number(d.logs?.count)},{label:"パック情報の概算容量",value:formatBytes(p.approx_bytes)}]);\n html+=await expansionPanel();
+ let html=cards([{label:"リソースパック（D1登録分）",value:number(p.count)},{label:"未承認候補",value:number(c.count)},{label:"累計アクセス",value:number(ac.count)},{label:"監査ログ",value:number(d.logs?.count)},{label:"パック情報の概算容量",value:formatBytes(p.approx_bytes)}]);
+ html+=await expansionPanel();
  html+='<div class="overview-grid">';
  html+='<section class="panel overview-panel"><h2>更新履歴</h2>'+(data.updates?rows((data.updates.logs||[]).map(x=>({title:x.action,body:x.detail,meta:formatDate(x.created_at)}))):failurePanel({message:errors.find(x=>x.startsWith("updates"))||"取得失敗"}))+'</section>';
  html+='<section class="panel overview-panel"><h2>Debug・エラー</h2>'+(data.debug?rows((data.debug.logs||[]).map(x=>({title:x.action,body:x.detail,meta:formatDate(x.created_at)}))):failurePanel({message:errors.find(x=>x.startsWith("debug"))||"取得失敗"}))+'</section>';
@@ -177,5 +178,4 @@ async function init(){
 }
 init();
 
-.expansion-panel{border-color:#89b4fa88}.progress-head,.storage-head,.progress-foot,.storage-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.progress-head strong{font-size:clamp(1.3rem,3vw,2rem);font-weight:850}.job-state{font-size:.85rem;font-weight:750;padding:5px 10px;border-radius:999px;background:#45475a}.job-state.waiting{color:#f9e2af;background:#f9e2af18}.job-state.running{color:#89dceb;background:#89dceb18}.job-state.done{color:#a6e3a1;background:#a6e3a118}.meter{height:14px;margin:12px 0 8px;background:#11111b;border:1px solid #45475a;border-radius:999px;overflow:hidden}.meter>span{display:block;height:100%;background:linear-gradient(90deg,#89b4fa,#a6e3a1);border-radius:inherit;min-width:0;transition:width .35s ease}.meter-neutral>span{background:#89b4fa66}.progress-foot,.storage-foot{font-size:.82rem;color:var(--muted)}.storage-item{padding:14px 0;border-bottom:1px solid var(--border)}.storage-item:last-child{border-bottom:0}.storage-head strong{font-size:.95rem}.storage-head b{font-variant-numeric:tabular-nums}.storage-subgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}.storage-subcard{padding:12px;border:1px solid var(--border);border-radius:10px;background:#181825}.storage-subcard strong,.storage-subcard small{display:block}.storage-subcard div{margin:6px 0}.storage-subcard small{color:var(--muted)}
 })();

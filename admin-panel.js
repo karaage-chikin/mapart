@@ -121,7 +121,7 @@ async function loadStorage(seq){
   html+=storageMeter("Supabase Storage（画像＋パック合計）",sb.usedBytes,1024*1024*1024,"Free枠1GiB・両バケット共有");
   html+='<div class="storage-subgrid">'+(sb.buckets||[]).map(b=>'<div class="storage-subcard"><strong>'+esc(b.id)+'</strong><div>'+formatBytes(b.usedBytes)+' · '+number(b.count)+'ファイル</div><small>1ファイル上限 '+formatBytes(b.maxFileBytes)+'</small></div>').join("")+'</div>';
  }else html+='<p class="notice">Supabase Storageの実使用量：'+esc(sb.error||"取得不可")+'。実際の容量はSupabase管理画面でも確認できます。</p>';
- if(gh.available)html+=storageMeter("GitHubリポジトリ（tool）",gh.sizeBytes,null,"GitHub APIのリポジトリサイズ。固定の公開容量上限は設定されていません。",true);
+ if(gh.available)html+=storageMeter("GitHubリポジトリ（tool）",gh.sizeBytes,null,"GitHub APIの現在のリポジトリサイズ。契約上限はAPIで確認できないため割合は表示しません。",true);
  else html+='<p class="notice">GitHubリポジトリ容量を取得できませんでした：'+esc(gh.error||"")+'</p>';
  html+=storageMeter("パック保存のアプリ側安全枠",guard.usedBytes,guard.limitBytes,number(guard.files)+"ファイルをD1で管理");
  html+='</section><section class="panel"><h2>容量の見方・注意点</h2><p class="notice">Supabaseの1GiBは2つの公開バケットで共有されます。各バケットの5MiB／50MiBは1ファイルごとの上限です。パック保存の700MiBはアプリ側で設けた追加の安全枠で、Supabaseの契約容量とは別です。Cloudflare D1の数値はD1 APIのsize_afterを使った実DBサイズです。GitHubは現在サイズのみ表示し、固定上限がないため達成率は出していません。</p></section>';

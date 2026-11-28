@@ -109,7 +109,8 @@ function openDetail(id){
 }
 function toggleFav(id){const f=favorites();f.has(id)?f.delete(id):f.add(id);setFavorites(f);render();if(currentModalId===id)$("modalFav").textContent=f.has(id)?"★ お気に入り済み":"☆ お気に入り";}
 function clearEditor(){
- ["editTitle","editAuthor","editVersion","editUrl","editThumbnail","editGallery","editDownloadUrl","editDescription"].forEach(id=>$(id).value="");\n if($("editPackFile"))$("editPackFile").value="";if($("uploadPackStatus"))$("uploadPackStatus").textContent="";
+ ["editTitle","editAuthor","editVersion","editUrl","editThumbnail","editGallery","editDownloadUrl","editDescription"].forEach(id=>$(id).value="");
+ if($("editPackFile"))$("editPackFile").value="";if($("uploadPackStatus"))$("uploadPackStatus").textContent="";
  $("editCategory").value="シェーダー";$("editDownloadAllowed").checked=false;
  setStatus("入力をクリアしました。");
 }

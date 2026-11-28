@@ -556,15 +556,19 @@ export default {
           github.error = String(error?.message || error).slice(0,180);
         }
         try {
-          const response = await fetch("https://api.github.com/repos/karaage-chikin/tool/actions/workflows/resource-packs-expanded.yml/runs?per_page=1", {
+          const response = await fetch("https://api.github.com/repos/karaage-chikin/tool/actions/workflows/resource-packs-expanded.yml/runs?per_page=10", {
             headers:{"Accept":"application/vnd.github+json","User-Agent":"KaraageChikinAdminDashboard/1.0"},
             signal:AbortSignal.timeout(8000)
           });
           if (!response.ok) throw new Error("GitHub Actions API HTTP " + response.status);
           const data = await response.json();
-          const run = data.workflow_runs?.[0];
-          if (run) expansion = {available:true,status:run.status||"unknown",conclusion:run.conclusion||null,url:run.html_url||"",createdAt:run.created_at||null,runNumber:run.run_number||null};
-          else expansion = {available:true,status:"not_started",conclusion:null,url:"",createdAt:null};
+          const runs = Array.isArray(data.workflow_runs) ? data.workflow_runs : [];
+          const run = runs[0];
+          const activeRuns = runs.filter(item => ["pending","queued","in_progress"].includes(item.status))
+            .map(item => ({status:item.status,runNumber:item.run_number||null,url:item.html_url||"",createdAt:item.created_at||null}))
+            .slice(0,5);
+          if (run) expansion = {available:true,status:run.status||"unknown",conclusion:run.conclusion||null,url:run.html_url||"",createdAt:run.created_at||null,runNumber:run.run_number||null,activeRuns};
+          else expansion = {available:true,status:"not_started",conclusion:null,url:"",createdAt:null,activeRuns:[]};
         } catch (error) {
           expansion.error = String(error?.message || error).slice(0,180);
         }

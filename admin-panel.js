@@ -58,6 +58,7 @@ async function expansionPanel(){
   const monitor=await api("/api/admin/monitor/storage");
   run=monitor.expansion||null;
   if(run?.available===false)monitorError=run.error||"GitHub Actionsの実行状況を取得できません";
+  if(run?.error){monitorError=run.error.includes("HTTP 403")?"GitHub Actions APIがHTTP 403を返しました（認証・API利用制限の可能性）。":run.error;}
  }catch(e){monitorError=e?.message||"実行状況を取得できません";}
  const pct=count===null?0:Math.min(100,count/10000*100);
  const remaining=count===null?null:Math.max(0,10000-count);
@@ -73,7 +74,7 @@ async function expansionPanel(){
  else if(run?.status==="not_started"){state="未実行";stateClass="muted";}
  const countText=count===null?"件数取得不可":count.toLocaleString("ja-JP")+" / 10,000件";
  const progressText=count===null?catalogueError:"達成率 "+pct.toFixed(1)+"%";
- const etaText=runningCount||waitingCount?"予想終了時刻：処理速度を計測中（実測値が取れ次第表示）":"予想終了時刻：実行中の処理がないため算出対象なし";
+ const etaText=monitorError?"予想終了時刻：実行状況を取得できないため算出不可":(runningCount||waitingCount?"予想終了時刻：処理速度を計測中（実測値が取れ次第表示）":"予想終了時刻：実行中の処理がないため算出対象なし");
  return '<section class="panel expansion-panel"><h2>図鑑の拡張処理</h2><div class="progress-head"><strong>'+countText+'</strong><span class="job-state '+stateClass+'">'+esc(state)+'</span></div><div class="meter" role="progressbar" aria-label="図鑑の拡張進捗" aria-valuemin="0" aria-valuemax="10000" aria-valuenow="'+(count===null?0:count)+'"><span style="width:'+pct.toFixed(2)+'%"></span></div><div class="progress-foot"><span>'+esc(progressText)+'</span><span>'+(remaining===null?"":"残り "+remaining.toLocaleString("ja-JP")+"件")+'</span></div><p class="notice">図鑑JSONの登録件数とGitHub Actionsの実行状態は別々に取得します。一方が失敗しても、もう一方の表示は維持します。D1の管理者登録分とは重複する場合があるため別集計です。</p><p class="notice">'+esc(etaText)+'</p>'+(monitorError?'<p class="notice error">実行状況の取得エラー：'+esc(monitorError)+'</p>':"")+(run?.url?'<a href="'+esc(run.url)+'" target="_blank" rel="noopener noreferrer">拡張処理の実行ログを開く ↗</a>':"")+'</section>';
 }
 function storageMeter(label,used,limit,detail,unlimited=false){

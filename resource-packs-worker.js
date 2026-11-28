@@ -341,6 +341,9 @@ async function uploadPackToSupabase(env, request, origin) {
     if (!file || typeof file.arrayBuffer !== "function") return reply({ error: "アップロードするファイルを選択してください。" }, 400, origin);
     fileSize = Number(file.size || 0);
     if (!fileSize || fileSize > 50 * 1024 * 1024) return reply({ error: "ファイルは1バイト以上、50MB以下にしてください。" }, 413, origin);
+    const permissionUrl=String(form.get("permissionUrl")||"").trim();
+    let permissionValid=false;try{const pu=new URL(permissionUrl);permissionValid=pu.protocol==="https:"&&pu.hostname.includes(".");}catch{}
+    if(!permissionValid)return reply({error:"再配布許可の根拠URLを入力してください。"},400,origin);
     const originalName = String(file.name || "resource-pack.mcpack").normalize("NFKC");
     if (!/\.(mcpack|mcaddon|zip)$/i.test(originalName)) return reply({ error: "対応形式は .mcpack / .mcaddon / .zip です。" }, 415, origin);
     const safeName = originalName.replace(/[^\p{L}\p{N}._ -]/gu, "_").replace(/\s+/g, "_").replace(/^\.+/, "").slice(0, 100) || "resource-pack.mcpack";

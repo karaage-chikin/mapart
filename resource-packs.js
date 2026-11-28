@@ -5,7 +5,7 @@ if (!API) throw new Error("API endpoint is not configured");
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const favKey = "bedrock-resource-pack-favorites-v1";
-let packs = [], seedPacks = [], activeCategory = "すべて", favoritesOnly = false, visibleLimit = 60, searchTimer = 0, suggestionActiveIndex = -1, modalReturnFocus = null, token = sessionStorage.getItem("resourcePackAdminToken") || "", currentModalId = null, currentGalleryImages = [];
+let packs = [], seedPacks = [], activeCategory = "すべて", favoritesOnly = false, currentPage = 1, pageSize = 60, searchTimer = 0, suggestionActiveIndex = -1, modalReturnFocus = null, token = sessionStorage.getItem("resourcePackAdminToken") || "", currentModalId = null, currentGalleryImages = [];
 const tokenExpiry=Number(sessionStorage.getItem("resourcePackAdminTokenExpiresAt")||0);
 if(tokenExpiry&&tokenExpiry<=Date.now()){token="";sessionStorage.removeItem("resourcePackAdminToken");sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");}
 const categories = ["すべて", ...new Set(["シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","ブロック・アイテム","UI・シンプル","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","便利・操作","季節・テーマ","テーマ・世界観","その他"])];
@@ -13,12 +13,12 @@ const initialSearchParams=new URLSearchParams(location.search);
 if(initialSearchParams.has("q"))$("search").value=initialSearchParams.get("q")||"";
 if(categories.includes(initialSearchParams.get("category")))activeCategory=initialSearchParams.get("category");
 if(initialSearchParams.get("sort")&&["new","az","fav","updated","author"].includes(initialSearchParams.get("sort")))$("sort").value=initialSearchParams.get("sort");
-favoritesOnly=initialSearchParams.get("fav")==="1";
+favoritesOnly=initialSearchParams.get("fav")==="1";currentPage=Math.max(1,Number.parseInt(initialSearchParams.get("page")||"1",10)||1);
 $("favoritesOnly").classList.toggle("primary",favoritesOnly);
 function syncSearchUrl(){
  const p=new URLSearchParams(),q=$("search").value.trim(),sort=$("sort").value;
  if(q)p.set("q",q);if(activeCategory!=="すべて")p.set("category",activeCategory);
- if(favoritesOnly)p.set("fav","1");if(sort!=="new")p.set("sort",sort);
+ if(favoritesOnly)p.set("fav","1");if(sort!=="new")p.set("sort",sort);if(currentPage>1)p.set("page",String(currentPage));
  const next=location.pathname+(p.toString()?"?"+p.toString():"")+location.hash;
  history.replaceState(null,"",next);
 }
@@ -124,7 +124,7 @@ function openDetail(id){
  const isJapanese=/[ぁ-んァ-ヶ一-龯]/.test((p.fullDescription||p.description||""));
  $("translateDescription").href="https://translate.google.com/?sl=auto&tl="+(isJapanese?"en":"ja")+"&text="+encodeURIComponent(p.fullDescription||p.description||"")+"&op=translate";
  $("translateDescription").textContent=isJapanese?"英語に翻訳 ↗":"日本語に翻訳 ↗";
- $("modal").classList.remove("hidden");$("modalClose").focus();
+ $("modal").classList.remove("hidden");$("modal").setAttribute("aria-hidden","false");document.body.style.overflow="hidden";$("modalClose").focus();
 }
 function closeModal(){
  $("modal").classList.add("hidden");
@@ -133,7 +133,7 @@ function closeModal(){
 }
 function toggleFav(id){const f=favorites();f.has(id)?f.delete(id):f.add(id);setFavorites(f);render();if(currentModalId===id)$("modalFav").textContent=f.has(id)?"★ お気に入り済み":"☆ お気に入り";}
 function clearEditor(){
- ["editTitle","editAuthor","editVersion","editUrl","editThumbnail","editGallery","editDownloadUrl","editDescription"].forEach(id=>$(id).value="");
+ ["editTitle","editAuthor","editVersion","editUrl","editThumbnail","editGallery","editDownloadUrl","editDescription","editPermissionUrl","editPermissionNote","editImagePermissionUrl"].forEach(id=>$(id).value="");
  if($("editPackFile"))$("editPackFile").value="";if($("uploadPackStatus"))$("uploadPackStatus").textContent="";
  $("editCategory").value="シェーダー";$("editDownloadAllowed").checked=false;
  setStatus("入力をクリアしました。");
@@ -248,21 +248,22 @@ async function load(){
 function showEditor(loggedIn){
  $("loginArea").classList.toggle("hidden",loggedIn);$("editorArea").classList.toggle("hidden",!loggedIn);
 }
-$("filters").addEventListener("click",e=>{const b=e.target.closest("[data-category]");if(!b)return;activeCategory=b.dataset.category;visibleLimit=60;categoryNav();render();});
+$("filters").addEventListener("click",e=>{const b=e.target.closest("[data-category]");if(!b)return;activeCategory=b.dataset.category;currentPage=1;categoryNav();render();});
 $("grid").addEventListener("click",e=>{
- const reset=e.target.closest("[data-reset-search]");if(reset){$("search").value="";activeCategory="すべて";favoritesOnly=false;$("sort").value="new";$("favoritesOnly").classList.remove("primary");visibleLimit=60;categoryNav();render();return;}
+ const reset=e.target.closest("[data-reset-search]");if(reset){$("search").value="";activeCategory="すべて";favoritesOnly=false;$("sort").value="new";$("favoritesOnly").classList.remove("primary");currentPage=1;categoryNav();render();return;}
  const fav=e.target.closest("[data-fav]");if(fav){e.stopPropagation();toggleFav(fav.dataset.fav);return;}
  const del=e.target.closest("[data-delete]");if(del){e.stopPropagation();deletePack(del.dataset.delete);return;}
  const open=e.target.closest("[data-open]");if(open)openDetail(open.dataset.open);
 });
-$("search").addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{visibleLimit=60;render();renderSuggestions();},140);});$("search").addEventListener("focus",renderSuggestions);$("search").addEventListener("keydown",e=>{
+$("search").addEventListener("input",()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{currentPage=1;render();renderSuggestions();},140);});$("search").addEventListener("focus",renderSuggestions);$("search").addEventListener("keydown",e=>{
  const box=$("searchSuggestions"),options=[...box.querySelectorAll("[data-suggest]")];
  if(e.key==="Escape"){box.classList.add("hidden");$("search").setAttribute("aria-expanded","false");$("search").removeAttribute("aria-activedescendant");suggestionActiveIndex=-1;return;}
  if((e.key==="ArrowDown"||e.key==="ArrowUp")&&!box.classList.contains("hidden")&&options.length){e.preventDefault();const step=e.key==="ArrowDown"?1:-1;suggestionActiveIndex=(suggestionActiveIndex+step+options.length)%options.length;options.forEach((option,i)=>option.setAttribute("aria-selected",String(i===suggestionActiveIndex)));$("search").setAttribute("aria-activedescendant","search-option-"+suggestionActiveIndex);return;}
- if(e.key==="Enter"&&suggestionActiveIndex>=0&&options[suggestionActiveIndex]){e.preventDefault();$("search").value=options[suggestionActiveIndex].dataset.suggest;box.classList.add("hidden");$("search").setAttribute("aria-expanded","false");$("search").removeAttribute("aria-activedescendant");suggestionActiveIndex=-1;visibleLimit=60;render();}
-});$("searchSuggestions").addEventListener("click",e=>{const b=e.target.closest("[data-suggest]");if(!b)return;$("search").value=b.dataset.suggest;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");$("search").removeAttribute("aria-activedescendant");suggestionActiveIndex=-1;visibleLimit=60;render();$("search").focus();});$("searchSuggestions").addEventListener("click",e=>{if(e.target.closest("[data-translate-search]"))translateSearch();});document.addEventListener("click",e=>{if(!e.target.closest(".search-wrap"))$("searchSuggestions").classList.add("hidden");});$("sort").addEventListener("change",()=>{visibleLimit=60;render();});
-$("loadMorePacks").addEventListener("click",()=>{visibleLimit+=60;render();});
-$("favoritesOnly").addEventListener("click",()=>{favoritesOnly=!favoritesOnly;visibleLimit=60;$("favoritesOnly").classList.toggle("primary",favoritesOnly);render();});
+ if(e.key==="Enter"&&suggestionActiveIndex>=0&&options[suggestionActiveIndex]){e.preventDefault();$("search").value=options[suggestionActiveIndex].dataset.suggest;box.classList.add("hidden");$("search").setAttribute("aria-expanded","false");$("search").removeAttribute("aria-activedescendant");suggestionActiveIndex=-1;currentPage=1;render();}
+});$("searchSuggestions").addEventListener("click",e=>{const b=e.target.closest("[data-suggest]");if(!b)return;$("search").value=b.dataset.suggest;$("searchSuggestions").classList.add("hidden");$("search").setAttribute("aria-expanded","false");$("search").removeAttribute("aria-activedescendant");suggestionActiveIndex=-1;currentPage=1;render();$("search").focus();});$("searchSuggestions").addEventListener("click",e=>{if(e.target.closest("[data-translate-search]"))translateSearch();});document.addEventListener("click",e=>{if(!e.target.closest(".search-wrap"))$("searchSuggestions").classList.add("hidden");});$("sort").addEventListener("change",()=>{currentPage=1;render();});
+ window.addEventListener("popstate",()=>{const p=new URLSearchParams(location.search);$("search").value=p.get("q")||"";activeCategory=categories.includes(p.get("category"))?p.get("category"):"すべて";$("sort").value=["new","az","fav","updated","author"].includes(p.get("sort"))?p.get("sort"):"new";favoritesOnly=p.get("fav")==="1";currentPage=Math.max(1,Number.parseInt(p.get("page")||"1",10)||1);$("favoritesOnly").classList.toggle("primary",favoritesOnly);categoryNav();render();});
+$("loadMorePacks").addEventListener("click",()=>{currentPage++;render();});if($("prevPacks"))$("prevPacks").addEventListener("click",()=>{currentPage=Math.max(1,currentPage-1);render();});
+$("favoritesOnly").addEventListener("click",()=>{favoritesOnly=!favoritesOnly;currentPage=1;$("favoritesOnly").classList.toggle("primary",favoritesOnly);render();});
 $("adminToggle").addEventListener("click",()=>$("adminPanel").classList.toggle("hidden"));
 $("loginBtn").addEventListener("click",async()=>{
  const password=$("adminPassword").value;if(!password){setStatus("パスワードを入力してください。","error");return;}
@@ -280,7 +281,7 @@ $("uploadPackFile").addEventListener("click",async()=>{
  const file=$("editPackFile").files?.[0];
  if(!file){$("uploadPackStatus").textContent="先にファイルを選択してください。";return;}
  if(!token){$("uploadPackStatus").textContent="管理者ログインが必要です。";return;}
- if(!$("editDownloadAllowed").checked){$("uploadPackStatus").textContent="作者・配布元の再配布許可を確認し、下の確認欄にチェックしてからアップロードしてください。";return;}
+ if(!$("editDownloadAllowed").checked||!$("editPermissionUrl").value.trim()){$("uploadPackStatus").textContent="再配布許可の根拠URLを入力し、確認欄にチェックしてください。";return;}
  if(!/\.(mcpack|mcaddon|zip)$/i.test(file.name)||file.size>50*1024*1024){$("uploadPackStatus").textContent="mcpack / mcaddon / zip形式、50MB以下のファイルを選んでください。";return;}
  const button=$("uploadPackFile");button.disabled=true;$("uploadPackStatus").textContent="アップロード中…";
  try{
@@ -298,7 +299,7 @@ $("uploadPackFile").addEventListener("click",async()=>{
 });
 
 $("savePack").addEventListener("click",async()=>{
- const payload={title:$("editTitle").value.trim(),author:$("editAuthor").value.trim(),category:$("editCategory").value,compatibility:$("editVersion").value.trim()||"配布元で確認",sourceUrl:$("editUrl").value.trim(),thumbnailUrl:$("editThumbnail").value.trim(),galleryImages:$("editGallery").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),directDownloadUrl:$("editDownloadUrl").value.trim(),directDownloadAllowed:$("editDownloadAllowed").checked,description:$("editDescription").value.trim(),source:"管理者登録"};
+ const payload={title:$("editTitle").value.trim(),author:$("editAuthor").value.trim(),category:$("editCategory").value,compatibility:$("editVersion").value.trim()||"配布元で確認",sourceUrl:$("editUrl").value.trim(),thumbnailUrl:$("editThumbnail").value.trim(),galleryImages:$("editGallery").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),directDownloadUrl:$("editDownloadUrl").value.trim(),directDownloadAllowed:$("editDownloadAllowed").checked,permissionUrl:$("editPermissionUrl").value.trim(),permissionNote:$("editPermissionNote").value.trim(),imagePermissionUrl:$("editImagePermissionUrl").value.trim(),description:$("editDescription").value.trim(),source:"管理者登録"};
  if(!payload.title||!payload.sourceUrl||!payload.description){setStatus("パック名・説明・配布元URLを入力してください。","error");return;}
  try{const data=await api("/api/admin/packs",{method:"POST",body:JSON.stringify(payload)});packs.unshift(data.pack);clearEditor();render();setStatus("登録しました。","ok");}
  catch(e){setStatus(e.message,"error");}

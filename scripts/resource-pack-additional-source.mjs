@@ -149,10 +149,12 @@ async function scanCurseForge(){
  return added;
 }
 (async()=>{
- const addedCurseForge=await scanCurseForge();
- const addedModBay=await scanModBay();
- const addedPlanetMinecraft=await scanPlanetMinecraft();
- const added=addedCurseForge+addedModBay+addedPlanetMinecraft;
- fs.writeFileSync(file,JSON.stringify(packs,null,2)+"\n");
- console.log(JSON.stringify({addedFromAdditionalSource:added,addedCurseForge,addedModBay,addedPlanetMinecraft,total:packs.length,cutoff:cutoff.toISOString().slice(0,10),maxPages,maxNew},null,2));
+ const results={};
+ const save=()=>fs.writeFileSync(file,JSON.stringify(packs,null,2)+"\n");
+ for(const [name,scan] of [["CurseForge",scanCurseForge],["ModBay",scanModBay],["Planet Minecraft",scanPlanetMinecraft]]){
+  try{results[name]=await scan();save();}
+  catch(error){console.warn(name+" scan failed; keeping all previously collected results:",error?.message||error);results[name]=0;save();}
+ }
+ const added=Object.values(results).reduce((sum,n)=>sum+n,0);
+ console.log(JSON.stringify({addedFromAdditionalSource:added,addedBySource:results,total:packs.length,cutoff:cutoff.toISOString().slice(0,10),maxPages,maxNew},null,2));
 })().catch(error=>{console.error(error);process.exit(1);});

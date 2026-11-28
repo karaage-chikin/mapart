@@ -227,7 +227,7 @@ async function uploadPackToSupabase(env, request, origin) {
   }
   const length = Number(request.headers.get("Content-Length") || 0);
   if (length > 52 * 1024 * 1024) return reply({ error: "アップロード上限は50MBです。" }, 413, origin);
-  let reserved = false, fileSize = 0;
+  let reserved = false, uploaded = false, fileSize = 0;
   try {
     const form = await request.formData();
     const file = form.get("file");
@@ -266,7 +266,7 @@ async function uploadPackToSupabase(env, request, origin) {
       console.error("Supabase Storage upload rejected", upstream.status, message.slice(0,300));
       return reply({ error: "Supabaseへの保存に失敗しました（HTTP " + upstream.status + "）。容量・ファイル形式・接続設定を確認してください。" }, 502, origin);
     }
-    const publicUrl = SUPABASE_STORAGE_URL + "/storage/v1/object/public/resource-pack-files/" + encodedPath;
+    uploaded = true;\n    const publicUrl = SUPABASE_STORAGE_URL + "/storage/v1/object/public/resource-pack-files/" + encodedPath;
     await env.DB.prepare("INSERT INTO resource_pack_storage_files (id,storage_path,file_name,size_bytes,public_url,created_at) VALUES (?,?,?,?,?,?)")
       .bind(crypto.randomUUID(),storagePath,safeName,fileSize,publicUrl,Date.now()).run();
     const usage = await env.DB.prepare("SELECT used_bytes FROM resource_pack_storage_usage WHERE id=1").first();

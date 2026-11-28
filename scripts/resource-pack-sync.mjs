@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import { load } from "cheerio";
 import { category, isRestricted, normalizeSourceUrl, subtractCalendarYear, titleKey } from "./resource-pack-utils.mjs";
+// Scheduled by resource-packs-expanded.yml every 6 hours; the workflow queues runs without canceling active collection.
 const path="resource-packs.json";
 const packs=JSON.parse(fs.readFileSync(path,"utf8"));
 const cutoff=subtractCalendarYear();

@@ -109,7 +109,7 @@ function openDetail(id){
 }
 function toggleFav(id){const f=favorites();f.has(id)?f.delete(id):f.add(id);setFavorites(f);render();if(currentModalId===id)$("modalFav").textContent=f.has(id)?"★ お気に入り済み":"☆ お気に入り";}
 function clearEditor(){
- ["editTitle","editAuthor","editVersion","editUrl","editThumbnail","editGallery","editDownloadUrl","editDescription"].forEach(id=>$(id).value="");
+ ["editTitle","editAuthor","editVersion","editUrl","editThumbnail","editGallery","editDownloadUrl","editDescription"].forEach(id=>$(id).value="");\n if($("editPackFile"))$("editPackFile").value="";if($("uploadPackStatus"))$("uploadPackStatus").textContent="";
  $("editCategory").value="シェーダー";$("editDownloadAllowed").checked=false;
  setStatus("入力をクリアしました。");
 }
@@ -239,7 +239,28 @@ $("loginBtn").addEventListener("click",async()=>{
  }catch(e){if(e.message.includes("設定されていません"))$("adminSetupHint").classList.remove("hidden");setStatus(e.message,"error");}
 });
 $("logoutBtn").addEventListener("click",()=>{token="";sessionStorage.removeItem("resourcePackAdminToken");sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");showEditor(false);render();setStatus("ログアウトしました。");});
-$("savePack").addEventListener("click",async()=>{
+
+$("uploadPackFile").addEventListener("click",async()=>{
+ const file=$("editPackFile").files?.[0];
+ if(!file){$("uploadPackStatus").textContent="先にファイルを選択してください。";return;}
+ if(!token){$("uploadPackStatus").textContent="管理者ログインが必要です。";return;}
+ if(!/\.(mcpack|mcaddon|zip)$/i.test(file.name)||file.size>50*1024*1024){$("uploadPackStatus").textContent="mcpack / mcaddon / zip形式、50MB以下のファイルを選んでください。";return;}
+ const button=$("uploadPackFile");button.disabled=true;$("uploadPackStatus").textContent="アップロード中…";
+ try{
+  const form=new FormData();form.append("file",file);
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
+  let response;
+  try{response=await fetch(API+"/api/admin/storage/upload",{method:"POST",headers:{Authorization:"Bearer "+token},body:form,cache:"no-store",signal:controller.signal});}
+  finally{clearTimeout(timer);}
+  let data;try{data=await response.json();}catch{throw new Error("サーバーから正しい応答がありません。");}
+  if(!response.ok)throw new Error(data.error||("アップロードエラー "+response.status));
+  $("editDownloadUrl").value=data.publicUrl;
+  $("editDownloadAllowed").checked=true;
+  $("uploadPackStatus").textContent="保存完了："+data.fileName+"（"+(data.size/1024/1024).toFixed(2)+"MB）。登録時にサイト内ダウンロードURLが設定されます。";
+ }catch(error){$("uploadPackStatus").textContent=error.name==="AbortError"?"アップロードがタイムアウトしました。":error.message;}
+ finally{button.disabled=false;}
+});
+\n$("savePack").addEventListener("click",async()=>{
  const payload={title:$("editTitle").value.trim(),author:$("editAuthor").value.trim(),category:$("editCategory").value,compatibility:$("editVersion").value.trim()||"配布元で確認",sourceUrl:$("editUrl").value.trim(),thumbnailUrl:$("editThumbnail").value.trim(),galleryImages:$("editGallery").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean),directDownloadUrl:$("editDownloadUrl").value.trim(),directDownloadAllowed:$("editDownloadAllowed").checked,description:$("editDescription").value.trim(),source:"管理者登録"};
  if(!payload.title||!payload.sourceUrl||!payload.description){setStatus("パック名・説明・配布元URLを入力してください。","error");return;}
  try{const data=await api("/api/admin/packs",{method:"POST",body:JSON.stringify(payload)});packs.unshift(data.pack);clearEditor();render();setStatus("登録しました。","ok");}

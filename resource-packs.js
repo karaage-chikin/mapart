@@ -5,7 +5,7 @@ if (!API) throw new Error("API endpoint is not configured");
 const $ = id => document.getElementById(id);
 const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const favKey = "bedrock-resource-pack-favorites-v1";
-let packs = [], seedPacks = [], activeCategory = "すべて", favoritesOnly = false, currentPage = 1, pageSize = 60, searchTimer = 0, suggestionActiveIndex = -1, modalReturnFocus = null, token = sessionStorage.getItem("resourcePackAdminToken") || "", currentModalId = null, currentGalleryImages = [];
+let imageOffset = 0, packs = [], seedPacks = [], activeCategory = "すべて", favoritesOnly = false, currentPage = 1, pageSize = 60, searchTimer = 0, suggestionActiveIndex = -1, modalReturnFocus = null, token = sessionStorage.getItem("resourcePackAdminToken") || "", currentModalId = null, currentGalleryImages = [];
 const tokenExpiry=Number(sessionStorage.getItem("resourcePackAdminTokenExpiresAt")||0);
 if(tokenExpiry&&tokenExpiry<=Date.now()){token="";sessionStorage.removeItem("resourcePackAdminToken");sessionStorage.removeItem("resourcePackAdminTokenExpiresAt");}
 const categories = ["すべて", ...new Set(["シェーダー","軽量化","UI・テーマ","UI・操作","UI・メニュー","自然・植物","ブロック・建築","ブロック・アイテム","UI・シンプル","サウンド","空・天候","水・環境","モブ・モデル","アニメーション","言語・フォント","便利・農業","便利・操作","季節・テーマ","テーマ・世界観","その他"])];
@@ -305,7 +305,7 @@ $("uploadPackFile").addEventListener("click",async()=>{
   let data;try{data=await response.json();}catch{throw new Error("サーバーから正しい応答がありません。");}
   if(!response.ok)throw new Error(data.error||("アップロードエラー "+response.status));
   $("editDownloadUrl").value=data.publicUrl;
-  $("uploadPackStatus").textContent="保存完了："+data.fileName+"（"+(data.size/1024/1024).toFixed(2)+"MB）。登録時にサイト内ダウンロードURLが設定されます。";
+  $("uploadPackStatus").textContent="保存完了。公開URLを確認中…";const verify=await fetch(data.publicUrl,{method:"HEAD",cache:"no-store"});if(!verify.ok)throw new Error("アップロードは完了しましたが、公開URLの取得確認に失敗しました（HTTP "+verify.status+"）。");const verifiedSize=Number(verify.headers.get("Content-Length")||0);if(verifiedSize&&verifiedSize!==Number(data.size))throw new Error("公開URLのファイルサイズが一致しません。");$("uploadPackStatus").textContent="実通信テスト成功：保存・公開URLからの取得を確認しました。"+data.fileName+"（"+(data.size/1024/1024).toFixed(2)+"MB）";
  }catch(error){$("uploadPackStatus").textContent=error.name==="AbortError"?"アップロードがタイムアウトしました。":error.message;}
  finally{button.disabled=false;}
 });
@@ -319,7 +319,7 @@ $("savePack").addEventListener("click",async()=>{
 $("discoverNow").addEventListener("click",async()=>{const b=$("discoverNow");b.disabled=true;$("candidateStatus").textContent="MCPEDLを検索中…";try{const r=await api("/api/admin/discover",{method:"POST",body:"{}"});$("candidateStatus").textContent="調査："+r.scanned+"件 / 新規候補："+r.added+"件 / 重複等："+r.skipped+"件";await loadCandidates();}catch(e){$("candidateStatus").textContent=e.message;}finally{b.disabled=false;}});
 $("refreshCandidates").addEventListener("click",loadCandidates);
 
-$("processImages")?.addEventListener("click",async()=>{const b=$("processImages");b.disabled=true;$("imageProcessStatus").textContent="画像リンクを確認・許可済み画像を保存中…";try{const r=await api("/api/admin/images/process",{method:"POST",body:JSON.stringify({limit:10})});$("imageProcessStatus").textContent="確認 "+r.checked+"件 / 保存 "+r.stored+"件 / リンク切れ "+r.broken+"件 / 権利確認待ち "+r.skipped+"件";await load();}catch(e){$("imageProcessStatus").textContent=e.message;}finally{b.disabled=false;}});
+$("processImages")?.addEventListener("click",async()=>{const b=$("processImages");b.disabled=true;$("imageProcessStatus").textContent="画像リンクを確認・許可済み画像を保存中…";try{const r=await api("/api/admin/images/process",{method:"POST",body:JSON.stringify({limit:10,offset:imageOffset})});$("imageProcessStatus").textContent="確認 "+r.checked+"件 / 保存 "+r.stored+"件 / リンク切れ "+r.broken+"件 / 権利確認待ち "+r.skipped+"件";imageOffset+=r.packs||0;await load();}catch(e){$("imageProcessStatus").textContent=e.message;}finally{b.disabled=false;}});
 $("trashList")?.addEventListener("click",async e=>{const b=e.target.closest("[data-restore]");if(!b)return;if(!confirm("このパックを復元しますか？"))return;try{await api("/api/admin/trash/"+encodeURIComponent(b.dataset.restore)+"/restore",{method:"POST",body:"{}"});await load();await loadTrash();setStatus("復元しました。","ok");}catch(error){setStatus(error.message,"error");}});
 
 $("candidateList").addEventListener("click",async e=>{

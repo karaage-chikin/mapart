@@ -64,7 +64,7 @@ function normalize(row) {
     description:row.description||"",sourceUrl:row.source_url,compatibility:row.compatibility||"配布元で確認",
     source:row.source||"管理者登録",createdAt:row.created_at,thumbnailUrl:row.thumbnail_url||"",
     galleryImages:galleryFromJson(row.gallery_json),directDownloadAllowed:allowed,
-    directDownloadUrl:allowed?(row.direct_download_url||""):""
+    directDownloadUrl:allowed?(row.direct_download_url||""):"",permissionUrl:row.permission_url||"",permissionNote:row.permission_note||"",imagePermissionUrl:row.image_permission_url||""
   };
 }
 function validatePack(input) {
@@ -82,6 +82,11 @@ function validatePack(input) {
   const download=String(input.directDownloadUrl||"").trim();
   if(download&&!isHttps(download))return "直接ダウンロードURLはhttps://から始まるURLにしてください。";
   if(input.directDownloadAllowed===true&&!download)return "直接ダウンロードを許可する場合はファイルURLを入力してください。";
+  const permission=String(input.permissionUrl||"").trim();
+  if(input.directDownloadAllowed===true&&!isHttps(permission))return "再配布許可の根拠URLを入力してください。";
+  if(permission&&!isHttps(permission))return "再配布許可の根拠URLはhttps://にしてください。";
+  const imagePermission=String(input.imagePermissionUrl||"").trim();
+  if(imagePermission&&!isHttps(imagePermission))return "画像利用許可の根拠URLはhttps://にしてください。";
   return null;
 }
 async function readJson(request) {
@@ -274,6 +279,55 @@ async function fetchPublicDownload(startUrl) {
   throw new Error("download redirect limit exceeded");
 }
 
+
+async function ensureDeletedTable(env){
+ await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_deleted (id TEXT PRIMARY KEY,title TEXT NOT NULL,snapshot_json TEXT NOT NULL,deleted_at INTEGER NOT NULL,restored_at INTEGER)").run();
+}
+async function processPackImages(env,limit=10){
+ await env.DB.prepare("CREATE TABLE IF NOT EXISTS resource_pack_image_assets (id TEXT PRIMARY KEY,source_url TEXT NOT NULL UNIQUE,storage_path TEXT NOT NULL DEFAULT '',storage_url TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'pending',http_status INTEGER NOT NULL DEFAULT 0,checked_at INTEGER NOT NULL DEFAULT 0,permission_url TEXT NOT NULL DEFAULT '',error TEXT NOT NULL DEFAULT '')").run();
+ const q=await env.DB.prepare("SELECT id,title,thumbnail_url,gallery_json,image_permission_url FROM resource_packs WHERE thumbnail_url!='' OR gallery_json!='[]' ORDER BY updated_at DESC LIMIT ?").bind(Math.min(20,Math.max(1,limit))).all();
+ const total={packs:(q.results||[]).length,checked:0,stored:0,broken:0,skipped:0};
+ for(const row of q.results||[]){
+  const urls=[...new Set([row.thumbnail_url,...galleryFromJson(row.gallery_json)].filter(Boolean))].slice(0,20),mapped=new Map();
+  for(const sourceUrl of urls){
+   const old=await env.DB.prepare("SELECT storage_url,status FROM resource_pack_image_assets WHERE source_url=?").bind(sourceUrl).first();
+   if(old?.storage_url){mapped.set(sourceUrl,old.storage_url);continue;}
+   try{
+    const response=await fetchPublicDownload(sourceUrl),type=(response.headers.get("Content-Type")||"").split(";")[0].toLowerCase(),len=Number(response.headers.get("Content-Length")||0);
+    if(!response.ok||!["image/jpeg","image/png","image/webp","image/gif"].includes(type)||len>5*1024*1024){
+     const status=response.status||0;try{await response.body?.cancel();}catch{}
+     await env.DB.prepare("INSERT INTO resource_pack_image_assets (id,source_url,status,http_status,checked_at,error) VALUES (?,?,?, ?,?,?) ON CONFLICT(source_url) DO UPDATE SET status=excluded.status,http_status=excluded.http_status,checked_at=excluded.checked_at,error=excluded.error")
+      .bind(crypto.randomUUID(),sourceUrl,response.ok?"unsupported":"broken",status,Date.now(),"画像形式・サイズ・HTTP応答を確認してください").run();
+     total.checked++;if(!response.ok)total.broken++;else total.skipped++;continue;
+    }
+    if(!row.image_permission_url){
+     try{await response.body?.cancel();}catch{}
+     await env.DB.prepare("INSERT INTO resource_pack_image_assets (id,source_url,status,http_status,checked_at,error) VALUES (?,?, 'reachable', ?,?,'画像の保存許可URLが未登録のため外部参照') ON CONFLICT(source_url) DO UPDATE SET status='reachable',http_status=excluded.http_status,checked_at=excluded.checked_at,error=excluded.error")
+      .bind(crypto.randomUUID(),sourceUrl,response.status,Date.now()).run();
+     total.checked++;total.skipped++;continue;
+    }
+    const bytes=await response.arrayBuffer();if(bytes.byteLength>5*1024*1024)throw new Error("画像が5MBを超えています");
+    const ext=type==="image/jpeg"?"jpg":type.split("/")[1],path="images/"+crypto.randomUUID()+"."+ext,key=env.SUPABASE_SERVICE_ROLE_KEY;
+    const upload=await fetch(SUPABASE_STORAGE_URL+"/storage/v1/object/resource-pack-images/"+path,{method:"POST",headers:{"apikey":key,"Authorization":"Bearer "+key,"Content-Type":type,"x-upsert":"false","cache-control":"31536000"},body:bytes});
+    if(!upload.ok)throw new Error("Supabase Storage HTTP "+upload.status);
+    const publicUrl=SUPABASE_STORAGE_URL+"/storage/v1/object/public/resource-pack-images/"+path;
+    await env.DB.prepare("INSERT INTO resource_pack_image_assets (id,source_url,storage_path,storage_url,status,http_status,checked_at,permission_url,error) VALUES (?,?,?,?, 'stored',?,?,?,'') ON CONFLICT(source_url) DO UPDATE SET storage_path=excluded.storage_path,storage_url=excluded.storage_url,status='stored',http_status=excluded.http_status,checked_at=excluded.checked_at,permission_url=excluded.permission_url,error=''")
+     .bind(crypto.randomUUID(),sourceUrl,path,publicUrl,response.status,Date.now(),row.image_permission_url).run();
+    mapped.set(sourceUrl,publicUrl);total.checked++;total.stored++;
+   }catch(error){
+    await env.DB.prepare("INSERT INTO resource_pack_image_assets (id,source_url,status,http_status,checked_at,error) VALUES (?,?, 'broken',0,?,?) ON CONFLICT(source_url) DO UPDATE SET status='broken',http_status=0,checked_at=excluded.checked_at,error=excluded.error")
+     .bind(crypto.randomUUID(),sourceUrl,Date.now(),String(error?.message||error).slice(0,250)).run().catch(()=>{});
+    total.checked++;total.broken++;
+   }
+  }
+  if(mapped.size){
+   const thumb=mapped.get(row.thumbnail_url)||row.thumbnail_url,gallery=galleryFromJson(row.gallery_json).map(u=>mapped.get(u)||u);
+   await env.DB.prepare("UPDATE resource_packs SET thumbnail_url=?,gallery_json=?,updated_at=? WHERE id=?").bind(thumb,JSON.stringify(gallery),Date.now(),row.id).run();
+  }
+ }
+ return total;
+}
+
 async function uploadPackToSupabase(env, request, origin) {
   if (!env.SUPABASE_SERVICE_ROLE_KEY) {
     return reply({ error: "Supabaseのアップロード用シークレット SUPABASE_SERVICE_ROLE_KEY が未設定です。Cloudflare WorkerのSecretsに追加してください。" }, 503, origin);
@@ -462,6 +516,31 @@ export default {
         return reply({daily:days.results||[],admin:admins.results||[],adminTotal:Number(count?.total||0),limit,offset,hasMore:offset+((admins.results||[]).length)<Number(count?.total||0)},200,origin);
       }
 
+
+      if(request.method==="GET"&&url.pathname==="/api/admin/trash"){
+        await ensureDeletedTable(env);
+        const rows=await env.DB.prepare("SELECT id,title,deleted_at FROM resource_pack_deleted WHERE restored_at IS NULL ORDER BY deleted_at DESC LIMIT 100").all();
+        return reply({items:rows.results||[]},200,origin);
+      }
+      const restoreMatch=url.pathname.match(/^\/api\/admin\/trash\/([A-Za-z0-9_-]{1,80})\/restore$/);
+      if(restoreMatch&&request.method==="POST"){
+        await ensureDeletedTable(env);
+        const item=await env.DB.prepare("SELECT * FROM resource_pack_deleted WHERE id=? AND restored_at IS NULL").bind(restoreMatch[1]).first();
+        if(!item)return reply({error:"復元できる削除履歴がありません。"},404,origin);
+        try{
+          const p=JSON.parse(item.snapshot_json);
+          await env.DB.prepare("INSERT INTO resource_packs (id,title,author,category,description,source_url,compatibility,source,created_at,updated_at,thumbnail_url,gallery_json,direct_download_url,direct_download_allowed,permission_url,permission_note,image_permission_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+           .bind(p.id,p.title,p.author||"",p.category||"その他",p.description,p.source_url,p.compatibility||"配布元で確認",p.source||"管理者登録",p.created_at||Date.now(),p.updated_at||Date.now(),p.thumbnail_url||"",p.gallery_json||"[]",p.direct_download_url||"",Number(p.direct_download_allowed||0),p.permission_url||"",p.permission_note||"",p.image_permission_url||"").run();
+          await env.DB.prepare("UPDATE resource_pack_deleted SET restored_at=? WHERE id=?").bind(Date.now(),item.id).run();
+          return reply({ok:true,id:item.id},200,origin);
+        }catch(error){return reply({error:"復元できませんでした。同じ配布元URLのパックが既に存在する可能性があります。"},409,origin);}
+      }
+      if(request.method==="POST"&&url.pathname==="/api/admin/images/process"){
+        if(!env.SUPABASE_SERVICE_ROLE_KEY)return reply({error:"画像保存用のStorageシークレットが未設定です。"},503,origin);
+        try{return reply(await processPackImages(env,10),200,origin);}
+        catch(error){console.error("Image processing failed",error);return reply({error:"画像処理に失敗しました。"},502,origin);}
+      }
+
       if (request.method === "GET" && url.pathname === "/api/admin/candidates") {
         const r=await env.DB.prepare("SELECT id,title,author,description,source_url,provider,discovered_at,thumbnail_url,gallery_json FROM resource_pack_candidates WHERE status='pending' ORDER BY discovered_at DESC LIMIT 100").all();
         return reply({candidates:(r.results||[]).map(normalizeCandidate)},200,origin);
@@ -478,7 +557,7 @@ export default {
           const c=await env.DB.prepare("SELECT * FROM resource_pack_candidates WHERE id=? AND status='pending'").bind(cm[1]).first();
           if(!c)return reply({error:"候補が見つかりません。"},404,origin);
           const body=await readJson(request), category=String(body.category||"その他").slice(0,60), id=crypto.randomUUID(), now=Date.now();
-          await env.DB.prepare("INSERT INTO resource_packs (id,title,author,category,description,source_url,compatibility,source,created_at,updated_at,thumbnail_url,gallery_json,direct_download_url,direct_download_allowed) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,c.title,c.author,category,c.description,c.source_url,"配布元で確認","MCPEDL自動発見（管理者承認）",now,now,c.thumbnail_url||"",c.gallery_json||"[]","",0).run();
+          await env.DB.prepare("INSERT INTO resource_packs (id,title,author,category,description,source_url,compatibility,source,created_at,updated_at,thumbnail_url,gallery_json,direct_download_url,direct_download_allowed,permission_url,permission_note,image_permission_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,c.title,c.author,category,c.description,c.source_url,"配布元で確認","MCPEDL自動発見（管理者承認）",now,now,c.thumbnail_url||"",c.gallery_json||"[]","",0,"","","").run();
           await env.DB.prepare("DELETE FROM resource_pack_candidates WHERE id=?").bind(c.id).run();
           const row=await env.DB.prepare("SELECT * FROM resource_packs WHERE id=?").bind(id).first();
           return reply({pack:normalize(row)},201,origin);
@@ -513,9 +592,12 @@ export default {
         } catch (error) { console.error(error); return reply({ error: "更新できませんでした。" }, 500, origin); }
       }
       if (match && request.method === "DELETE") {
-        const result = await env.DB.prepare("DELETE FROM resource_packs WHERE id=?").bind(match[1]).run();
-        if (Number(result?.meta?.changes||0) !== 1) return reply({ error: "対象のパックが見つかりません。" }, 404, origin);
-        return reply({ ok: true }, 200, origin);
+        await ensureDeletedTable(env);
+        const row=await env.DB.prepare("SELECT * FROM resource_packs WHERE id=?").bind(match[1]).first();
+        if(!row)return reply({error:"対象のパックが見つかりません。"},404,origin);
+        await env.DB.prepare("INSERT INTO resource_pack_deleted (id,title,snapshot_json,deleted_at,restored_at) VALUES (?,?,?,?,NULL) ON CONFLICT(id) DO UPDATE SET snapshot_json=excluded.snapshot_json,deleted_at=excluded.deleted_at,restored_at=NULL").bind(row.id,row.title,JSON.stringify(row),Date.now()).run();
+        await env.DB.prepare("DELETE FROM resource_packs WHERE id=?").bind(match[1]).run();
+        return reply({ok:true,deletedId:row.id},200,origin);
       }
     }
     return reply({ error: "Not found" }, 404, origin);
